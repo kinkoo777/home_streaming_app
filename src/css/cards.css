@@ -1,0 +1,136 @@
+/* ================= MOVIE CARD ================= */
+
+.movie-card {
+  cursor: pointer;
+  transition: transform 0.25s ease;
+}
+
+.movie-card:hover {
+  transform: translateY(-8px);
+}
+
+.movie-poster {
+  position: relative;
+  overflow: hidden;
+  border-radius: 26px;
+  background: #18181b;
+}
+
+.movie-poster img {
+  width: 100%;
+  height: 330px;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.movie-card:hover img {
+  transform: scale(1.06);
+}
+
+.movie-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.92), rgba(0,0,0,0.1));
+  opacity: 0;
+  transition: 0.3s ease;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  padding: 18px;
+}
+
+.movie-card:hover .movie-overlay {
+  opacity: 1;
+}
+
+.movie-overlay button {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  border: none;
+  cursor: pointer;
+}
+
+.movie-overlay button:last-child {
+  background: rgba(255,255,255,0.08);
+  color: white;
+  backdrop-filter: blur(10px);
+}
+
+.rating {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(10px);
+  color: white;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.movie-info {
+  margin-top: 14px;
+}
+
+.movie-info h4 {
+  font-size: 15px;
+}
+
+.movie-meta {
+  display: flex;
+  justify-content: space-between;
+  color: gray;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+/* ── Watchlist button on card ── */
+
+.wl-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(8px);
+  color: white;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: 0.2s ease;
+}
+
+.movie-card:hover .wl-btn {
+  opacity: 1;
+}
+
+.wl-btn.active {
+  opacity: 1;
+  background: rgba(255,255,255,0.15);
+  color: #fbbf24;
+}
+
+/* ── Progress bar on card ── */
+
+.progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(255,255,255,0.15);
+}
+
+.progress-fill {
+  height: 100%;
+  background: #ef4444;
+  border-radius: 0 0 26px 26px;
+}

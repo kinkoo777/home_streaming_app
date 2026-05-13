@@ -1,0 +1,93 @@
+/* ================= SEARCH HISTORY ================= */
+
+.search-history-label {
+  padding: 14px 14px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #71717a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ================= TOAST ================= */
+
+.toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #18181b;
+  color: #fafafa;
+  padding: 13px 24px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 9999;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.08);
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.toast.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ================= WATCHLIST TABS ================= */
+
+.watchlist-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.wl-tab {
+  padding: 8px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: transparent;
+  color: gray;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+body.dark .wl-tab {
+  border-color: rgba(255,255,255,0.1);
+}
+
+.wl-tab:hover { color: inherit; border-color: #52525b; }
+
+.wl-tab.active {
+  background: #18181b;
+  color: white;
+  border-color: #18181b;
+}
+
+body.dark .wl-tab.active {
+  background: white;
+  color: #18181b;
+  border-color: white;
+}
+
+.wl-tab-count {
+  background: rgba(255,255,255,0.15);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.wl-tab.active .wl-tab-count {
+  background: rgba(0,0,0,0.12);
+}

@@ -1,0 +1,305 @@
+/* ================= INTRO SCREEN ================= */
+
+#intro-screen {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.intro-logo-box {
+  width: 110px;
+  height: 110px;
+  border-radius: 30px;
+  background: linear-gradient(135deg, #27272a, #09090b);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: white;
+  font-size: 44px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: -2px;
+  animation: introScale 1.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes introScale {
+  0%   { transform: scale(0.08); opacity: 0; box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+  25%  { opacity: 1; }
+  55%  { transform: scale(1.12); box-shadow: 0 0 70px 24px rgba(255,255,255,0.07); }
+  75%  { transform: scale(0.96); box-shadow: 0 0 30px 8px rgba(255,255,255,0.03); }
+  100% { transform: scale(1);    box-shadow: 0 0 0   0   rgba(255,255,255,0); }
+}
+
+/* ================= PROFILE CHOOSER ================= */
+
+#profile-chooser {
+  position: fixed;
+  inset: 0;
+  background: #141414;
+  z-index: 99998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  transition: opacity 0.4s ease;
+}
+
+#profile-chooser.hidden {
+  display: none;
+}
+
+.profile-chooser-inner {
+  text-align: center;
+  padding: 20px;
+}
+
+.profile-chooser-inner h1 {
+  font-size: 48px;
+  color: white;
+  margin-bottom: 52px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+}
+
+.profile-grid {
+  display: flex;
+  gap: 28px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 52px;
+}
+
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+}
+
+.profile-avatar {
+  width: 130px;
+  height: 130px;
+  border-radius: 10px;
+  border: 3px solid transparent;
+  font-size: 54px;
+  font-weight: 800;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: 0.2s ease;
+  user-select: none;
+}
+
+.profile-card:hover .profile-avatar {
+  border-color: white;
+  transform: scale(1.06);
+}
+
+.profile-name {
+  font-size: 16px;
+  color: #808080;
+  transition: color 0.2s;
+}
+
+.profile-card:hover .profile-name {
+  color: white;
+}
+
+.profile-add-btn {
+  margin-top: 0;
+  padding: 11px 32px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  background: transparent;
+  color: #808080;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-add-btn:hover {
+  border-color: white;
+  color: white;
+}
+
+/* ================= ADD PROFILE MODAL ================= */
+
+#profile-add-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.82);
+  backdrop-filter: blur(6px);
+}
+
+#profile-add-modal.hidden {
+  display: none;
+}
+
+.profile-add-inner {
+  background: #1c1c1c;
+  border: 1px solid #333;
+  border-radius: 12px;
+  padding: 44px;
+  width: 400px;
+  max-width: 94vw;
+  text-align: center;
+}
+
+.profile-add-inner h3 {
+  color: white;
+  font-size: 24px;
+  margin-bottom: 28px;
+  font-weight: 600;
+}
+
+.profile-add-inner input {
+  width: 100%;
+  padding: 13px 18px;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #27272a;
+  color: white;
+  font-size: 16px;
+  margin-bottom: 20px;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.profile-add-inner input:focus {
+  border-color: white;
+}
+
+.profile-add-inner input::placeholder {
+  color: #555;
+}
+
+.profile-color-picker {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 28px;
+}
+
+.color-swatch {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 3px solid transparent;
+  transition: 0.15s;
+}
+
+.color-swatch.selected {
+  border-color: white;
+  transform: scale(1.1);
+}
+
+.profile-add-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.profile-add-actions button {
+  padding: 11px 28px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.btn-confirm {
+  background: white;
+  color: #111;
+  border: none;
+}
+
+.btn-confirm:hover {
+  background: #e5e5e5;
+}
+
+.btn-cancel {
+  background: transparent;
+  color: #888;
+  border: 1px solid #555;
+}
+
+.btn-cancel:hover {
+  color: white;
+  border-color: white;
+}
+
+/* ================= NAVBAR PROFILE BADGE ================= */
+
+#navbar-logo-box {
+  transition: background 0.4s ease;
+}
+
+#navbar-profile-text h1 {
+  transition: color 0.3s;
+}
+
+.profile-switch-link {
+  font-size: 12px;
+  color: gray;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.profile-switch-link:hover {
+  color: inherit;
+}
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width: 700px) {
+  .profile-chooser-inner h1 {
+    font-size: 32px;
+    margin-bottom: 36px;
+  }
+
+  .profile-avatar {
+    width: 100px;
+    height: 100px;
+    font-size: 40px;
+  }
+
+  .profile-grid {
+    gap: 18px;
+  }
+
+  .profile-name {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .intro-logo-box {
+    width: 86px;
+    height: 86px;
+    font-size: 34px;
+    border-radius: 22px;
+  }
+
+  .profile-avatar {
+    width: 80px;
+    height: 80px;
+    font-size: 32px;
+  }
+}

@@ -1,0 +1,31 @@
+// ================= TRAILER MODAL =================
+
+function openTrailerModal(id, type) {
+  const modal = document.getElementById('trailer-modal')
+  const embed = document.getElementById('trailer-embed')
+  embed.innerHTML = '<div style="color:#71717a;padding:40px;text-align:center">Načítání...</div>'
+  modal.classList.remove('hidden')
+
+  fetch(`/tmdb/videos?id=${id}&type=${type}`)
+    .then(r => r.json())
+    .then(data => {
+      const trailer = (data.results || []).find(v => v.site === 'YouTube' && v.type === 'Trailer')
+        || (data.results || []).find(v => v.site === 'YouTube')
+      if (!trailer) {
+        embed.innerHTML = '<div style="color:#71717a;padding:40px;text-align:center">Trailer není dostupný.</div>'
+        return
+      }
+      embed.innerHTML = `<iframe src="https://www.youtube.com/embed/${trailer.key}?autoplay=1" frameborder="0" allowfullscreen allow="autoplay; encrypted-media"></iframe>`
+    })
+    .catch(() => {
+      embed.innerHTML = '<div style="color:#f87171;padding:40px;text-align:center">Nepodařilo se načíst trailer.</div>'
+    })
+}
+
+function closeTrailerModal() {
+  document.getElementById('trailer-modal').classList.add('hidden')
+  document.getElementById('trailer-embed').innerHTML = ''
+}
+
+document.getElementById('trailer-close').addEventListener('click', closeTrailerModal)
+document.getElementById('trailer-backdrop').addEventListener('click', closeTrailerModal)

@@ -1,0 +1,221 @@
+/* ================= SCROLLBAR ================= */
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ================= RESPONSIVE ================= */
+
+/* ── Large TV (≥ 1800 px) ── */
+@media (min-width: 1800px) {
+  .movies-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 30px;
+  }
+
+  .movie-poster img { height: 375px; }
+
+  .hero-content h2  { font-size: 100px; }
+  .hero-banner      { min-height: 700px; padding: 100px; }
+  .hero-content p   { font-size: 20px; max-width: 720px; }
+
+  .section-header h3 { font-size: 36px; }
+
+  .navbar-content { height: 96px; }
+  .logo-wrapper h1 { font-size: 24px; }
+  .logo-box        { width: 50px; height: 50px; font-size: 20px; }
+}
+
+/* ── Tablet landscape / small laptop (≤ 1000 px) ── */
+@media (max-width: 1000px) {
+  nav { display: none; }
+
+  .hero-content h2 { font-size: 52px; }
+  .hero-banner     { padding: 40px; min-height: 480px; }
+
+  .prehraj-modal-inner { width: 98%; max-height: 90vh; }
+}
+
+/* ── Tablet portrait (≤ 860 px) ── */
+@media (max-width: 860px) {
+  .detail-layout {
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 20px;
+    gap: 20px;
+  }
+
+  .detail-poster-wrap,
+  .detail-skeleton,
+  #detail-poster { width: 160px; }
+
+  .detail-skeleton { height: 240px; }
+  #detail-title    { font-size: 22px; }
+
+  /* Filters & tabs: horizontal scroll instead of wrap */
+  .genre-filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  .genre-filters::-webkit-scrollbar { display: none; }
+  .genre-chip { flex-shrink: 0; }
+
+  .watchlist-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .watchlist-tabs::-webkit-scrollbar { display: none; }
+  .wl-tab { flex-shrink: 0; }
+}
+
+/* ── Large phone / small tablet (≤ 700 px) ── */
+@media (max-width: 700px) {
+  .logo-wrapper p { display: none; }
+
+  .hero-content h2 { font-size: 36px; }
+  .hero-content p  { font-size: 14px; }
+  .hero-banner     { padding: 28px; min-height: 340px; }
+
+  .hero-buttons {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .movies-grid {
+    grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+    gap: 14px;
+  }
+
+  .movie-poster img  { height: 220px; }
+  .section-header h3 { font-size: 22px; }
+
+  .section-header { flex-wrap: wrap; gap: 12px; }
+  .grid-controls  { width: 100%; }
+
+  /* Prehraj as bottom sheet */
+  .prehraj-modal { align-items: flex-end; }
+  .prehraj-modal-inner {
+    width: 100%;
+    max-height: 100dvh;
+    border-radius: 20px 20px 0 0;
+    position: fixed;
+    bottom: 0;
+  }
+  .prehraj-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+
+  /* Detail modal as bottom sheet */
+  .detail-modal { align-items: flex-end; }
+  .detail-inner {
+    width: 100%;
+    border-radius: 24px 24px 0 0;
+    max-height: 95dvh;
+  }
+
+  /* WL modal as bottom sheet */
+  .wl-modal { align-items: flex-end; }
+  .wl-modal-inner {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 20px 20px 0 0;
+  }
+}
+
+/* ── Mobile search overlay (≤ 600 px) ── */
+@media (max-width: 600px) {
+  .search-wrapper { display: none; }
+  #search-mobile-btn { display: flex; align-items: center; justify-content: center; }
+
+  .search-wrapper.mobile-open {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    padding: 16px;
+    background: rgba(9,9,11,0.97);
+    backdrop-filter: blur(20px);
+    border: none;
+    border-radius: 0;
+  }
+
+  .search-wrapper.mobile-open input {
+    display: block;
+    flex: 1;
+    width: auto;
+    height: 50px;
+    font-size: 16px;
+    padding: 0 16px;
+    border-radius: 16px;
+  }
+
+  .search-wrapper.mobile-open .search-icon {
+    display: none;
+  }
+
+  .search-wrapper.mobile-open #search-close-mobile {
+    display: flex;
+  }
+
+  .search-wrapper.mobile-open .search-results {
+    position: fixed;
+    top: 84px;
+    left: 16px;
+    right: 16px;
+    width: auto;
+    max-height: calc(100dvh - 100px);
+  }
+}
+
+/* ── Phone portrait (≤ 480 px) ── */
+@media (max-width: 480px) {
+  .navbar-content { gap: 10px; }
+  .logo-wrapper h1 { font-size: 17px; }
+  .actions         { gap: 8px; }
+  .actions button  { width: 38px; height: 38px; }
+
+  .hero-content h2 { font-size: 26px; }
+  .hero-content p  { display: none; }
+  .hero-banner     { padding: 20px; min-height: 280px; border-radius: 20px; }
+  .badge           { font-size: 12px; padding: 8px 12px; }
+  .play-btn, .info-btn { padding: 11px 16px; font-size: 13px; }
+
+  .movies-grid      { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .movie-poster img { height: 195px; }
+  .movie-info h4    { font-size: 13px; }
+
+  .prehraj-modal-header  { padding: 14px 16px; }
+  .prehraj-modal-content { padding: 14px 16px; }
+  .prehraj-grid          { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+
+  .detail-similar .movies-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .detail-similar .movie-poster img { height: 130px; }
+}
+
+/* ── Very small phone (≤ 360 px) ── */
+@media (max-width: 360px) {
+  .movies-grid { gap: 8px; }
+  .movie-poster img     { height: 170px; }
+  .hero-content h2      { font-size: 22px; }
+}
