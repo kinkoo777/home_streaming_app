@@ -225,14 +225,29 @@ async function getVideoPrehrajto(url) {
         const captured = new Set();
         await p.setRequestInterception(true);
         p.on('request', req => {
-            const u = req.url();
-            if (/\.(m3u8|mp4|mkv|webm)(\?|$)/i.test(u)) captured.add(u);
-            if (BLOCK_TYPES.includes(req.resourceType())) req.abort();
-            else req.continue();
+            try {
+                const u = req.url();
+                if (/\.(m3u8|mp4|mkv|webm)(\?|$)/i.test(u)) captured.add(u);
+                if (BLOCK_TYPES.includes(req.resourceType())) {
+                    req.abort().catch(() => {});
+                } else {
+                    req.continue().catch(() => {});
+                }
+            } catch (err) {
+                // Silently handle request interception errors
+                console.error('Request interception error:', err.message);
+            }
         });
 
         // Read metadata from DOM as soon as it's available
-        await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        // Increased timeout and using fallback strategy
+        try {
+            await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        } catch (navError) {
+            // If domcontentloaded times out, try with networkidle as fallback
+            console.log('Navigation timeout, retrying with networkidle2...');
+            await p.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+        }
 
         const metadata = await p.evaluate(() =>
             Array.from(document.querySelectorAll('div.video-wrap')).map(w => {
@@ -271,11 +286,20 @@ app.get('/get_video', async (req, res) => {
     if (!browser) return res.status(503).json({ error: 'Browser není připraven, zkuste znovu' });
 
     try {
+        console.log(`Fetching video from: ${url}`);
         const videos = await getVideoPrehrajto(url);
+        console.log(`Successfully fetched ${videos.length} video(s)`);
         res.json(videos);
     } catch (err) {
         console.error('VIDEO ERROR:', err);
-        res.status(500).json({ error: err.message });
+        // Provide more specific error messages
+        if (err.name === 'TimeoutError') {
+            res.status(504).json({
+                error: 'Časový limit vypršel při načítání stránky. Zkuste to prosím znovu.'
+            });
+        } else {
+            res.status(500).json({ error: err.message });
+        }
     }
 });
 

@@ -12,10 +12,12 @@ prehrajModalBackdrop.addEventListener('click', closePrehrajModal)
 
 function closePrehrajModal() {
   prehrajModal.classList.add('hidden')
+  document.body.classList.remove('modal-open')
 }
 
 async function openPrehrajSearch(title) {
   prehrajModal.classList.remove('hidden')
+  document.body.classList.add('modal-open')
   prehrajModalTitle.textContent    = title
   prehrajModalSubtitle.textContent = 'Hledání na prehraj.to...'
   prehrajModalContent.innerHTML    = `<div class="prehraj-loading"><i class="bi bi-arrow-repeat"></i> Načítání výsledků...</div>`

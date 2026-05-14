@@ -56,10 +56,35 @@
 
   .detail-poster-wrap,
   .detail-skeleton,
-  #detail-poster { width: 160px; }
+  #detail-poster { width: 180px; }
 
-  .detail-skeleton { height: 240px; }
-  #detail-title    { font-size: 22px; }
+  .detail-skeleton { height: 270px; }
+  #detail-title    { font-size: 24px; text-align: center; }
+  .detail-meta     { font-size: 13px; text-align: center; }
+  .detail-overview { font-size: 14px; text-align: center; }
+
+  .detail-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .detail-genres {
+    justify-content: center;
+  }
+
+  .detail-actions {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .detail-cast {
+    justify-content: center;
+  }
+
+  .seasons-tabs {
+    justify-content: center;
+  }
 
   /* Filters & tabs: horizontal scroll instead of wrap */
   .genre-filters {
@@ -79,6 +104,54 @@
   }
   .watchlist-tabs::-webkit-scrollbar { display: none; }
   .wl-tab { flex-shrink: 0; }
+}
+
+/* ── Medium tablet (≤ 768 px) ── */
+@media (max-width: 768px) {
+  .detail-inner {
+    max-width: 95%;
+  }
+
+  .detail-layout {
+    padding: 28px 24px;
+    gap: 22px;
+  }
+
+  .detail-poster-wrap,
+  .detail-skeleton,
+  #detail-poster { width: 170px; }
+
+  .detail-skeleton { height: 255px; }
+  #detail-title    { font-size: 22px; }
+  .detail-overview { font-size: 14px; }
+
+  .detail-cast {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    padding-bottom: 8px;
+  }
+
+  .seasons-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    padding-bottom: 4px;
+  }
+
+  .season-tab {
+    flex-shrink: 0;
+  }
+
+  .actor-layout {
+    padding: 28px 24px;
+  }
+
+  .actor-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
 }
 
 /* ── Large phone / small tablet (≤ 700 px) ── */
@@ -121,11 +194,26 @@
   }
 
   /* Detail modal as bottom sheet */
-  .detail-modal { align-items: flex-end; }
+  .detail-modal {
+    align-items: flex-end;
+    overflow-y: hidden;
+  }
+
   .detail-inner {
     width: 100%;
     border-radius: 24px 24px 0 0;
-    max-height: 95dvh;
+    max-height: 90vh;
+    max-height: 90dvh;
+    height: auto;
+  }
+
+  .detail-layout {
+    max-height: calc(90vh - 60px);
+    max-height: calc(90dvh - 60px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
 
   /* WL modal as bottom sheet */
@@ -211,6 +299,98 @@
     gap: 8px;
   }
   .detail-similar .movie-poster img { height: 130px; }
+
+  /* Detail layout mobile adjustments */
+  .detail-layout {
+    padding: 20px 16px;
+    gap: 18px;
+  }
+
+  .detail-poster-wrap,
+  .detail-skeleton,
+  #detail-poster { width: 140px; }
+
+  .detail-skeleton { height: 210px; }
+  #detail-title    { font-size: 20px; }
+  .detail-meta     { font-size: 12px; margin-bottom: 14px; }
+  .detail-overview { font-size: 13px; line-height: 1.6; margin-bottom: 18px; }
+
+  .genre-tag {
+    font-size: 11px;
+    padding: 4px 12px;
+  }
+
+  .detail-actions .play-btn,
+  .detail-actions .info-btn {
+    font-size: 13px;
+    padding: 10px 18px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .detail-actions {
+    width: 100%;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .cast-item {
+    width: 56px;
+  }
+
+  .cast-item img,
+  .cast-placeholder {
+    width: 48px;
+    height: 48px;
+  }
+
+  .cast-placeholder {
+    font-size: 18px;
+  }
+
+  .cast-item span {
+    font-size: 10px;
+  }
+
+  .similar-title {
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+
+  .season-tab {
+    font-size: 12px;
+    padding: 6px 14px;
+  }
+
+  .episode-item {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .episode-num {
+    font-size: 11px;
+    width: 44px;
+  }
+
+  .episode-info strong {
+    font-size: 12px;
+  }
+
+  .episode-info span {
+    font-size: 11px;
+  }
+
+  .episodes-list {
+    max-height: 200px;
+  }
+
+  #detail-close {
+    top: 14px;
+    right: 14px;
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
 }
 
 /* ── Very small phone (≤ 360 px) ── */
@@ -218,4 +398,196 @@
   .movies-grid { gap: 8px; }
   .movie-poster img     { height: 170px; }
   .hero-content h2      { font-size: 22px; }
+
+  /* Detail layout for very small screens */
+  .detail-layout {
+    padding: 16px 12px;
+    gap: 14px;
+  }
+
+  .detail-poster-wrap,
+  .detail-skeleton,
+  #detail-poster { width: 120px; }
+
+  .detail-skeleton { height: 180px; }
+  #detail-title    { font-size: 18px; }
+  .detail-meta     { font-size: 11px; margin-bottom: 12px; }
+  .detail-overview { font-size: 12px; margin-bottom: 16px; }
+
+  .genre-tag {
+    font-size: 10px;
+    padding: 3px 10px;
+  }
+
+  .detail-actions .play-btn,
+  .detail-actions .info-btn {
+    font-size: 12px;
+    padding: 9px 14px;
+  }
+
+  .cast-item {
+    width: 50px;
+  }
+
+  .cast-item img,
+  .cast-placeholder {
+    width: 42px;
+    height: 42px;
+  }
+
+  .cast-placeholder {
+    font-size: 16px;
+  }
+
+  .similar-title {
+    font-size: 15px;
+  }
+
+  .season-tab {
+    font-size: 11px;
+    padding: 5px 12px;
+  }
+
+  #detail-close {
+    top: 12px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+}
+
+/* ── Mobile landscape (≤ 768px height in landscape) ── */
+@media (max-height: 768px) and (orientation: landscape) {
+  .detail-inner {
+    max-height: 95vh;
+  }
+
+  .detail-layout {
+    flex-direction: row;
+    padding: 20px;
+    gap: 20px;
+    overflow-y: auto;
+  }
+
+  .detail-poster-wrap,
+  .detail-skeleton,
+  #detail-poster { width: 140px; }
+
+  .detail-skeleton { height: 210px; }
+
+  .detail-content {
+    align-items: flex-start;
+  }
+
+  #detail-title {
+    font-size: 20px;
+    text-align: left;
+  }
+
+  .detail-meta,
+  .detail-overview {
+    text-align: left;
+  }
+
+  .detail-overview {
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+
+  .detail-genres {
+    justify-content: flex-start;
+  }
+
+  .detail-actions {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+
+  .detail-actions .play-btn,
+  .detail-actions .info-btn {
+    width: auto;
+  }
+
+  .cast-item img,
+  .cast-placeholder {
+    width: 44px;
+    height: 44px;
+  }
+
+  .seasons-tabs,
+  .detail-cast {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ── Touch device optimizations ── */
+@media (hover: none) and (pointer: coarse) {
+  .detail-actions .play-btn,
+  .detail-actions .info-btn,
+  .season-tab,
+  .episode-item,
+  #detail-close {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .detail-layout,
+  .detail-cast,
+  .episodes-list,
+  .seasons-tabs {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Fix iOS Safari modal scrolling */
+  .detail-modal {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .detail-inner {
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+  }
+
+  .detail-layout {
+    position: relative;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Increase touch targets */
+  .season-tab {
+    min-height: 32px;
+  }
+
+  .episode-item {
+    min-height: 44px;
+  }
+
+  #detail-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* ── iOS-specific fixes ── */
+@supports (-webkit-touch-callout: none) {
+  /* iOS Safari specific */
+  body.modal-open {
+    position: fixed;
+    overflow: hidden;
+    width: 100%;
+  }
+
+  .detail-layout {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: scroll;
+  }
+
+  .detail-modal {
+    position: fixed;
+    overflow: hidden;
+  }
 }

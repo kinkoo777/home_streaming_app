@@ -5,6 +5,7 @@ function openTrailerModal(id, type) {
   const embed = document.getElementById('trailer-embed')
   embed.innerHTML = '<div style="color:#71717a;padding:40px;text-align:center">Načítání...</div>'
   modal.classList.remove('hidden')
+  document.body.classList.add('modal-open')
 
   fetch(`/tmdb/videos?id=${id}&type=${type}`)
     .then(r => r.json())
@@ -25,6 +26,7 @@ function openTrailerModal(id, type) {
 function closeTrailerModal() {
   document.getElementById('trailer-modal').classList.add('hidden')
   document.getElementById('trailer-embed').innerHTML = ''
+  document.body.classList.remove('modal-open')
 }
 
 document.getElementById('trailer-close').addEventListener('click', closeTrailerModal)

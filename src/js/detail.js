@@ -4,12 +4,17 @@ const detailModal    = document.getElementById('detail-modal')
 const detailClose    = document.getElementById('detail-close')
 const detailBackdrop = document.querySelector('.detail-backdrop')
 
-detailClose.addEventListener('click',    () => detailModal.classList.add('hidden'))
-detailBackdrop.addEventListener('click', () => detailModal.classList.add('hidden'))
+function closeDetailModal() {
+  detailModal.classList.add('hidden')
+  document.body.classList.remove('modal-open')
+}
+
+detailClose.addEventListener('click', closeDetailModal)
+detailBackdrop.addEventListener('click', closeDetailModal)
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    detailModal.classList.add('hidden')
+    closeDetailModal()
     closePrehrajModal()
     closeTrailerModal()
     closeActorModal()
@@ -25,6 +30,7 @@ window.openDetailModal = async function(id, type, title) {
   currentDetailType = type
 
   detailModal.classList.remove('hidden')
+  document.body.classList.add('modal-open')
   document.getElementById('detail-title').textContent      = title
   document.getElementById('detail-overview').textContent   = ''
   document.getElementById('detail-cast').innerHTML         = ''
@@ -86,7 +92,7 @@ window.openDetailModal = async function(id, type, title) {
     wlBtn.onclick = () => openWlModal(movieData)
 
     document.getElementById('detail-play-btn').onclick = () => {
-      detailModal.classList.add('hidden')
+      closeDetailModal()
       openPrehrajSearch(movieTitle)
     }
 

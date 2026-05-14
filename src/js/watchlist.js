@@ -191,11 +191,13 @@ function openWlModal(movie) {
   wlModalMovie = movie
   const modal = document.getElementById('wl-modal')
   modal.classList.remove('hidden')
+  document.body.classList.add('modal-open')
   renderWlModalLists()
 }
 
 function closeWlModal() {
   document.getElementById('wl-modal').classList.add('hidden')
+  document.body.classList.remove('modal-open')
   wlModalMovie = null
 }
 
