@@ -9,9 +9,12 @@ section {
 }
 
 .section-header {
+  display: -webkit-flex;
   display: flex;
+  -webkit-justify-content: space-between;
   justify-content: space-between;
-  align-items: end;
+  -webkit-align-items: flex-end;
+  align-items: flex-end;
   margin-bottom: 28px;
 }
 
@@ -27,6 +30,7 @@ section {
 .movies-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  grid-gap: 24px;
   gap: 24px;
 }
 
@@ -73,17 +77,26 @@ body:not(.dark) .skeleton-line {
 /* ================= GRID CONTROLS ================= */
 
 .grid-controls {
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
-  gap: 12px;
+}
+
+.grid-controls > *:not(:last-child) {
+  margin-right: 12px;
 }
 
 .sort-tabs {
+  display: -webkit-flex;
   display: flex;
-  gap: 6px;
   background: rgba(0,0,0,0.04);
   border-radius: 14px;
   padding: 4px;
+}
+
+.sort-tab:not(:last-child) {
+  margin-right: 6px;
 }
 
 body.dark .sort-tabs {
@@ -116,10 +129,11 @@ body.dark .sort-tab.active {
 /* ================= GENRE FILTERS ================= */
 
 .genre-filters {
+  display: -webkit-flex;
   display: flex;
+  -webkit-flex-wrap: wrap;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .genre-chip {
@@ -132,6 +146,7 @@ body.dark .sort-tab.active {
   font-weight: 500;
   cursor: pointer;
   transition: 0.2s;
+  margin: 0 8px 8px 0;
 }
 
 body.dark .genre-chip {

@@ -2,10 +2,13 @@
 
 .prehraj-modal {
   position: fixed;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   z-index: 2000;
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
+  -webkit-justify-content: center;
   justify-content: center;
 }
 
@@ -15,9 +18,8 @@
 
 .prehraj-modal-backdrop {
   position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: rgba(0, 0, 0, 0.85);
 }
 
 .prehraj-modal-inner {
@@ -30,17 +32,23 @@
   border-radius: 28px;
   border: 1px solid rgba(255,255,255,0.08);
   box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+  display: -webkit-flex;
   display: flex;
+  -webkit-flex-direction: column;
   flex-direction: column;
   overflow: hidden;
 }
 
 .prehraj-modal-header {
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
+  -webkit-justify-content: space-between;
   justify-content: space-between;
   padding: 24px 28px;
   border-bottom: 1px solid rgba(255,255,255,0.07);
+  -webkit-flex-shrink: 0;
   flex-shrink: 0;
 }
 
@@ -65,8 +73,11 @@
   cursor: pointer;
   font-size: 16px;
   transition: 0.2s ease;
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
+  -webkit-justify-content: center;
   justify-content: center;
 }
 
@@ -77,22 +88,26 @@
 .prehraj-modal-content {
   overflow-y: auto;
   padding: 24px 28px;
+  -webkit-flex: 1;
   flex: 1;
 }
 
 .prehraj-loading {
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
-  gap: 12px;
   color: #71717a;
   font-size: 15px;
   padding: 40px 0;
+  -webkit-justify-content: center;
   justify-content: center;
 }
 
 .prehraj-loading i {
   font-size: 22px;
   animation: spin 1s linear infinite;
+  margin-right: 12px;
 }
 
 @keyframes spin {
@@ -114,11 +129,18 @@
 }
 
 .prehraj-retry {
+  display: -webkit-flex;
   display: flex;
-  gap: 10px;
+  -webkit-justify-content: center;
   justify-content: center;
   margin-top: 18px;
+  -webkit-flex-wrap: wrap;
   flex-wrap: wrap;
+}
+
+.prehraj-retry > *:not(:last-child) {
+  margin-right: 10px;
+  margin-bottom: 10px;
 }
 
 .prehraj-retry-input {
@@ -145,6 +167,7 @@
 .prehraj-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-gap: 20px;
   gap: 20px;
 }
 
@@ -193,10 +216,13 @@
 
 .detail-modal {
   position: fixed;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   z-index: 3000;
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
+  -webkit-justify-content: center;
   justify-content: center;
   overflow: hidden;
   -webkit-overflow-scrolling: touch;
@@ -216,9 +242,8 @@ body.modal-open {
 
 .detail-backdrop {
   position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.8);
-  backdrop-filter: blur(10px);
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: rgba(0,0,0,0.85);
 }
 
 .detail-inner {
@@ -232,7 +257,9 @@ body.modal-open {
   border: 1px solid rgba(255,255,255,0.08);
   box-shadow: 0 40px 100px rgba(0,0,0,0.7);
   overflow: hidden;
+  display: -webkit-flex;
   display: flex;
+  -webkit-flex-direction: column;
   flex-direction: column;
 }
 
@@ -249,8 +276,11 @@ body.modal-open {
   color: #fafafa;
   cursor: pointer;
   font-size: 16px;
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
+  -webkit-justify-content: center;
   justify-content: center;
   transition: 0.2s;
   z-index: 10;
@@ -259,19 +289,22 @@ body.modal-open {
 #detail-close:hover { background: rgba(255,255,255,0.14); }
 
 .detail-layout {
+  display: -webkit-flex;
   display: flex;
-  gap: 32px;
   padding: 36px;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-flex: 1;
   flex: 1;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
 
 .detail-poster-wrap {
+  -webkit-flex-shrink: 0;
   flex-shrink: 0;
   width: 210px;
+  margin-right: 32px;
 }
 
 .detail-skeleton {
@@ -291,15 +324,17 @@ body.modal-open {
 }
 
 .detail-content {
+  -webkit-flex: 1;
   flex: 1;
   min-width: 0;
   color: #fafafa;
 }
 
 .detail-genres {
+  display: -webkit-flex;
   display: flex;
+  -webkit-flex-wrap: wrap;
   flex-wrap: wrap;
-  gap: 8px;
   margin-bottom: 16px;
 }
 
@@ -310,6 +345,7 @@ body.modal-open {
   font-size: 12px;
   color: #d4d4d8;
   font-weight: 500;
+  margin: 0 8px 8px 0;
 }
 
 #detail-title {
@@ -333,8 +369,8 @@ body.modal-open {
 }
 
 .detail-cast {
+  display: -webkit-flex;
   display: flex;
-  gap: 16px;
   overflow-x: auto;
   padding-bottom: 4px;
   margin-bottom: 28px;
@@ -343,12 +379,16 @@ body.modal-open {
 }
 
 .cast-item {
+  -webkit-flex-shrink: 0;
   flex-shrink: 0;
+  display: -webkit-flex;
   display: flex;
+  -webkit-flex-direction: column;
   flex-direction: column;
+  -webkit-align-items: center;
   align-items: center;
-  gap: 8px;
   width: 64px;
+  margin-right: 16px;
 }
 
 .cast-item img {
@@ -356,6 +396,7 @@ body.modal-open {
   height: 56px;
   border-radius: 50%;
   object-fit: cover;
+  margin-bottom: 8px;
 }
 
 .cast-placeholder {
@@ -363,11 +404,15 @@ body.modal-open {
   height: 56px;
   border-radius: 50%;
   background: #27272a;
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
+  -webkit-justify-content: center;
   justify-content: center;
   color: #71717a;
   font-size: 22px;
+  margin-bottom: 8px;
 }
 
 .cast-item span {
@@ -379,9 +424,15 @@ body.modal-open {
 }
 
 .detail-actions {
+  display: -webkit-flex;
   display: flex;
-  gap: 14px;
+  -webkit-flex-wrap: wrap;
   flex-wrap: wrap;
+}
+
+.detail-actions > *:not(:last-child) {
+  margin-right: 14px;
+  margin-bottom: 8px;
 }
 
 .detail-actions .play-btn,
@@ -404,9 +455,10 @@ body.modal-open {
 }
 
 .seasons-tabs {
+  display: -webkit-flex;
   display: flex;
+  -webkit-flex-wrap: wrap;
   flex-wrap: wrap;
-  gap: 8px;
   margin-bottom: 16px;
 }
 
@@ -420,6 +472,7 @@ body.modal-open {
   font-weight: 500;
   cursor: pointer;
   transition: 0.2s;
+  margin: 0 8px 8px 0;
 }
 
 .season-tab:hover  { background: rgba(255,255,255,0.1); color: #fafafa; }
@@ -428,32 +481,37 @@ body.modal-open {
 .episodes-list {
   max-height: 240px;
   overflow-y: auto;
+  display: -webkit-flex;
   display: flex;
+  -webkit-flex-direction: column;
   flex-direction: column;
-  gap: 2px;
   scrollbar-width: thin;
   scrollbar-color: #3f3f46 transparent;
 }
 
 .episode-item {
+  display: -webkit-flex;
   display: flex;
-  gap: 14px;
   padding: 12px 14px;
   border-radius: 12px;
   cursor: pointer;
   transition: background 0.15s;
+  -webkit-align-items: flex-start;
   align-items: flex-start;
+  margin-bottom: 2px;
 }
 
 .episode-item:hover { background: rgba(255,255,255,0.06); }
 
 .episode-num {
+  -webkit-flex-shrink: 0;
   flex-shrink: 0;
   font-size: 12px;
   font-weight: 700;
   color: #71717a;
   padding-top: 2px;
   width: 52px;
+  margin-right: 14px;
 }
 
 .episode-info strong {
@@ -477,6 +535,7 @@ body.modal-open {
 
 .detail-similar .movies-grid {
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  grid-gap: 14px;
   gap: 14px;
 }
 
@@ -488,10 +547,13 @@ body.modal-open {
 
 .trailer-modal {
   position: fixed;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   z-index: 4000;
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
+  -webkit-justify-content: center;
   justify-content: center;
 }
 
@@ -499,9 +561,8 @@ body.modal-open {
 
 .trailer-backdrop {
   position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.9);
-  backdrop-filter: blur(12px);
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: rgba(0,0,0,0.92);
 }
 
 .trailer-inner {
@@ -509,14 +570,18 @@ body.modal-open {
   z-index: 1;
   width: 92%;
   max-width: 900px;
-  aspect-ratio: 16/9;
   border-radius: 20px;
   overflow: hidden;
   background: #000;
   box-shadow: 0 40px 100px rgba(0,0,0,0.8);
+  /* aspect-ratio fallback for older browsers */
+  padding-bottom: 51.75%; /* 92% * 9/16 */
+  height: 0;
 }
 
 .trailer-embed {
+  position: absolute;
+  top: 0; left: 0;
   width: 100%;
   height: 100%;
 }
@@ -540,8 +605,11 @@ body.modal-open {
   color: white;
   cursor: pointer;
   font-size: 16px;
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
+  -webkit-justify-content: center;
   justify-content: center;
   transition: 0.2s;
   z-index: 10;
@@ -556,16 +624,17 @@ body.modal-open {
   max-height: 90vh;
 }
 
-
 .actor-layout {
   padding: 36px;
   overflow-y: auto;
+  -webkit-flex: 1;
   flex: 1;
 }
 
 .actor-header {
+  display: -webkit-flex;
   display: flex;
-  gap: 24px;
+  -webkit-align-items: flex-start;
   align-items: flex-start;
   margin-bottom: 32px;
 }
@@ -575,7 +644,9 @@ body.modal-open {
   height: 100px;
   border-radius: 50%;
   font-size: 40px;
+  -webkit-flex-shrink: 0;
   flex-shrink: 0;
+  margin-right: 24px;
 }
 
 #actor-photo {
@@ -583,7 +654,9 @@ body.modal-open {
   height: 100px;
   border-radius: 50%;
   object-fit: cover;
+  -webkit-flex-shrink: 0;
   flex-shrink: 0;
+  margin-right: 24px;
 }
 
 #actor-name {
@@ -603,10 +676,13 @@ body.modal-open {
 
 .wl-modal {
   position: fixed;
-  inset: 0;
+  top: 0; right: 0; bottom: 0; left: 0;
   z-index: 5000;
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
+  -webkit-justify-content: center;
   justify-content: center;
 }
 
@@ -614,9 +690,8 @@ body.modal-open {
 
 .wl-modal-backdrop {
   position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.75);
-  backdrop-filter: blur(8px);
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: rgba(0,0,0,0.85);
 }
 
 .wl-modal-inner {
@@ -632,8 +707,11 @@ body.modal-open {
 }
 
 .wl-modal-header {
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
+  -webkit-justify-content: space-between;
   justify-content: space-between;
   padding: 20px 22px;
   border-bottom: 1px solid rgba(255,255,255,0.07);
@@ -654,8 +732,11 @@ body.modal-open {
   color: #fafafa;
   cursor: pointer;
   font-size: 14px;
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
+  -webkit-justify-content: center;
   justify-content: center;
   transition: 0.2s;
 }
@@ -669,8 +750,11 @@ body.modal-open {
 }
 
 .wl-list-item {
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
+  -webkit-justify-content: space-between;
   justify-content: space-between;
   padding: 13px 22px;
   cursor: pointer;
@@ -680,9 +764,10 @@ body.modal-open {
 .wl-list-item:hover { background: rgba(255,255,255,0.04); }
 
 .wl-list-item-left {
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
-  gap: 14px;
 }
 
 .wl-list-check {
@@ -690,12 +775,17 @@ body.modal-open {
   height: 22px;
   border-radius: 8px;
   border: 2px solid rgba(255,255,255,0.2);
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
+  -webkit-justify-content: center;
   justify-content: center;
   font-size: 12px;
   transition: 0.15s;
+  -webkit-flex-shrink: 0;
   flex-shrink: 0;
+  margin-right: 14px;
 }
 
 .wl-list-check.checked {
@@ -724,8 +814,11 @@ body.modal-open {
   color: #71717a;
   cursor: pointer;
   font-size: 13px;
+  display: -webkit-flex;
   display: flex;
+  -webkit-align-items: center;
   align-items: center;
+  -webkit-justify-content: center;
   justify-content: center;
   transition: 0.15s;
   opacity: 0;
@@ -735,13 +828,18 @@ body.modal-open {
 .wl-list-delete:hover { color: #f87171; background: rgba(248,113,113,0.1); }
 
 .wl-modal-footer {
+  display: -webkit-flex;
   display: flex;
-  gap: 10px;
   padding: 14px 22px;
   border-top: 1px solid rgba(255,255,255,0.07);
 }
 
+.wl-modal-footer > *:not(:last-child) {
+  margin-right: 10px;
+}
+
 .wl-modal-footer input {
+  -webkit-flex: 1;
   flex: 1;
   height: 42px;
   border-radius: 14px;

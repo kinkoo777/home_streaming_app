@@ -19,6 +19,7 @@
 @media (min-width: 1800px) {
   .movies-grid {
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    grid-gap: 30px;
     gap: 30px;
   }
 
@@ -48,10 +49,16 @@
 /* ── Tablet portrait (≤ 860 px) ── */
 @media (max-width: 860px) {
   .detail-layout {
+    -webkit-flex-direction: column;
     flex-direction: column;
+    -webkit-align-items: center;
     align-items: center;
     padding: 24px 20px;
-    gap: 20px;
+  }
+
+  .detail-poster-wrap {
+    margin-right: 0;
+    margin-bottom: 20px;
   }
 
   .detail-poster-wrap,
@@ -114,7 +121,6 @@
 
   .detail-layout {
     padding: 28px 24px;
-    gap: 22px;
   }
 
   .detail-poster-wrap,
@@ -148,9 +154,17 @@
   }
 
   .actor-header {
+    -webkit-flex-direction: column;
     flex-direction: column;
+    -webkit-align-items: center;
     align-items: center;
     text-align: center;
+  }
+
+  #actor-photo,
+  .actor-photo-placeholder {
+    margin-right: 0;
+    margin-bottom: 16px;
   }
 }
 
@@ -163,20 +177,27 @@
   .hero-banner     { padding: 28px; min-height: 340px; }
 
   .hero-buttons {
+    -webkit-flex-direction: column;
     flex-direction: column;
+    -webkit-align-items: flex-start;
     align-items: flex-start;
-    gap: 10px;
+  }
+
+  .hero-buttons > *:not(:last-child) {
+    margin-right: 0;
+    margin-bottom: 10px;
   }
 
   .movies-grid {
     grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+    grid-gap: 14px;
     gap: 14px;
   }
 
   .movie-poster img  { height: 220px; }
   .section-header h3 { font-size: 22px; }
 
-  .section-header { flex-wrap: wrap; gap: 12px; }
+  .section-header { -webkit-flex-wrap: wrap; flex-wrap: wrap; }
   .grid-controls  { width: 100%; }
 
   /* Prehraj as bottom sheet */
@@ -190,6 +211,7 @@
   }
   .prehraj-grid {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-gap: 12px;
     gap: 12px;
   }
 
@@ -231,18 +253,23 @@
   #search-mobile-btn { display: flex; align-items: center; justify-content: center; }
 
   .search-wrapper.mobile-open {
+    display: -webkit-flex;
     display: flex;
+    -webkit-flex-direction: row;
     flex-direction: row;
+    -webkit-align-items: center;
     align-items: center;
-    gap: 10px;
     position: fixed;
-    inset: 0;
+    top: 0; right: 0; bottom: 0; left: 0;
     z-index: 9999;
     padding: 16px;
     background: rgba(9,9,11,0.97);
-    backdrop-filter: blur(20px);
     border: none;
     border-radius: 0;
+  }
+
+  .search-wrapper.mobile-open > *:not(:last-child) {
+    margin-right: 10px;
   }
 
   .search-wrapper.mobile-open input {
@@ -275,9 +302,9 @@
 
 /* ── Phone portrait (≤ 480 px) ── */
 @media (max-width: 480px) {
-  .navbar-content { gap: 10px; }
   .logo-wrapper h1 { font-size: 17px; }
-  .actions         { gap: 8px; }
+  .actions > * { margin-right: 8px; }
+  .actions > *:last-child { margin-right: 0; }
   .actions button  { width: 38px; height: 38px; }
 
   .hero-content h2 { font-size: 26px; }
@@ -286,16 +313,17 @@
   .badge           { font-size: 12px; padding: 8px 12px; }
   .play-btn, .info-btn { padding: 11px 16px; font-size: 13px; }
 
-  .movies-grid      { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .movies-grid      { grid-template-columns: repeat(2, 1fr); grid-gap: 10px; gap: 10px; }
   .movie-poster img { height: 195px; }
   .movie-info h4    { font-size: 13px; }
 
   .prehraj-modal-header  { padding: 14px 16px; }
   .prehraj-modal-content { padding: 14px 16px; }
-  .prehraj-grid          { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .prehraj-grid          { grid-template-columns: repeat(2, 1fr); grid-gap: 10px; gap: 10px; }
 
   .detail-similar .movies-grid {
     grid-template-columns: repeat(3, 1fr);
+    grid-gap: 8px;
     gap: 8px;
   }
   .detail-similar .movie-poster img { height: 130px; }
@@ -303,7 +331,6 @@
   /* Detail layout mobile adjustments */
   .detail-layout {
     padding: 20px 16px;
-    gap: 18px;
   }
 
   .detail-poster-wrap,
@@ -330,8 +357,13 @@
 
   .detail-actions {
     width: 100%;
+    -webkit-flex-direction: column;
     flex-direction: column;
-    gap: 10px;
+  }
+
+  .detail-actions > *:not(:last-child) {
+    margin-right: 0;
+    margin-bottom: 10px;
   }
 
   .cast-item {
@@ -363,7 +395,6 @@
   }
 
   .episode-item {
-    gap: 10px;
     padding: 10px 12px;
   }
 
@@ -395,7 +426,7 @@
 
 /* ── Very small phone (≤ 360 px) ── */
 @media (max-width: 360px) {
-  .movies-grid { gap: 8px; }
+  .movies-grid { grid-gap: 8px; gap: 8px; }
   .movie-poster img     { height: 170px; }
   .hero-content h2      { font-size: 22px; }
 
@@ -464,10 +495,15 @@
   }
 
   .detail-layout {
+    -webkit-flex-direction: row;
     flex-direction: row;
     padding: 20px;
-    gap: 20px;
     overflow-y: auto;
+  }
+
+  .detail-poster-wrap {
+    margin-right: 20px;
+    margin-bottom: 0;
   }
 
   .detail-poster-wrap,
