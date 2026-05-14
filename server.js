@@ -4,6 +4,18 @@ const puppeteer = require('puppeteer');
 const path = require('path');
 const cors = require('cors');
 const fs = require('fs');
+const { execSync } = require('child_process');
+
+function getSystemChromium() {
+  if (process.platform !== 'linux') return undefined
+  for (const bin of ['chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable']) {
+    try {
+      const p = execSync(`which ${bin}`, { encoding: 'utf8' }).trim()
+      if (p) return p
+    } catch {}
+  }
+  return undefined
+}
 const { profiles: profilesDB, favorites: favoritesDB } = require('./db');
 const TMDB_API_KEY = "4423c40ec92d2d940674ff0c6bf108dc";
 
@@ -307,8 +319,10 @@ app.get('/get_video', async (req, res) => {
 
 
 async function initBrowser() {
+    const executablePath = getSystemChromium()
     browser = await puppeteer.launch({
         headless: true,
+        executablePath: executablePath || undefined,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     });
     page = await browser.newPage();
