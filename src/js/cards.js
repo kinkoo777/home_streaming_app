@@ -4,7 +4,7 @@ function buildCard(movie, extraClass = '') {
   const title    = movie.title || movie.name
   const year     = (movie.release_date || movie.first_air_date || '').slice(0, 4)
   const mediaType = movie.media_type || (movie.title ? 'movie' : 'tv')
-  const inWL     = isInWatchlist(movie.id)
+  const inFav    = isFavorite(movie.id, mediaType)
   const progress = localStorage.getItem('filmbox_progress_' + title.replace(/\s+/g, '_'))
   const pct = progress && movie.runtime
     ? Math.min(100, (parseFloat(progress) / (movie.runtime * 60)) * 100).toFixed(0)
@@ -15,8 +15,8 @@ function buildCard(movie, extraClass = '') {
       <div class="movie-poster">
         <img src="https://image.tmdb.org/t/p/w500${movie.poster_path}" alt="${title}" loading="lazy">
         <div class="rating">⭐ ${(movie.vote_average || 0).toFixed(1)}</div>
-        <button class="wl-btn${inWL ? ' active' : ''}" onclick="event.stopPropagation();toggleWatchlistCard(this,${movie.id})">
-          <i class="bi ${inWL ? 'bi-bookmark-fill' : 'bi-bookmark'}"></i>
+        <button class="fav-btn${inFav ? ' active' : ''}" data-tmdb-id="${movie.id}" data-media-type="${mediaType}" onclick="event.stopPropagation();favToggleCard(this,${movie.id},'${mediaType}')">
+          <i class="bi ${inFav ? 'bi-heart-fill' : 'bi-heart'}"></i>
         </button>
         ${pct ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
       </div>

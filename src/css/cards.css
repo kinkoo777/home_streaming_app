@@ -118,6 +118,38 @@
   color: #fbbf24;
 }
 
+/* ── Favorite button on card ── */
+
+.fav-btn {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(8px);
+  color: white;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: 0.2s ease;
+}
+
+.movie-card:hover .fav-btn {
+  opacity: 1;
+}
+
+.fav-btn.active {
+  opacity: 1;
+  background: rgba(239,68,68,0.25);
+  color: #ef4444;
+}
+
 /* ── Progress bar on card ── */
 
 .progress-bar {

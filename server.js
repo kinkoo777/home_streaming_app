@@ -3,7 +3,8 @@ const { JSDOM } = require('jsdom');
 const puppeteer = require('puppeteer');
 const path = require('path');
 const cors = require('cors');
-const fs = require('fs'); // pro zápis do users.json
+const fs = require('fs');
+const { profiles: profilesDB, favorites: favoritesDB } = require('./db');
 const TMDB_API_KEY = "4423c40ec92d2d940674ff0c6bf108dc";
 
 const app = express();
@@ -306,7 +307,10 @@ app.get('/get_video', async (req, res) => {
 
 
 async function initBrowser() {
-    browser = await puppeteer.launch({ headless: true });
+    browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    });
     page = await browser.newPage();
 
     await page.setUserAgent(
@@ -549,6 +553,81 @@ app.get('/load_upcoming', async (req, res) => {
         console.error('LOAD POPULAR ERROR:', err);
         res.status(500).json({ error: err.message });
     }
+});
+
+// ====================
+// PROFILES API
+// ====================
+
+app.get('/api/profiles', (req, res) => {
+    try {
+        res.json(profilesDB.list());
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/profiles', (req, res) => {
+    try {
+        const { name, picture, theme } = req.body;
+        if (!name) return res.status(400).json({ error: 'name is required' });
+        const profile = profilesDB.create({ name, picture: picture || null, theme: theme || 'dark' });
+        res.status(201).json(profile);
+    } catch (err) {
+        res.status(err.code === 409 ? 409 : 400).json({ error: err.message });
+    }
+});
+
+app.get('/api/profiles/:id', (req, res) => {
+    const profile = profilesDB.get(req.params.id);
+    if (!profile) return res.status(404).json({ error: 'Profile not found' });
+    res.json(profile);
+});
+
+app.put('/api/profiles/:id', (req, res) => {
+    try {
+        const { name, picture, theme } = req.body;
+        const changes = {};
+        if (name !== undefined) changes.name = name;
+        if (picture !== undefined) changes.picture = picture;
+        if (theme !== undefined) changes.theme = theme;
+        const profile = profilesDB.update(req.params.id, changes);
+        if (!profile) return res.status(404).json({ error: 'Profile not found' });
+        res.json(profile);
+    } catch (err) {
+        res.status(err.code === 409 ? 409 : 400).json({ error: err.message });
+    }
+});
+
+app.delete('/api/profiles/:id', (req, res) => {
+    const deleted = profilesDB.delete(req.params.id);
+    if (!deleted) return res.status(404).json({ error: 'Profile not found' });
+    favoritesDB.deleteByProfile(req.params.id);
+    res.json({ message: 'Profile deleted' });
+});
+
+// ====================
+// FAVORITES API
+// ====================
+
+app.get('/api/profiles/:id/favorites', (req, res) => {
+    res.json(favoritesDB.list(req.params.id));
+});
+
+app.post('/api/profiles/:id/favorites', (req, res) => {
+    try {
+        const { tmdbId, mediaType, title, posterPath } = req.body;
+        if (!tmdbId || !mediaType || !title) return res.status(400).json({ error: 'tmdbId, mediaType and title are required' });
+        const fav = favoritesDB.add({ profileId: req.params.id, tmdbId, mediaType, title, posterPath: posterPath || null });
+        res.status(201).json(fav);
+    } catch (err) {
+        res.status(err.code === 409 ? 409 : 400).json({ error: err.message });
+    }
+});
+
+app.delete('/api/profiles/:id/favorites/:tmdbId/:mediaType', (req, res) => {
+    const { id, tmdbId, mediaType } = req.params;
+    const removed = favoritesDB.remove(id, Number(tmdbId), mediaType);
+    if (!removed) return res.status(404).json({ error: 'Favorite not found' });
+    res.json({ message: 'Removed from favorites' });
 });
 
 // ====================

@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FilmBox</title>
+  <link rel="icon" type="image/x-icon" href="image.png">
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
 
@@ -14,7 +15,6 @@
   <link rel="stylesheet" href="css/cards.css" />
   <link rel="stylesheet" href="css/grid.css" />
   <link rel="stylesheet" href="css/modals.css" />
-  <link rel="stylesheet" href="css/watchlist.css" />
   <link rel="stylesheet" href="css/responsive.css" />
   <link rel="stylesheet" href="css/intro.css" />
 </head>
@@ -42,13 +42,17 @@
     <div class="profile-add-inner">
       <h3>Nový profil</h3>
       <input type="text" id="new-profile-name" placeholder="Jméno profilu..." maxlength="20" />
-      <div id="profile-color-picker" class="profile-color-picker"></div>
+      <div class="profile-theme-picker">
+        <button class="theme-option active" data-theme="dark"><i class="bi bi-moon-stars"></i> Tmavý</button>
+        <button class="theme-option" data-theme="light"><i class="bi bi-sun"></i> Světlý</button>
+      </div>
       <div class="profile-add-actions">
         <button id="profile-add-confirm" class="btn-confirm">Vytvořit</button>
         <button id="profile-add-cancel" class="btn-cancel">Zrušit</button>
       </div>
     </div>
   </div>
+
   <header class="navbar">
     <div class="container navbar-content">
       <div class="logo-wrapper">
@@ -64,15 +68,10 @@
         <a href="#" id="nav-home">Domů</a>
         <a href="#" id="nav-filmy">Nejnavštěvovanější</a>
         <a href="#" id="nav-serialy">Trendy</a>
-        <a href="#" id="nav-novinky">Nejlépe hodnocené
-        </a>
+        <a href="#" id="nav-novinky">Nejlépe hodnocené</a>
       </nav>
 
       <div class="actions">
-        <button id="watchlist-toggle" title="Můj seznam">
-          <i class="bi bi-bookmark"></i>
-        </button>
-
         <button id="theme-toggle">
           <i class="bi bi-moon-stars"></i>
         </button>
@@ -83,11 +82,8 @@
 
         <div class="search-wrapper">
           <i class="bi bi-search search-icon"></i>
-
           <input type="text" id="search-input" placeholder="Hledat filmy nebo seriály..." autocomplete="off" />
-
           <button id="search-close-mobile"><i class="bi bi-x-lg"></i></button>
-
           <div id="search-results" class="search-results"></div>
         </div>
       </div>
@@ -127,29 +123,15 @@
     </div>
   </section>
 
-  <main class="container" id="continue-watching-section" style="display:none; padding-top: 40px;">
+  <main class="container" id="favorites-section" style="display:none; padding-top: 40px;">
     <section>
       <div class="section-header">
         <div>
-          <h3>Pokračovat ve sledování</h3>
-          <p>Rozkoukané filmy a seriály</p>
+          <h3>Oblíbené</h3>
+          <p>Vaše oblíbené filmy a seriály</p>
         </div>
       </div>
-      <div class="movies-grid" id="continue-watching-movies"></div>
-    </section>
-  </main>
-
-  <main class="container" id="watchlist-section" style="display:none; padding-top: 40px;">
-    <section>
-      <div class="section-header">
-        <div>
-          <h3>Moje seznamy</h3>
-          <p>Uložené filmy a seriály</p>
-        </div>
-        <button id="clear-watchlist" class="info-btn">Vymazat seznam</button>
-      </div>
-      <div id="watchlist-tabs" class="watchlist-tabs"></div>
-      <div class="movies-grid" id="watchlist-movies"></div>
+      <div class="movies-grid" id="favorites-movies"></div>
     </section>
   </main>
 
@@ -225,7 +207,6 @@
     </section>
   </main>
 
-
   <div id="detail-modal" class="detail-modal hidden">
     <div class="detail-backdrop"></div>
     <div class="detail-inner">
@@ -248,8 +229,8 @@
             <button id="detail-trailer-btn" class="info-btn">
               <i class="bi bi-youtube"></i> Trailer
             </button>
-            <button id="detail-wl-btn" class="info-btn">
-              <i class="bi bi-bookmark"></i> Přidat
+            <button id="detail-fav-btn" class="info-btn">
+              <i class="bi bi-heart"></i> Oblíbit
             </button>
           </div>
           <div id="detail-seasons" class="detail-seasons" style="display:none"></div>
@@ -310,28 +291,12 @@
     </div>
   </div>
 
-  <!-- Watchlist multi modal -->
-  <div id="wl-modal" class="wl-modal hidden">
-    <div class="wl-modal-backdrop" id="wl-modal-backdrop"></div>
-    <div class="wl-modal-inner">
-      <div class="wl-modal-header">
-        <h3>Přidat do seznamu</h3>
-        <button id="wl-modal-close"><i class="bi bi-x-lg"></i></button>
-      </div>
-      <div id="wl-modal-lists"></div>
-      <div class="wl-modal-footer">
-        <input type="text" id="wl-new-list-input" placeholder="Název nového seznamu..." />
-        <button id="wl-new-list-btn" class="play-btn"><i class="bi bi-plus"></i></button>
-      </div>
-    </div>
-  </div>
-
   <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
 
   <script src="js/intro.js"></script>
   <script src="js/utils.js"></script>
-  <script src="js/watchlist.js"></script>
+  <script src="js/favorites.js"></script>
   <script src="js/cards.js"></script>
   <script src="js/trailer.js"></script>
   <script src="js/actor.js"></script>

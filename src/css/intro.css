@@ -84,6 +84,7 @@
 .profile-avatar {
   width: 130px;
   height: 130px;
+  overflow: hidden;
   border-radius: 10px;
   border: 3px solid transparent;
   font-size: 54px;
@@ -99,6 +100,14 @@
 .profile-card:hover .profile-avatar {
   border-color: white;
   transform: scale(1.06);
+}
+
+.profile-card:hover .profile-avatar-wrap {
+  transform: scale(1.06);
+}
+
+.profile-avatar-wrap .profile-avatar {
+  transform: none !important;
 }
 
 .profile-name {
@@ -188,25 +197,80 @@
   color: #555;
 }
 
-.profile-color-picker {
+.profile-theme-picker {
   display: flex;
   gap: 10px;
   justify-content: center;
   margin-bottom: 28px;
 }
 
-.color-swatch {
-  width: 38px;
-  height: 38px;
+.theme-option {
+  flex: 1;
+  padding: 10px 0;
   border-radius: 8px;
+  border: 2px solid #444;
+  background: transparent;
+  color: #888;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  border: 3px solid transparent;
+  transition: 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.theme-option.active {
+  border-color: white;
+  color: white;
+  background: #27272a;
+}
+
+.theme-option:hover:not(.active) {
+  border-color: #666;
+  color: #ccc;
+}
+
+/* ── Profile card with delete button ── */
+
+.profile-avatar-wrap {
+  position: relative;
+  width: 130px;
+  height: 130px;
+}
+
+.profile-avatar-wrap .profile-avatar {
+  width: 100%;
+  height: 100%;
+}
+
+.profile-delete-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: #e50914;
+  color: white;
+  font-size: 11px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
   transition: 0.15s;
 }
 
-.color-swatch.selected {
-  border-color: white;
+.profile-delete-btn:hover {
+  background: #ff2a2a;
   transform: scale(1.1);
+}
+
+.profile-card:hover .profile-delete-btn {
+  display: flex;
 }
 
 .profile-add-actions {
@@ -274,6 +338,11 @@
     margin-bottom: 36px;
   }
 
+  .profile-avatar-wrap {
+    width: 100px;
+    height: 100px;
+  }
+
   .profile-avatar {
     width: 100px;
     height: 100px;
@@ -295,6 +364,11 @@
     height: 86px;
     font-size: 34px;
     border-radius: 22px;
+  }
+
+  .profile-avatar-wrap {
+    width: 80px;
+    height: 80px;
   }
 
   .profile-avatar {

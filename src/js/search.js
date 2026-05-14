@@ -130,7 +130,20 @@ document.addEventListener('keydown', e => {
 const themeToggle = document.getElementById('theme-toggle')
 themeToggle.addEventListener('click', () => {
   document.body.classList.toggle('dark')
-  localStorage.setItem('filmbox_theme', document.body.classList.contains('dark') ? 'dark' : '')
+  const newTheme = document.body.classList.contains('dark') ? 'dark' : 'light'
+  localStorage.setItem('filmbox_theme', newTheme)
+
+  const raw = sessionStorage.getItem('filmbox_active_profile')
+  if (raw) {
+    const profile = JSON.parse(raw)
+    profile.theme = newTheme
+    sessionStorage.setItem('filmbox_active_profile', JSON.stringify(profile))
+    fetch(`/api/profiles/${profile.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ theme: newTheme })
+    }).catch(() => {})
+  }
 })
 if (localStorage.getItem('filmbox_theme') === 'dark') document.body.classList.add('dark')
 

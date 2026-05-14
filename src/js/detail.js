@@ -86,10 +86,14 @@ window.openDetailModal = async function(id, type, title) {
       first_air_date: d.first_air_date, media_type: type, runtime: d.runtime
     }
 
-    const inWL  = isInAnyList(id)
-    const wlBtn = document.getElementById('detail-wl-btn')
-    wlBtn.innerHTML = `<i class="bi ${inWL ? 'bi-bookmark-fill' : 'bi-bookmark'}"></i> ${inWL ? 'V seznamu' : 'Přidat'}`
-    wlBtn.onclick = () => openWlModal(movieData)
+    const favBtn = document.getElementById('detail-fav-btn')
+    const updateFavBtn = () => {
+      const f = isFavorite(id, type)
+      favBtn.innerHTML = `<i class="bi ${f ? 'bi-heart-fill' : 'bi-heart'}"></i> ${f ? 'Oblíbené' : 'Oblíbit'}`
+      favBtn.style.color = f ? '#ef4444' : ''
+    }
+    updateFavBtn()
+    favBtn.onclick = async () => { await toggleFavorite(movieData); updateFavBtn() }
 
     document.getElementById('detail-play-btn').onclick = () => {
       closeDetailModal()

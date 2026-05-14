@@ -1,11 +1,4 @@
 // ================= MAIN INIT =================
-// Runs after all other scripts are loaded.
-// Initializes sections that depend on multiple modules.
-
-renderWatchlist()
-renderContinueWatching()
-
-// ── Navbar links ──
 
 document.getElementById('nav-home')?.addEventListener('click', e => {
   e.preventDefault()
