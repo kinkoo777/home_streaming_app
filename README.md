@@ -1,43 +1,44 @@
 # FilmBox
 
-A Netflix-style home streaming platform UI built with vanilla HTML, CSS and JavaScript. Pulls movie and TV show data from the TMDB API and links playback through prehraj.to.
+A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls movie and TV data from TMDB and links playback through prehraj.to. Profiles and favorites are stored in local JSON files — no external database needed.
 
 ## Features
 
-- **Intro animation** — Netflix-style logo entrance with a Web Audio "ta-dum" sound
-- **Multi-profile support** — choose or create profiles (stored in localStorage), each with a custom name and color
-- **Hero banner** — rotating weekly trending movies with backdrop image, title and description
-- **3 browsable grids** — Most Visited, Trending, and Top Rated; each with genre filters, sort tabs (default / rating / year) and a load-more button
-- **Search** — live TMDB search with a result dropdown and search history
-- **Detail modal** — poster, genres, cast, overview, trailer button, watchlist button, season/episode list for TV shows, and a similar titles grid
+- **Intro animation** — logo entrance with Web Audio sound
+- **Multi-profile support** — create, switch and delete profiles; each profile has its own theme and favorites
+- **Per-profile favorites** — heart any movie or series; favorites are isolated per profile
+- **Theme persistence** — dark/light toggle saved to the profile in the JSON store
+- **Hero banner** — rotating trending movies with backdrop, title and description
+- **3 browsable grids** — Most Visited, Trending, Top Rated; genre filters, sort tabs, load-more
+- **Search** — live TMDB search with dropdown and search history
+- **Detail modal** — poster, genres, cast, overview, trailer, season/episode browser for TV, similar titles
 - **Trailer modal** — embedded YouTube player
 - **Actor modal** — photo, biography and top works
-- **Watchlist** — multi-list system (create, rename, delete lists); "Continue watching" section with progress bars
-- **Player** — searches prehraj.to for the selected title; supports custom search name if nothing is found automatically
-- **Dark mode toggle** — persisted in localStorage
-- **Fully responsive** — phone (360 px) → tablet → laptop → large TV (1800 px+)
-- **Mobile search overlay** — full-screen search panel on small screens
+- **Player** — searches prehraj.to for the title; supports custom query if nothing is found
+- **Fully responsive** — 360 px phone → tablet → laptop → large TV
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | Vanilla HTML / CSS / JavaScript (no frameworks) |
+| Frontend | Vanilla HTML / CSS / JavaScript |
 | Icons | Bootstrap Icons (CDN) |
 | Movie data | TMDB API v3 |
 | Playback source | prehraj.to (scraping) |
 | Backend | Node.js + Express |
-| Scraping | JSDOM (search results) + Puppeteer (video extraction) |
-| Tests | Playwright |
+| Scraping | JSDOM + Puppeteer |
+| Data storage | JSON files (no external DB) |
 
 ## Project Structure
 
 ```
-films-hun/
-├── server.js           # Express server (TMDB proxy + prehraj.to scraping)
+home_streaming_app/
+├── server.js           # Express server — TMDB proxy, profiles/favorites API, prehraj.to scraping
+├── db.js               # JSON file store (data/profiles.json + data/favorites.json)
 ├── package.json
-├── tests/
-│   └── app.test.js     # Playwright end-to-end tests
+├── data/               # Created automatically on first run
+│   ├── profiles.json
+│   └── favorites.json
 └── src/
     ├── index.html
     ├── css/
@@ -47,13 +48,12 @@ films-hun/
     │   ├── cards.css
     │   ├── grid.css
     │   ├── modals.css
-    │   ├── watchlist.css
     │   ├── responsive.css
     │   └── intro.css
     └── js/
-        ├── intro.js      # Intro animation + profile chooser
-        ├── utils.js      # Shared helpers (toast, skeletons, genre map)
-        ├── watchlist.js  # Multi-list watchlist + continue watching
+        ├── intro.js      # Intro animation + profile chooser (API-driven)
+        ├── favorites.js  # Per-profile favorites with isolated state
+        ├── utils.js      # Toast, skeletons, genre map, shared data map
         ├── cards.js      # Movie cards, grid state, filters, fetch
         ├── trailer.js    # Trailer modal
         ├── actor.js      # Actor modal
@@ -61,7 +61,7 @@ films-hun/
         ├── detail.js     # Detail modal + season browser
         ├── search.js     # Live search + theme toggle
         ├── hero.js       # Hero banner rotation
-        └── main.js       # Init + navbar scroll links
+        └── main.js       # Navbar scroll links
 ```
 
 ## Getting Started
@@ -74,12 +74,18 @@ films-hun/
 ### Install
 
 ```bash
+git clone https://github.com/kinkoo777/home_streaming_app.git
+cd home_streaming_app
 npm install
 ```
 
 ### Configure
 
-Open `server.js` and replace the `TMDB_API_KEY` and `TMDB_AUTH` values at the top of the file with your own credentials from TMDB.
+Open `server.js` and set your TMDB API key at the top:
+
+```js
+const TMDB_API_KEY = "your_key_here";
+```
 
 ### Run
 
@@ -87,34 +93,58 @@ Open `server.js` and replace the `TMDB_API_KEY` and `TMDB_AUTH` values at the to
 node server.js
 ```
 
-Then open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000). The `data/` folder is created automatically on first run.
 
-To access from other devices on the same network, use your machine's local IP address instead of `localhost` — e.g. `http://192.168.1.x:3000`. The server listens on `0.0.0.0` so all relative API calls from the frontend will resolve correctly.
+To access from other devices on the same network use your machine's local IP — e.g. `http://192.168.1.x:3000`.
 
-### Run Tests
+### Linux
+
+Before running on Linux, install Chromium system dependencies:
 
 ```bash
-npx playwright test
+sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
+  libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
+  libxrandr2 libpango-1.0-0 libcairo2 libnss3 libnspr4
 ```
 
-## Server API Endpoints
+## API Endpoints
+
+### Profiles & Favorites
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/profiles` | List all profiles |
+| `POST` | `/api/profiles` | Create profile `{ name, theme }` |
+| `GET` | `/api/profiles/:id` | Get profile by id |
+| `PUT` | `/api/profiles/:id` | Update profile (name, theme) |
+| `DELETE` | `/api/profiles/:id` | Delete profile + its favorites |
+| `GET` | `/api/profiles/:id/favorites` | List favorites for a profile |
+| `POST` | `/api/profiles/:id/favorites` | Add favorite `{ tmdbId, mediaType, title, posterPath }` |
+| `DELETE` | `/api/profiles/:id/favorites/:tmdbId/:mediaType` | Remove a favorite |
+
+### TMDB Proxy
 
 | Endpoint | Description |
 |---|---|
-| `GET /tmdb/movies?type=popular\|trending\|top_rated&page=N` | Paginated movie/TV lists |
-| `GET /tmdb/search?q=<query>` | TMDB multi-search |
-| `GET /tmdb/details?id=&type=movie\|tv` | Movie/TV details + cast |
+| `GET /tmdb/movies?type=popular\|trending\|top_rated&page=N` | Paginated lists |
+| `GET /tmdb/search?q=<query>` | Multi-search |
+| `GET /tmdb/details?id=&type=movie\|tv` | Details + cast |
 | `GET /tmdb/videos?id=&type=` | Trailers |
 | `GET /tmdb/similar?id=&type=` | Similar titles |
 | `GET /tmdb/actor?id=` | Actor bio + works |
 | `GET /tmdb/season?id=&season=N` | TV season episodes |
 | `GET /tmdb/hero` | Trending movies for hero banner |
-| `GET /search?q=<query>` | prehraj.to title search (JSDOM) |
-| `GET /get_video?url=<url>` | Extract video stream URL (Puppeteer) |
-| `GET /autocomplete_data?q=<query>` | prehraj.to autocomplete suggestions |
 
-All TMDB responses are cached in memory for 5 minutes.
+### Playback (prehraj.to)
+
+| Endpoint | Description |
+|---|---|
+| `GET /search?q=<query>` | Title search |
+| `GET /get_video?url=<url>` | Extract video stream URL |
+| `GET /autocomplete_data?q=<query>` | Autocomplete suggestions |
+
+TMDB responses are cached in memory for 5 minutes.
 
 ## Browser Support
 
-Chrome / Edge / Firefox / Safari — any modern browser with ES6+ support.
+Any modern browser with ES6+ support (Chrome, Edge, Firefox, Safari).
