@@ -1,13 +1,15 @@
 // ================= WATCHED =================
 
-const WATCHED_KEY = 'filmbox_watched'
+function watchedKey() {
+  return 'filmbox_watched_' + getActiveProfileId()
+}
 
 function getWatched() {
-  return JSON.parse(localStorage.getItem(WATCHED_KEY) || '[]')
+  return JSON.parse(localStorage.getItem(watchedKey()) || '[]')
 }
 
 function saveWatched(list) {
-  localStorage.setItem(WATCHED_KEY, JSON.stringify(list))
+  localStorage.setItem(watchedKey(), JSON.stringify(list))
 }
 
 function isWatched(id) {

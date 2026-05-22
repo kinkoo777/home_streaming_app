@@ -69,6 +69,18 @@ function closeModal() {
   }
 }
 
+// ================= PROFILE HELPER =================
+
+function getActiveProfileId() {
+  try {
+    const raw = sessionStorage.getItem('filmbox_active_profile')
+    if (!raw) return 'default'
+    return JSON.parse(raw).id || 'default'
+  } catch {
+    return 'default'
+  }
+}
+
 // ================= SHARED DATA MAP =================
 // All fetched movies keyed by id for O(1) lookup across search, grids, and watchlist
 

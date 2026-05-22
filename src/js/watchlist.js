@@ -1,15 +1,20 @@
 // ================= CONTINUE WATCHING =================
 
+function progressPrefix() {
+  return 'filmbox_progress_' + getActiveProfileId() + '_'
+}
+
 function renderContinueWatching() {
   const section   = document.getElementById('continue-watching-section')
   const container = document.getElementById('continue-watching-movies')
   if (!section || !container) return
 
+  const prefix = progressPrefix()
   const items = []
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i)
-    if (!key || !key.startsWith('filmbox_progress_')) continue
-    const tmdbId   = key.replace('filmbox_progress_', '')
+    if (!key || !key.startsWith(prefix)) continue
+    const tmdbId   = key.slice(prefix.length)
     const progress = parseFloat(localStorage.getItem(key))
     if (!progress || progress <= 30) continue
     if (typeof isWatched === 'function' && isWatched(parseInt(tmdbId))) continue
@@ -28,20 +33,20 @@ function renderContinueWatching() {
 const DEFAULT_LIST_ID = 'default'
 let activeListId = DEFAULT_LIST_ID
 
+function listsKey() {
+  return 'filmbox_lists_' + getActiveProfileId()
+}
+
 function getLists() {
-  const raw = localStorage.getItem('filmbox_lists')
+  const raw = localStorage.getItem(listsKey())
   if (raw) return JSON.parse(raw)
-  // Migrate from old single-list filmbox_watchlist format
-  const oldWl = localStorage.getItem('filmbox_watchlist')
-  const movies = oldWl ? JSON.parse(oldWl) : []
-  const defaults = [{ id: DEFAULT_LIST_ID, name: 'Můj seznam', movies }]
-  localStorage.setItem('filmbox_lists', JSON.stringify(defaults))
-  if (oldWl) localStorage.removeItem('filmbox_watchlist')
+  const defaults = [{ id: DEFAULT_LIST_ID, name: 'Můj seznam', movies: [] }]
+  localStorage.setItem(listsKey(), JSON.stringify(defaults))
   return defaults
 }
 
 function saveLists(lists) {
-  localStorage.setItem('filmbox_lists', JSON.stringify(lists))
+  localStorage.setItem(listsKey(), JSON.stringify(lists))
 }
 
 function getListById(id) {
