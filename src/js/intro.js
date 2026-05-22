@@ -147,7 +147,10 @@
     setTimeout(() => {
       chooser.classList.add('hidden')
       updateNavbarProfile(profile)
-      if (window.reloadFavorites) window.reloadFavorites()
+      if (window.reloadFavorites)           window.reloadFavorites()
+      if (window.reloadWatched)             window.reloadWatched()
+      if (window.reloadWatchlist)           window.reloadWatchlist()
+      if (window.reloadContinueWatching)    window.reloadContinueWatching()
     }, 360)
   }
 

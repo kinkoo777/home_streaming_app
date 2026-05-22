@@ -278,6 +278,9 @@ document.getElementById('watchlist-toggle')?.addEventListener('click', () => {
   }
 })
 
+window.reloadWatchlist         = renderWatchlist
+window.reloadContinueWatching  = renderContinueWatching
+
 document.addEventListener('DOMContentLoaded', () => {
   renderContinueWatching()
   renderWatchlist()
