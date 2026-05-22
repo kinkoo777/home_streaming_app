@@ -1,41 +1,50 @@
 // ================= WATCHED =================
 
-function watchedKey() {
-  return 'filmbox_watched_' + getActiveProfileId()
-}
+let _watchedCache = []
 
-function getWatched() {
-  return JSON.parse(localStorage.getItem(watchedKey()) || '[]')
-}
-
-function saveWatched(list) {
-  localStorage.setItem(watchedKey(), JSON.stringify(list))
+async function _loadWatched() {
+  const profileId = getActiveProfileId()
+  if (profileId === 'default') { _watchedCache = []; return }
+  try {
+    const res = await fetch(`/api/profiles/${profileId}/watched`)
+    _watchedCache = res.ok ? await res.json() : []
+  } catch { _watchedCache = [] }
 }
 
 function isWatched(id) {
-  return getWatched().some(w => w.id === id)
+  return _watchedCache.some(w => w.tmdbId === Number(id))
 }
 
-// Returns true if now watched, false if removed
 async function toggleWatched(movie) {
-  const list = getWatched()
-  const idx  = list.findIndex(w => w.id === movie.id)
-  if (idx >= 0) {
-    list.splice(idx, 1)
-    saveWatched(list)
+  const profileId = getActiveProfileId()
+  const tmdbId    = movie.id
+  const mediaType = movie.media_type || (movie.title ? 'movie' : 'tv')
+  const already   = isWatched(tmdbId)
+
+  if (already) {
+    await fetch(`/api/profiles/${profileId}/watched/${tmdbId}/${mediaType}`, { method: 'DELETE' })
+    _watchedCache = _watchedCache.filter(w => !(w.tmdbId === Number(tmdbId) && w.mediaType === mediaType))
     showToast('Odebráno ze sledovaných')
     renderWatched()
     refreshWatchedBadges()
     return false
   }
-  list.unshift({
-    id:         movie.id,
-    mediaType:  movie.media_type || (movie.title ? 'movie' : 'tv'),
+
+  const body = {
+    tmdbId,
+    mediaType,
     title:      movie.title || movie.name,
-    posterPath: movie.poster_path || null,
-    watchedAt:  new Date().toISOString()
+    posterPath: movie.poster_path || null
+  }
+  const res = await fetch(`/api/profiles/${profileId}/watched`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(body)
   })
-  saveWatched(list)
+  if (res.ok) {
+    const entry = await res.json()
+    _watchedCache.unshift(entry)
+  }
   showToast('Přidáno mezi uzřené ✓')
   renderWatched()
   refreshWatchedBadges()
@@ -56,16 +65,15 @@ function renderWatched() {
   const container = document.getElementById('watched-movies')
   if (!section || !container) return
 
-  const list = getWatched()
-  if (!list.length) { section.style.display = 'none'; return }
+  if (!_watchedCache.length) { section.style.display = 'none'; return }
   section.style.display = 'block'
 
-  container.innerHTML = list.map(w => `
-    <div class="movie-card" onclick="openDetailModal(${w.id},'${w.mediaType}',decodeURIComponent('${encodeURIComponent(w.title)}'))">
+  container.innerHTML = _watchedCache.map(w => `
+    <div class="movie-card" onclick="openDetailModal(${w.tmdbId},'${w.mediaType}',decodeURIComponent('${encodeURIComponent(w.title)}'))">
       <div class="movie-poster">
         <img src="https://image.tmdb.org/t/p/w500${w.posterPath || ''}" alt="${w.title}" loading="lazy">
         <button class="fav-btn active" style="background:rgba(34,197,94,0.2);color:#4ade80"
-                onclick="event.stopPropagation();watchedRemoveCard(${w.id})">
+                onclick="event.stopPropagation();watchedRemoveCard(${w.tmdbId},'${w.mediaType}')">
           <i class="bi bi-check-circle-fill"></i>
         </button>
       </div>
@@ -102,9 +110,10 @@ function refreshWatchedBadges() {
   })
 }
 
-window.watchedRemoveCard = function(id) {
-  const list = getWatched().filter(w => w.id !== id)
-  saveWatched(list)
+window.watchedRemoveCard = async function(tmdbId, mediaType) {
+  const profileId = getActiveProfileId()
+  await fetch(`/api/profiles/${profileId}/watched/${tmdbId}/${mediaType}`, { method: 'DELETE' })
+  _watchedCache = _watchedCache.filter(w => !(w.tmdbId === Number(tmdbId) && w.mediaType === mediaType))
   renderWatched()
   refreshWatchedBadges()
   showToast('Odebráno ze sledovaných')
@@ -113,8 +122,12 @@ window.watchedRemoveCard = function(id) {
 window.isWatched     = isWatched
 window.toggleWatched = toggleWatched
 window.renderWatched = renderWatched
-window.reloadWatched = renderWatched
+window.reloadWatched = async function() {
+  await _loadWatched()
+  renderWatched()
+}
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await _loadWatched()
   renderWatched()
 })

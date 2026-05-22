@@ -16,7 +16,7 @@ function getSystemChromium() {
   }
   return undefined
 }
-const { profiles: profilesDB, favorites: favoritesDB } = require('./db');
+const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB } = require('./db');
 const TMDB_API_KEY = "4423c40ec92d2d940674ff0c6bf108dc";
 
 const app = express();
@@ -615,6 +615,9 @@ app.delete('/api/profiles/:id', (req, res) => {
     const deleted = profilesDB.delete(req.params.id);
     if (!deleted) return res.status(404).json({ error: 'Profile not found' });
     favoritesDB.deleteByProfile(req.params.id);
+    watchedDB.deleteByProfile(req.params.id);
+    watchlistsDB.deleteByProfile(req.params.id);
+    progressDB.deleteByProfile(req.params.id);
     res.json({ message: 'Profile deleted' });
 });
 
@@ -642,6 +645,62 @@ app.delete('/api/profiles/:id/favorites/:tmdbId/:mediaType', (req, res) => {
     const removed = favoritesDB.remove(id, Number(tmdbId), mediaType);
     if (!removed) return res.status(404).json({ error: 'Favorite not found' });
     res.json({ message: 'Removed from favorites' });
+});
+
+// ====================
+// WATCHED API
+// ====================
+
+app.get('/api/profiles/:id/watched', (req, res) => {
+    res.json(watchedDB.list(req.params.id));
+});
+
+app.post('/api/profiles/:id/watched', (req, res) => {
+    try {
+        const { tmdbId, mediaType, title, posterPath } = req.body;
+        if (!tmdbId || !mediaType || !title) return res.status(400).json({ error: 'tmdbId, mediaType and title are required' });
+        const entry = watchedDB.add({ profileId: req.params.id, tmdbId, mediaType, title, posterPath: posterPath || null });
+        res.status(201).json(entry);
+    } catch (err) {
+        res.status(err.code === 409 ? 409 : 400).json({ error: err.message });
+    }
+});
+
+app.delete('/api/profiles/:id/watched/:tmdbId/:mediaType', (req, res) => {
+    const { id, tmdbId, mediaType } = req.params;
+    const removed = watchedDB.remove(id, Number(tmdbId), mediaType);
+    if (!removed) return res.status(404).json({ error: 'Watched entry not found' });
+    res.json({ message: 'Removed from watched' });
+});
+
+// ====================
+// WATCHLISTS API
+// ====================
+
+app.get('/api/profiles/:id/watchlists', (req, res) => {
+    res.json(watchlistsDB.getByProfile(req.params.id));
+});
+
+app.put('/api/profiles/:id/watchlists', (req, res) => {
+    const lists = req.body;
+    if (!Array.isArray(lists)) return res.status(400).json({ error: 'Body must be an array of lists' });
+    watchlistsDB.saveByProfile(req.params.id, lists);
+    res.json({ ok: true });
+});
+
+// ====================
+// PROGRESS API
+// ====================
+
+app.get('/api/profiles/:id/progress', (req, res) => {
+    res.json(progressDB.getAll(req.params.id));
+});
+
+app.put('/api/profiles/:id/progress/:tmdbId', (req, res) => {
+    const seconds = Number(req.body.seconds);
+    if (isNaN(seconds)) return res.status(400).json({ error: 'seconds must be a number' });
+    progressDB.set(req.params.id, req.params.tmdbId, seconds);
+    res.json({ ok: true });
 });
 
 // ====================

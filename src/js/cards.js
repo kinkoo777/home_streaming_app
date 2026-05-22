@@ -6,7 +6,7 @@ function buildCard(movie, extraClass = '') {
   const mediaType = movie.media_type || (movie.title ? 'movie' : 'tv')
   const inFav     = isFavorite(movie.id, mediaType)
   const watched   = typeof isWatched === 'function' && isWatched(movie.id)
-  const progress  = localStorage.getItem('filmbox_progress_' + getActiveProfileId() + '_' + movie.id)
+  const progress  = window._profileProgress ? window._profileProgress[String(movie.id)] : null
   const pct = progress && movie.runtime
     ? Math.min(100, (parseFloat(progress) / (movie.runtime * 60)) * 100).toFixed(0)
     : null

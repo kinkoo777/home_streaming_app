@@ -1,26 +1,19 @@
 // ================= CONTINUE WATCHING =================
 
-function progressPrefix() {
-  return 'filmbox_progress_' + getActiveProfileId() + '_'
-}
-
 function renderContinueWatching() {
   const section   = document.getElementById('continue-watching-section')
   const container = document.getElementById('continue-watching-movies')
   if (!section || !container) return
 
-  const prefix = progressPrefix()
+  const progress = window._profileProgress || {}
   const items = []
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i)
-    if (!key || !key.startsWith(prefix)) continue
-    const tmdbId   = key.slice(prefix.length)
-    const progress = parseFloat(localStorage.getItem(key))
-    if (!progress || progress <= 30) continue
+
+  for (const [tmdbId, seconds] of Object.entries(progress)) {
+    if (!seconds || seconds <= 30) continue
     if (typeof isWatched === 'function' && isWatched(parseInt(tmdbId))) continue
     const metaRaw = localStorage.getItem('filmbox_meta_' + tmdbId)
     if (!metaRaw) continue
-    items.push({ ...JSON.parse(metaRaw), _progress: progress })
+    items.push({ ...JSON.parse(metaRaw), _progress: seconds })
   }
 
   if (!items.length) { section.style.display = 'none'; return }
@@ -32,21 +25,34 @@ function renderContinueWatching() {
 
 const DEFAULT_LIST_ID = 'default'
 let activeListId = DEFAULT_LIST_ID
-
-function listsKey() {
-  return 'filmbox_lists_' + getActiveProfileId()
-}
+let _listsCache = null
 
 function getLists() {
-  const raw = localStorage.getItem(listsKey())
-  if (raw) return JSON.parse(raw)
-  const defaults = [{ id: DEFAULT_LIST_ID, name: 'Můj seznam', movies: [] }]
-  localStorage.setItem(listsKey(), JSON.stringify(defaults))
-  return defaults
+  if (_listsCache) return _listsCache
+  _listsCache = [{ id: DEFAULT_LIST_ID, name: 'Můj seznam', movies: [] }]
+  return _listsCache
+}
+
+async function _loadLists() {
+  const profileId = getActiveProfileId()
+  if (profileId === 'default') { _listsCache = [{ id: DEFAULT_LIST_ID, name: 'Můj seznam', movies: [] }]; return }
+  try {
+    const res = await fetch(`/api/profiles/${profileId}/watchlists`)
+    _listsCache = res.ok ? await res.json() : [{ id: DEFAULT_LIST_ID, name: 'Můj seznam', movies: [] }]
+  } catch {
+    _listsCache = [{ id: DEFAULT_LIST_ID, name: 'Můj seznam', movies: [] }]
+  }
 }
 
 function saveLists(lists) {
-  localStorage.setItem(listsKey(), JSON.stringify(lists))
+  _listsCache = lists
+  const profileId = getActiveProfileId()
+  if (profileId === 'default') return
+  fetch(`/api/profiles/${profileId}/watchlists`, {
+    method:  'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(lists)
+  }).catch(() => {})
 }
 
 function getListById(id) {
@@ -186,7 +192,6 @@ window.toggleWatchlistCard = function(btn, id) {
   const added = toggleMovieInList(activeListId, movie)
   btn.classList.toggle('active', added)
   btn.querySelector('i').className = 'bi ' + (added ? 'bi-bookmark-fill' : 'bi-bookmark')
-  // Don't auto-show watchlist section; let toggle button control visibility
   const section = document.getElementById('watchlist-section')
   if (section.style.display === 'block') renderWatchlist()
   renderContinueWatching()
@@ -278,10 +283,14 @@ document.getElementById('watchlist-toggle')?.addEventListener('click', () => {
   }
 })
 
-window.reloadWatchlist         = renderWatchlist
-window.reloadContinueWatching  = renderContinueWatching
+window.reloadWatchlist = async function() {
+  await _loadLists()
+  renderWatchlist()
+}
+window.reloadContinueWatching = renderContinueWatching
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await _loadLists()
   renderContinueWatching()
   renderWatchlist()
 })

@@ -144,13 +144,14 @@
     const chooser = document.getElementById('profile-chooser')
     chooser.style.transition = 'opacity 0.35s ease'
     chooser.style.opacity = '0'
-    setTimeout(() => {
+    setTimeout(async () => {
       chooser.classList.add('hidden')
       updateNavbarProfile(profile)
-      if (window.reloadFavorites)           window.reloadFavorites()
-      if (window.reloadWatched)             window.reloadWatched()
-      if (window.reloadWatchlist)           window.reloadWatchlist()
-      if (window.reloadContinueWatching)    window.reloadContinueWatching()
+      if (window.reloadFavorites)        window.reloadFavorites()
+      if (window.reloadWatched)          await window.reloadWatched()
+      if (window.reloadWatchlist)        await window.reloadWatchlist()
+      if (typeof loadProfileProgress === 'function') await loadProfileProgress()
+      if (window.reloadContinueWatching) window.reloadContinueWatching()
     }, 360)
   }
 
@@ -261,6 +262,7 @@
       document.getElementById('profile-chooser').style.opacity = '0'
       applyTheme(active.theme)
       updateNavbarProfile(active)
+      if (typeof loadProfileProgress === 'function') loadProfileProgress()
       return
     }
 

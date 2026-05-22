@@ -1,9 +1,12 @@
 const fs   = require('fs');
 const path = require('path');
 
-const DATA_DIR       = path.join(__dirname, 'data');
-const PROFILES_FILE  = path.join(DATA_DIR, 'profiles.json');
-const FAVORITES_FILE = path.join(DATA_DIR, 'favorites.json');
+const DATA_DIR        = path.join(__dirname, 'data');
+const PROFILES_FILE   = path.join(DATA_DIR, 'profiles.json');
+const FAVORITES_FILE  = path.join(DATA_DIR, 'favorites.json');
+const WATCHED_FILE    = path.join(DATA_DIR, 'watched.json');
+const WATCHLISTS_FILE = path.join(DATA_DIR, 'watchlists.json');
+const PROGRESS_FILE   = path.join(DATA_DIR, 'progress.json');
 
 function ensure() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -104,4 +107,88 @@ const favorites = {
   }
 };
 
-module.exports = { profiles, favorites };
+// ── Watched ──
+
+const watched = {
+  list(profileId) {
+    return read(WATCHED_FILE)
+      .filter(w => w.profileId === profileId)
+      .sort((a, b) => b.watchedAt.localeCompare(a.watchedAt));
+  },
+
+  add({ profileId, tmdbId, mediaType, title, posterPath = null }) {
+    const all = read(WATCHED_FILE);
+    if (all.some(w => w.profileId === profileId && w.tmdbId === Number(tmdbId) && w.mediaType === mediaType)) {
+      const err = new Error('Already watched');
+      err.code = 409;
+      throw err;
+    }
+    const w = { id: newId(), profileId, tmdbId: Number(tmdbId), mediaType, title, posterPath, watchedAt: new Date().toISOString() };
+    write(WATCHED_FILE, [w, ...all]);
+    return w;
+  },
+
+  remove(profileId, tmdbId, mediaType) {
+    const all = read(WATCHED_FILE);
+    const next = all.filter(w => !(w.profileId === profileId && w.tmdbId === Number(tmdbId) && w.mediaType === mediaType));
+    if (next.length === all.length) return false;
+    write(WATCHED_FILE, next);
+    return true;
+  },
+
+  deleteByProfile(profileId) {
+    write(WATCHED_FILE, read(WATCHED_FILE).filter(w => w.profileId !== profileId));
+  }
+};
+
+// ── Watchlists ──
+
+const watchlists = {
+  getByProfile(profileId) {
+    const all = read(WATCHLISTS_FILE);
+    const entry = all.find(e => e.profileId === profileId);
+    return entry ? entry.lists : [{ id: 'default', name: 'Můj seznam', movies: [] }];
+  },
+
+  saveByProfile(profileId, lists) {
+    const all = read(WATCHLISTS_FILE);
+    const idx = all.findIndex(e => e.profileId === profileId);
+    if (idx >= 0) {
+      all[idx].lists = lists;
+    } else {
+      all.push({ profileId, lists });
+    }
+    write(WATCHLISTS_FILE, all);
+  },
+
+  deleteByProfile(profileId) {
+    write(WATCHLISTS_FILE, read(WATCHLISTS_FILE).filter(e => e.profileId !== profileId));
+  }
+};
+
+// ── Progress ──
+
+const progress = {
+  getAll(profileId) {
+    const all = read(PROGRESS_FILE);
+    const entry = all.find(e => e.profileId === profileId);
+    return entry ? entry.items : {};
+  },
+
+  set(profileId, tmdbId, seconds) {
+    const all = read(PROGRESS_FILE);
+    const idx = all.findIndex(e => e.profileId === profileId);
+    if (idx >= 0) {
+      all[idx].items[String(tmdbId)] = seconds;
+    } else {
+      all.push({ profileId, items: { [String(tmdbId)]: seconds } });
+    }
+    write(PROGRESS_FILE, all);
+  },
+
+  deleteByProfile(profileId) {
+    write(PROGRESS_FILE, read(PROGRESS_FILE).filter(e => e.profileId !== profileId));
+  }
+};
+
+module.exports = { profiles, favorites, watched, watchlists, progress };

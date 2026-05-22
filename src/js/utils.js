@@ -81,6 +81,19 @@ function getActiveProfileId() {
   }
 }
 
+// ================= PROFILE PROGRESS =================
+
+window._profileProgress = {}
+
+async function loadProfileProgress() {
+  const profileId = getActiveProfileId()
+  if (profileId === 'default') return
+  try {
+    const res = await fetch(`/api/profiles/${profileId}/progress`)
+    if (res.ok) window._profileProgress = await res.json()
+  } catch {}
+}
+
 // ================= SHARED DATA MAP =================
 // All fetched movies keyed by id for O(1) lookup across search, grids, and watchlist
 
