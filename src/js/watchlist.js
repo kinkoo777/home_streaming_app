@@ -3,16 +3,21 @@
 function renderContinueWatching() {
   const section   = document.getElementById('continue-watching-section')
   const container = document.getElementById('continue-watching-movies')
-  const seen = new Set()
-  const allMovies = getLists().flatMap(l => l.movies).filter(m => {
-    if (seen.has(m.id)) return false
-    seen.add(m.id); return true
-  })
-  const items = allMovies.filter(m => {
-    const key = 'filmbox_progress_' + (m.title || m.name || '').replace(/\s+/g, '_')
-    const p   = parseFloat(localStorage.getItem(key))
-    return p && p > 30
-  })
+  if (!section || !container) return
+
+  const items = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (!key || !key.startsWith('filmbox_progress_')) continue
+    const tmdbId   = key.replace('filmbox_progress_', '')
+    const progress = parseFloat(localStorage.getItem(key))
+    if (!progress || progress <= 30) continue
+    if (typeof isWatched === 'function' && isWatched(parseInt(tmdbId))) continue
+    const metaRaw = localStorage.getItem('filmbox_meta_' + tmdbId)
+    if (!metaRaw) continue
+    items.push({ ...JSON.parse(metaRaw), _progress: progress })
+  }
+
   if (!items.length) { section.style.display = 'none'; return }
   section.style.display = 'block'
   container.innerHTML = items.map(m => buildCard(m, 'continue-card')).join('')
@@ -191,13 +196,13 @@ function openWlModal(movie) {
   wlModalMovie = movie
   const modal = document.getElementById('wl-modal')
   modal.classList.remove('hidden')
-  document.body.classList.add('modal-open')
+  openModal()
   renderWlModalLists()
 }
 
 function closeWlModal() {
   document.getElementById('wl-modal').classList.add('hidden')
-  document.body.classList.remove('modal-open')
+  closeModal()
   wlModalMovie = null
 }
 
@@ -255,7 +260,7 @@ document.getElementById('clear-watchlist').addEventListener('click', () => {
   showToast('Seznam vymazán')
 })
 
-document.getElementById('watchlist-toggle').addEventListener('click', () => {
+document.getElementById('watchlist-toggle')?.addEventListener('click', () => {
   const section = document.getElementById('watchlist-section')
   const lists   = getLists()
   const total   = lists.reduce((s, l) => s + l.movies.length, 0)
@@ -266,4 +271,9 @@ document.getElementById('watchlist-toggle').addEventListener('click', () => {
   } else {
     section.style.display = 'none'
   }
+})
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderContinueWatching()
+  renderWatchlist()
 })
