@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="css/cards.css" />
   <link rel="stylesheet" href="css/grid.css" />
   <link rel="stylesheet" href="css/modals.css" />
+  <link rel="stylesheet" href="css/watchlist.css" />
   <link rel="stylesheet" href="css/responsive.css" />
   <link rel="stylesheet" href="css/intro.css" />
 </head>
@@ -90,6 +91,19 @@
     </div>
   </header>
 
+  <!-- ── Continue Watching ── -->
+  <main class="container" id="continue-watching-section" style="display:none; padding-top: 40px;">
+    <section>
+      <div class="section-header">
+        <div>
+          <h3>Pokračovat ve sledování</h3>
+          <p>Tam, kde jste skončili</p>
+        </div>
+      </div>
+      <div class="movies-grid" id="continue-watching-movies"></div>
+    </section>
+  </main>
+
   <section class="hero container">
     <div class="hero-banner">
       <img id="hero-image" src="" alt="Hero" />
@@ -132,6 +146,23 @@
         </div>
       </div>
       <div class="movies-grid" id="favorites-movies"></div>
+    </section>
+  </main>
+
+  <!-- ── Watchlist ── -->
+  <main class="container" id="watchlist-section" style="display:none; padding-top: 40px;">
+    <section>
+      <div class="section-header">
+        <div>
+          <h3>Můj seznam</h3>
+          <p>Filmy, které chcete vidět</p>
+        </div>
+        <button id="clear-watchlist" class="info-btn" style="font-size:13px; padding:8px 16px;">
+          <i class="bi bi-trash"></i> Vymazat
+        </button>
+      </div>
+      <div id="watchlist-tabs" class="watchlist-tabs"></div>
+      <div class="movies-grid" id="watchlist-movies"></div>
     </section>
   </main>
 
@@ -207,6 +238,19 @@
     </section>
   </main>
 
+  <!-- ── Watched ── -->
+  <main class="container" id="watched-section" style="display:none; padding-top: 40px; padding-bottom: 60px;">
+    <section>
+      <div class="section-header">
+        <div>
+          <h3>Uzřeno</h3>
+          <p>Filmy a seriály, které jste již viděli</p>
+        </div>
+      </div>
+      <div class="movies-grid" id="watched-movies"></div>
+    </section>
+  </main>
+
   <div id="detail-modal" class="detail-modal hidden">
     <div class="detail-backdrop"></div>
     <div class="detail-inner">
@@ -231,6 +275,12 @@
             </button>
             <button id="detail-fav-btn" class="info-btn">
               <i class="bi bi-heart"></i> Oblíbit
+            </button>
+            <button id="detail-watched-btn" class="info-btn">
+              <i class="bi bi-check-circle"></i> Označit
+            </button>
+            <button id="detail-wl-btn" class="info-btn">
+              <i class="bi bi-bookmark"></i> Přidat
             </button>
           </div>
           <div id="detail-seasons" class="detail-seasons" style="display:none"></div>
@@ -291,12 +341,30 @@
     </div>
   </div>
 
+  <!-- Watchlist modal -->
+  <div id="wl-modal" class="wl-modal hidden">
+    <div class="wl-modal-backdrop" id="wl-modal-backdrop"></div>
+    <div class="wl-modal-inner">
+      <div class="wl-modal-header">
+        <h3>Přidat do seznamu</h3>
+        <button id="wl-modal-close"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div id="wl-modal-lists"></div>
+      <div class="wl-modal-footer">
+        <input type="text" id="wl-new-list-input" placeholder="Nový seznam..." maxlength="30" />
+        <button id="wl-new-list-btn" class="play-btn"><i class="bi bi-plus-lg"></i></button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
 
   <script src="js/intro.js"></script>
   <script src="js/utils.js"></script>
+  <script src="js/watchlist.js"></script>
   <script src="js/favorites.js"></script>
+  <script src="js/watched.js"></script>
   <script src="js/cards.js"></script>
   <script src="js/trailer.js"></script>
   <script src="js/actor.js"></script>
