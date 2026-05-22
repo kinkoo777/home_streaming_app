@@ -6,7 +6,7 @@ const detailBackdrop = document.querySelector('.detail-backdrop')
 
 function closeDetailModal() {
   detailModal.classList.add('hidden')
-  document.body.classList.remove('modal-open')
+  closeModal()
 }
 
 detailClose.addEventListener('click', closeDetailModal)
@@ -30,7 +30,7 @@ window.openDetailModal = async function(id, type, title) {
   currentDetailType = type
 
   detailModal.classList.remove('hidden')
-  document.body.classList.add('modal-open')
+  openModal()
   document.getElementById('detail-title').textContent      = title
   document.getElementById('detail-overview').textContent   = ''
   document.getElementById('detail-cast').innerHTML         = ''
@@ -95,9 +95,27 @@ window.openDetailModal = async function(id, type, title) {
     updateFavBtn()
     favBtn.onclick = async () => { await toggleFavorite(movieData); updateFavBtn() }
 
+    const watchedBtn = document.getElementById('detail-watched-btn')
+    if (watchedBtn) {
+      const updateWatchedBtn = () => {
+        const w = isWatched(id)
+        watchedBtn.innerHTML = `<i class="bi ${w ? 'bi-check-circle-fill' : 'bi-check-circle'}"></i> ${w ? 'Uzřeno' : 'Označit'}`
+        watchedBtn.style.color = w ? '#4ade80' : ''
+      }
+      updateWatchedBtn()
+      watchedBtn.onclick = async () => { await toggleWatched(movieData); updateWatchedBtn() }
+    }
+
+    const wlBtn = document.getElementById('detail-wl-btn')
+    if (wlBtn) {
+      const inAny = isInAnyList(id)
+      wlBtn.innerHTML = `<i class="bi ${inAny ? 'bi-bookmark-fill' : 'bi-bookmark'}"></i> ${inAny ? 'V seznamu' : 'Přidat'}`
+      wlBtn.onclick = () => openWlModal(movieData)
+    }
+
     document.getElementById('detail-play-btn').onclick = () => {
       closeDetailModal()
-      openPrehrajSearch(movieTitle)
+      openPrehrajSearch(movieTitle, id, type, d.poster_path || null)
     }
 
     document.getElementById('detail-trailer-btn').onclick = () => openTrailerModal(id, type)
@@ -152,7 +170,7 @@ async function loadSeason(tvId, seasonNum) {
       const eNum  = String(ep.episode_number).padStart(2, '0')
       const query = encodeURIComponent(showTitle + ' S' + sNum + 'E' + eNum)
       return `
-        <div class="episode-item" onclick="openPrehrajSearch(decodeURIComponent('${query}'))">
+        <div class="episode-item" onclick="openPrehrajSearch(decodeURIComponent('${query}'),${tvId},'tv')">
           <div class="episode-num">S${sNum}E${eNum}</div>
           <div class="episode-info">
             <strong>${ep.name || 'Epizoda ' + ep.episode_number}</strong>
