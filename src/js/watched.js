@@ -67,6 +67,9 @@ function renderWatched() {
 
   if (!_watchedCache.length) { section.style.display = 'none'; return }
   section.style.display = 'block'
+  section.classList.remove('section-reveal')
+  void section.offsetWidth
+  section.classList.add('section-reveal')
 
   container.innerHTML = _watchedCache.map(w => `
     <div class="movie-card" onclick="openDetailModal(${w.tmdbId},'${w.mediaType}',decodeURIComponent('${encodeURIComponent(w.title)}'))">

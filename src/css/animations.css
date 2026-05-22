@@ -1,0 +1,441 @@
+/* ═══════════════════════════════════════════════
+   FILMBOX — NEW FEATURE ANIMATIONS
+   Covers: profile chooser, section reveals, cards,
+   progress bars, watched badges, profile switch,
+   continue watching, toast
+═══════════════════════════════════════════════ */
+
+/* ──────────────────────────────────────────────
+   1. KEYFRAME LIBRARY
+────────────────────────────────────────────── */
+
+@keyframes fb-slide-up {
+  from { opacity: 0; transform: translateY(28px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes fb-slide-left {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes fb-pop {
+  0%   { opacity: 0; transform: scale(0.5) rotate(-6deg); }
+  60%  { transform: scale(1.12) rotate(2deg); }
+  80%  { transform: scale(0.95) rotate(-1deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+@keyframes fb-badge-pop {
+  0%   { opacity: 0; transform: scale(0.4); }
+  55%  { transform: scale(1.18); }
+  75%  { transform: scale(0.92); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fb-pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(255,255,255,0.35); }
+  70%  { box-shadow: 0 0 0 14px rgba(255,255,255,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+}
+
+@keyframes fb-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes fb-progress-fill {
+  from { width: 0%; }
+}
+
+@keyframes fb-section-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes fb-card-in {
+  from { opacity: 0; transform: translateY(22px) scale(0.94); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes fb-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fb-logo-swap {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(0.72) rotate(-4deg); opacity: 0.4; }
+  60%  { transform: scale(1.1) rotate(2deg); opacity: 1; }
+  80%  { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+
+@keyframes fb-toast-in {
+  from { opacity: 0; transform: translateX(20px) scale(0.94); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes fb-toast-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: translateX(20px) scale(0.94); }
+}
+
+@keyframes fb-progress-glow {
+  0%,100% { box-shadow: none; }
+  50%     { box-shadow: 0 0 8px rgba(239,68,68,0.7); }
+}
+
+@keyframes fb-wl-tab-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.92); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ──────────────────────────────────────────────
+   2. PROFILE CHOOSER — stagger slide-up
+────────────────────────────────────────────── */
+
+#profile-grid .profile-card {
+  animation: fb-slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+#profile-grid .profile-card:nth-child(1) { animation-delay: 0.04s; }
+#profile-grid .profile-card:nth-child(2) { animation-delay: 0.12s; }
+#profile-grid .profile-card:nth-child(3) { animation-delay: 0.20s; }
+#profile-grid .profile-card:nth-child(4) { animation-delay: 0.28s; }
+#profile-grid .profile-card:nth-child(5) { animation-delay: 0.36s; }
+
+/* Avatar hover — spring scale + glow */
+.profile-avatar {
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+              border-color 0.2s ease,
+              box-shadow 0.3s ease !important;
+}
+
+.profile-card:hover .profile-avatar {
+  transform: scale(1.1) translateY(-3px) !important;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+}
+
+/* Profile name slide-up on hover */
+.profile-name {
+  transition: color 0.2s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+.profile-card:hover .profile-name {
+  transform: translateY(-2px);
+}
+
+/* ──────────────────────────────────────────────
+   3. NAVBAR BADGE — animates on profile switch
+────────────────────────────────────────────── */
+
+#navbar-logo-box {
+  transition: background 0.4s ease !important;
+}
+
+#navbar-logo-box.profile-switched {
+  animation: fb-logo-swap 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ──────────────────────────────────────────────
+   4. SECTION REVEAL — slide up when shown
+────────────────────────────────────────────── */
+
+.section-reveal {
+  animation: fb-section-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Section headers */
+.section-header h3,
+.section-header p {
+  animation: fb-slide-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.section-header p { animation-delay: 0.06s; }
+
+/* ──────────────────────────────────────────────
+   5. MOVIE CARDS — stagger in
+────────────────────────────────────────────── */
+
+.movies-grid .movie-card {
+  animation: fb-card-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.movies-grid .movie-card:nth-child(1)  { animation-delay: 0.02s; }
+.movies-grid .movie-card:nth-child(2)  { animation-delay: 0.06s; }
+.movies-grid .movie-card:nth-child(3)  { animation-delay: 0.10s; }
+.movies-grid .movie-card:nth-child(4)  { animation-delay: 0.14s; }
+.movies-grid .movie-card:nth-child(5)  { animation-delay: 0.18s; }
+.movies-grid .movie-card:nth-child(6)  { animation-delay: 0.22s; }
+.movies-grid .movie-card:nth-child(7)  { animation-delay: 0.26s; }
+.movies-grid .movie-card:nth-child(8)  { animation-delay: 0.30s; }
+.movies-grid .movie-card:nth-child(9)  { animation-delay: 0.34s; }
+.movies-grid .movie-card:nth-child(10) { animation-delay: 0.38s; }
+.movies-grid .movie-card:nth-child(11) { animation-delay: 0.42s; }
+.movies-grid .movie-card:nth-child(12) { animation-delay: 0.46s; }
+
+/* Card hover — tighter spring */
+.movie-card {
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.3s ease !important;
+}
+.movie-card:hover {
+  transform: translateY(-10px) scale(1.02) !important;
+  box-shadow: 0 20px 48px rgba(0,0,0,0.5);
+}
+
+/* Image zoom — smoother */
+.movie-poster img {
+  transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+}
+.movie-card:hover img {
+  transform: scale(1.08) !important;
+}
+
+/* ──────────────────────────────────────────────
+   6. PROGRESS BAR — animated fill + shimmer
+────────────────────────────────────────────── */
+
+.progress-bar {
+  border-radius: 0 0 26px 26px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  animation: fb-progress-fill 1.2s cubic-bezier(0.4, 0, 0.2, 1) both 0.3s;
+  position: relative;
+  overflow: hidden;
+  border-radius: 0 2px 2px 0;
+  transition: none;
+}
+
+/* Shimmer sweep on the fill */
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.35) 40%,
+    rgba(255,255,255,0.55) 50%,
+    rgba(255,255,255,0.35) 60%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: fb-shimmer 1.8s ease 0.5s 1;
+}
+
+/* Glow pulse on active progress bars */
+.continue-card .progress-fill {
+  animation: fb-progress-fill 1.2s cubic-bezier(0.4, 0, 0.2, 1) both 0.3s,
+             fb-progress-glow 2s ease 1.5s 2;
+}
+
+/* ──────────────────────────────────────────────
+   7. WATCHED BADGE — pop in with spring
+────────────────────────────────────────────── */
+
+.watched-badge {
+  animation: fb-badge-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: 0.2s;
+  transform-origin: center;
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+/* ──────────────────────────────────────────────
+   8. FAVORITES BUTTON — heart pop on activate
+────────────────────────────────────────────── */
+
+.fav-btn {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 0.2s ease,
+              opacity 0.2s ease !important;
+}
+
+.fav-btn.active {
+  animation: fb-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ──────────────────────────────────────────────
+   9. WATCHLIST BUTTON — bookmark pop
+────────────────────────────────────────────── */
+
+.wl-btn {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 0.2s ease,
+              opacity 0.2s ease !important;
+}
+
+.wl-btn.active {
+  animation: fb-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ──────────────────────────────────────────────
+   10. WATCHLIST TABS — slide in
+────────────────────────────────────────────── */
+
+.wl-tab {
+  animation: fb-wl-tab-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.wl-tab:nth-child(1) { animation-delay: 0.02s; }
+.wl-tab:nth-child(2) { animation-delay: 0.07s; }
+.wl-tab:nth-child(3) { animation-delay: 0.12s; }
+.wl-tab:nth-child(4) { animation-delay: 0.17s; }
+
+.wl-tab:hover { transform: translateY(-2px); }
+
+/* ──────────────────────────────────────────────
+   11. TOAST — slide in from right
+────────────────────────────────────────────── */
+
+.toast:not(.hidden) {
+  animation: fb-toast-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.toast.hidden {
+  animation: fb-toast-out 0.35s ease forwards;
+}
+
+/* ──────────────────────────────────────────────
+   12. DETAIL MODAL — scale in
+────────────────────────────────────────────── */
+
+.detail-modal:not(.hidden) .detail-inner {
+  animation: fb-slide-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ──────────────────────────────────────────────
+   13. CONTINUE-WATCHING CARDS — left scroll-in
+────────────────────────────────────────────── */
+
+#continue-watching-movies .movie-card {
+  animation: fb-slide-left 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+#continue-watching-movies .movie-card:nth-child(1) { animation-delay: 0.04s; }
+#continue-watching-movies .movie-card:nth-child(2) { animation-delay: 0.10s; }
+#continue-watching-movies .movie-card:nth-child(3) { animation-delay: 0.16s; }
+#continue-watching-movies .movie-card:nth-child(4) { animation-delay: 0.22s; }
+#continue-watching-movies .movie-card:nth-child(5) { animation-delay: 0.28s; }
+
+/* ──────────────────────────────────────────────
+   14. FAVORITES + WATCHED sections — slide in
+────────────────────────────────────────────── */
+
+#favorites-movies .movie-card {
+  animation: fb-card-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+#favorites-movies .movie-card:nth-child(1) { animation-delay: 0.04s; }
+#favorites-movies .movie-card:nth-child(2) { animation-delay: 0.09s; }
+#favorites-movies .movie-card:nth-child(3) { animation-delay: 0.14s; }
+#favorites-movies .movie-card:nth-child(4) { animation-delay: 0.19s; }
+#favorites-movies .movie-card:nth-child(5) { animation-delay: 0.24s; }
+#favorites-movies .movie-card:nth-child(6) { animation-delay: 0.29s; }
+
+#watched-movies .movie-card {
+  animation: fb-card-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+#watched-movies .movie-card:nth-child(1) { animation-delay: 0.04s; }
+#watched-movies .movie-card:nth-child(2) { animation-delay: 0.09s; }
+#watched-movies .movie-card:nth-child(3) { animation-delay: 0.14s; }
+#watched-movies .movie-card:nth-child(4) { animation-delay: 0.19s; }
+#watched-movies .movie-card:nth-child(5) { animation-delay: 0.24s; }
+
+/* ──────────────────────────────────────────────
+   15. SEARCH RESULTS — fast stagger
+────────────────────────────────────────────── */
+
+#search-movies .movie-card {
+  animation: fb-card-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+#search-movies .movie-card:nth-child(1)  { animation-delay: 0.02s; }
+#search-movies .movie-card:nth-child(2)  { animation-delay: 0.06s; }
+#search-movies .movie-card:nth-child(3)  { animation-delay: 0.10s; }
+#search-movies .movie-card:nth-child(4)  { animation-delay: 0.14s; }
+#search-movies .movie-card:nth-child(5)  { animation-delay: 0.18s; }
+#search-movies .movie-card:nth-child(6)  { animation-delay: 0.22s; }
+
+/* ──────────────────────────────────────────────
+   16. SKELETON CARDS — breathing pulse
+────────────────────────────────────────────── */
+
+@keyframes fb-skeleton-pulse {
+  0%,100% { opacity: 0.5; }
+  50%     { opacity: 1; }
+}
+
+.skeleton-poster,
+.skeleton-line {
+  animation: fb-skeleton-pulse 1.4s ease-in-out infinite !important;
+}
+
+.skeleton-card:nth-child(even) .skeleton-poster,
+.skeleton-card:nth-child(even) .skeleton-line {
+  animation-delay: 0.3s !important;
+}
+
+/* ──────────────────────────────────────────────
+   17. HERO DOTS — fade in
+────────────────────────────────────────────── */
+
+.hero-dots .dot {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 0.25s ease,
+              width 0.3s ease;
+}
+
+/* ──────────────────────────────────────────────
+   18. LOAD MORE BUTTON — pulse on hover
+────────────────────────────────────────────── */
+
+.load-more-btn {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 0.2s ease !important;
+}
+.load-more-btn:hover {
+  transform: scale(1.04);
+}
+.load-more-btn:active {
+  transform: scale(0.97);
+}
+
+/* ──────────────────────────────────────────────
+   19. GENRE CHIPS — slide in stagger
+────────────────────────────────────────────── */
+
+@keyframes fb-chip-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.9); }
+  to   { opacity: 1; transform: none; }
+}
+
+.genre-chip {
+  animation: fb-chip-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 0.2s ease !important;
+}
+.genre-chip:nth-child(1) { animation-delay: 0.02s; }
+.genre-chip:nth-child(2) { animation-delay: 0.05s; }
+.genre-chip:nth-child(3) { animation-delay: 0.08s; }
+.genre-chip:nth-child(4) { animation-delay: 0.11s; }
+.genre-chip:nth-child(5) { animation-delay: 0.14s; }
+.genre-chip:nth-child(6) { animation-delay: 0.17s; }
+.genre-chip:nth-child(7) { animation-delay: 0.20s; }
+.genre-chip:nth-child(8) { animation-delay: 0.23s; }
+
+.genre-chip:hover { transform: translateY(-2px) scale(1.04); }
+
+/* ──────────────────────────────────────────────
+   20. RESPECT reduced motion
+────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

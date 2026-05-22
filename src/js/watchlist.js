@@ -18,6 +18,9 @@ function renderContinueWatching() {
 
   if (!items.length) { section.style.display = 'none'; return }
   section.style.display = 'block'
+  section.classList.remove('section-reveal')
+  void section.offsetWidth
+  section.classList.add('section-reveal')
   container.innerHTML = items.map(m => buildCard(m, 'continue-card')).join('')
 }
 
@@ -137,6 +140,9 @@ function renderWatchlist() {
 
   if (!totalMovies) { section.style.display = 'none'; return }
   section.style.display = 'block'
+  section.classList.remove('section-reveal')
+  void section.offsetWidth
+  section.classList.add('section-reveal')
 
   renderWatchlistTabs()
 

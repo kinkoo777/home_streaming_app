@@ -72,6 +72,9 @@
         logoBox.style.background = avatarColor(profile.name)
         logoBox.textContent = profile.name.charAt(0).toUpperCase()
       }
+      logoBox.classList.remove('profile-switched')
+      void logoBox.offsetWidth
+      logoBox.classList.add('profile-switched')
     }
     const profileText = document.getElementById('navbar-profile-text')
     if (profileText) {
