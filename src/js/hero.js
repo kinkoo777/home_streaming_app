@@ -13,6 +13,11 @@ async function loadHeroMovies() {
     setHero(heroMovies[0])
     renderHeroDots()
     startHeroRotation()
+    const banner = document.querySelector('.hero-banner')
+    if (banner) {
+      banner.addEventListener('mouseenter', () => clearInterval(heroTimer))
+      banner.addEventListener('mouseleave', () => startHeroRotation())
+    }
   } catch {}
 }
 
@@ -32,7 +37,8 @@ function setHero(movie) {
   desc.textContent  = movie.overview || 'Popis není dostupný.'
 
   const movieTitle = movie.title || movie.name
-  document.getElementById('hero-play-btn').onclick = () => openPrehrajSearch(movieTitle)
+  document.getElementById('hero-play-btn').onclick = () =>
+    openPrehrajSearch(movieTitle, movie.id, movie.media_type || 'movie', movie.poster_path || null)
   document.getElementById('hero-info-btn').onclick = () => openDetailModal(movie.id, movie.media_type || 'movie', movieTitle)
 
   document.querySelectorAll('.hero-dot').forEach((d, i) => d.classList.toggle('active', i === heroIdx))
