@@ -267,3 +267,15 @@ body.dark .search-wrapper input:focus {
 .search-item.focused {
   background: rgba(255, 255, 255, 0.07);
 }
+
+.search-history-label {
+  padding: 14px 14px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #71717a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
