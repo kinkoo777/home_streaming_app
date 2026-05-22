@@ -7,6 +7,14 @@ const searchMoviesContainer = document.getElementById('search-movies')
 const clearSearchMoviesBtn  = document.getElementById('clear-search-movies')
 
 const addedMovieIds = new Set()
+let searchFocusIdx = -1
+
+function setSearchFocus(idx) {
+  const items = searchResults.querySelectorAll('.search-item')
+  if (!items.length) return
+  searchFocusIdx = Math.max(-1, Math.min(idx, items.length - 1))
+  items.forEach((el, i) => el.classList.toggle('focused', i === searchFocusIdx))
+}
 
 clearSearchMoviesBtn.addEventListener('click', () => {
   searchMoviesContainer.innerHTML = ''
@@ -27,6 +35,7 @@ function addToHistory(q) {
 }
 
 function showHistory() {
+  searchFocusIdx = -1
   const h = getSearchHistory()
   if (!h.length) return
   searchResults.innerHTML = `
@@ -63,6 +72,23 @@ searchInput.addEventListener('input', e => {
   searchDebounce = setTimeout(() => performSearch(q), 300)
 })
 
+searchInput.addEventListener('keydown', e => {
+  if (!searchResults.classList.contains('active')) return
+  const items = searchResults.querySelectorAll('.search-item')
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    setSearchFocus(searchFocusIdx + 1)
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    setSearchFocus(searchFocusIdx - 1)
+  } else if (e.key === 'Enter') {
+    e.preventDefault()
+    if (searchFocusIdx >= 0 && items[searchFocusIdx]) {
+      items[searchFocusIdx].click()
+    }
+  }
+})
+
 async function performSearch(query) {
   try {
     const res  = await fetch(`/tmdb/search?q=${encodeURIComponent(query)}`)
@@ -71,6 +97,7 @@ async function performSearch(query) {
 
     const filtered = data.results.filter(item => item.poster_path)
     searchResults.innerHTML = ''
+    searchFocusIdx = -1
 
     if (!filtered.length) {
       searchResults.innerHTML = '<div class="search-empty">Nic nebylo nalezeno.</div>'
