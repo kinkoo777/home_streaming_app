@@ -243,6 +243,13 @@
       if (e.target === document.getElementById('profile-add-modal')) closeAddProfile()
     })
 
+    // Apply system dark-mode preference on first visit (no stored theme, no active session)
+    if (!localStorage.getItem('filmbox_theme') && !sessionStorage.getItem('filmbox_active_profile')) {
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark')
+      }
+    }
+
     // If profile already active in this tab → skip intro
     const active = getActiveProfile()
     if (active) {
