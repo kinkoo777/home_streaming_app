@@ -12,12 +12,12 @@ prehrajModalBackdrop.addEventListener('click', closePrehrajModal)
 
 function closePrehrajModal() {
   prehrajModal.classList.add('hidden')
-  document.body.classList.remove('modal-open')
+  closeModal()
 }
 
-async function openPrehrajSearch(title) {
+async function openPrehrajSearch(title, tmdbId = null, mediaType = null, posterPath = null) {
   prehrajModal.classList.remove('hidden')
-  document.body.classList.add('modal-open')
+  openModal()
   prehrajModalTitle.textContent    = title
   prehrajModalSubtitle.textContent = 'Hledání na prehraj.to...'
   prehrajModalContent.innerHTML    = `<div class="prehraj-loading"><i class="bi bi-arrow-repeat"></i> Načítání výsledků...</div>`
@@ -67,7 +67,13 @@ async function openPrehrajSearch(title) {
           const videos = await res.json()
           const valid  = videos.filter(v => v.videoSrc && !v.videoSrc.startsWith('blob:'))
           if (!valid.length) throw new Error('Nepodařilo se získat odkaz na video')
-          sessionStorage.setItem('filmbox_player', JSON.stringify({ title: prehrajModalTitle.textContent, videos: valid }))
+          sessionStorage.setItem('filmbox_player', JSON.stringify({
+            title:      prehrajModalTitle.textContent,
+            videos:     valid,
+            tmdbId,
+            mediaType,
+            posterPath
+          }))
           window.location.href = 'player.html'
         } catch (err) {
           prehrajModalSubtitle.textContent = 'Chyba'
