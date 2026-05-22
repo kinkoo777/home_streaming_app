@@ -44,7 +44,41 @@ const GENRE_NAMES = {
   10765:'Sci-Fi & Fantasy',10766:'Telenovela',10767:'Talk show',10768:'Válka'
 }
 
+// ================= MODAL STACK =================
+// Tracks how many modals are open so scroll position is saved once on first
+// open and restored only when every modal has been closed.
+
+let _modalOpenCount = 0
+let _savedScrollY = 0
+
+function openModal() {
+  if (_modalOpenCount === 0) {
+    _savedScrollY = window.scrollY
+    document.body.style.top = `-${_savedScrollY}px`
+    document.body.classList.add('modal-open')
+  }
+  _modalOpenCount++
+}
+
+function closeModal() {
+  _modalOpenCount = Math.max(0, _modalOpenCount - 1)
+  if (_modalOpenCount === 0) {
+    document.body.classList.remove('modal-open')
+    document.body.style.top = ''
+    window.scrollTo(0, _savedScrollY)
+  }
+}
+
 // ================= SHARED DATA MAP =================
 // All fetched movies keyed by id for O(1) lookup across search, grids, and watchlist
 
 const searchDataMap = {}
+
+// ================= GLOBAL ERROR HANDLER =================
+
+window.addEventListener('unhandledrejection', e => {
+  if (e.reason && e.reason.name !== 'AbortError') {
+    const msg = e.reason.message || 'Něco se pokazilo'
+    showToast('Chyba: ' + msg)
+  }
+})
