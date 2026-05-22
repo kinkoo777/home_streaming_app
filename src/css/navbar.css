@@ -261,3 +261,9 @@ body.dark .search-wrapper input:focus {
 }
 
 #search-close-mobile:hover { background: rgba(255,255,255,0.14); }
+
+/* ── Search keyboard focus ── */
+
+.search-item.focused {
+  background: rgba(255, 255, 255, 0.07);
+}

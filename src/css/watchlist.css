@@ -91,3 +91,10 @@ body.dark .wl-tab.active {
 .wl-tab.active .wl-tab-count {
   background: rgba(0,0,0,0.12);
 }
+
+/* ── Watched section ── */
+
+.watched-time {
+  font-size: 11px;
+  color: #4ade80;
+}
