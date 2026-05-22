@@ -466,7 +466,19 @@
         const data = JSON.parse(raw)
         playerTitle.textContent = data.title || 'FilmBox'
         document.title = (data.title || 'FilmBox') + ' — Player'
-        playerKey = 'filmbox_progress_' + (data.title || 'unknown').replace(/\s+/g, '_')
+        playerKey = data.tmdbId
+          ? 'filmbox_progress_' + data.tmdbId
+          : 'filmbox_progress_' + (data.title || 'unknown').replace(/\s+/g, '_')
+
+        if (data.tmdbId) {
+          localStorage.setItem('filmbox_meta_' + data.tmdbId, JSON.stringify({
+            id:          data.tmdbId,
+            title:       data.title,
+            media_type:  data.mediaType || 'movie',
+            mediaType:   data.mediaType || 'movie',
+            poster_path: data.posterPath || null
+          }))
+        }
 
         if (data.videos.length === 1) {
           startVideo(data.videos[0])
@@ -536,6 +548,7 @@
       })
 
       let progressSaveTimer = null
+      let _watchedFired = false
       video.addEventListener('timeupdate', () => {
         if (!video.duration) return
         const pct = (video.currentTime / video.duration) * 100
@@ -546,6 +559,28 @@
         progressSaveTimer = setTimeout(() => {
           if (playerKey) localStorage.setItem(playerKey, video.currentTime)
         }, 5000)
+        // Auto-mark watched at 90%
+        if (!_watchedFired && video.currentTime / video.duration >= 0.9) {
+          _watchedFired = true
+          const _raw = sessionStorage.getItem('filmbox_player')
+          if (_raw) {
+            const _d = JSON.parse(_raw)
+            if (_d.tmdbId) {
+              const _wKey  = 'filmbox_watched'
+              const _wList = JSON.parse(localStorage.getItem(_wKey) || '[]')
+              if (!_wList.some(w => w.id === _d.tmdbId)) {
+                _wList.unshift({
+                  id:         _d.tmdbId,
+                  mediaType:  _d.mediaType || 'movie',
+                  title:      _d.title,
+                  posterPath: _d.posterPath || null,
+                  watchedAt:  new Date().toISOString()
+                })
+                localStorage.setItem(_wKey, JSON.stringify(_wList))
+              }
+            }
+          }
+        }
       })
 
       video.addEventListener('play', () => {
@@ -693,6 +728,12 @@
       video.addEventListener('pause', () => {
         playerWrap.classList.add('controls-visible')
         clearTimeout(hideTimeout)
+      })
+
+      window.addEventListener('pagehide', () => {
+        if (playerKey && video.currentTime > 5) {
+          localStorage.setItem(playerKey, video.currentTime)
+        }
       })
     </script>
   </body>
