@@ -699,7 +699,8 @@ app.get('/api/profiles/:id/progress', (req, res) => {
 app.put('/api/profiles/:id/progress/:tmdbId', (req, res) => {
     const seconds = Number(req.body.seconds);
     if (isNaN(seconds)) return res.status(400).json({ error: 'seconds must be a number' });
-    progressDB.set(req.params.id, req.params.tmdbId, seconds);
+    const duration = req.body.duration != null ? Number(req.body.duration) : null;
+    progressDB.set(req.params.id, req.params.tmdbId, seconds, duration);
     res.json({ ok: true });
 });
 

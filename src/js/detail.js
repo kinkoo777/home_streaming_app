@@ -99,7 +99,7 @@ window.openDetailModal = async function(id, type, title) {
     if (watchedBtn) {
       const updateWatchedBtn = () => {
         const w = isWatched(id)
-        watchedBtn.innerHTML = `<i class="bi ${w ? 'bi-check-circle-fill' : 'bi-check-circle'}"></i> ${w ? 'Uzřeno' : 'Označit'}`
+        watchedBtn.innerHTML = `<i class="bi ${w ? 'bi-check-circle-fill' : 'bi-check-circle'}"></i> ${w ? 'Zhlédnuto' : 'Označit'}`
         watchedBtn.style.color = w ? '#4ade80' : ''
       }
       updateWatchedBtn()

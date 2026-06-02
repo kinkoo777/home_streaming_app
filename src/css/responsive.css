@@ -627,3 +627,439 @@
     overflow: hidden;
   }
 }
+
+/* ===== Responsive: grids & navigation (appended) ===== */
+
+/* ── Large phone / small tablet (≤ 700 px) ── */
+@media (max-width: 700px) {
+  /* Category scroll-box: cap to ~2 rows of the 220px mobile cards */
+  .categories .movies-grid {
+    max-height: 560px;
+  }
+
+  .loaded-count {
+    font-size: 12px;
+  }
+}
+
+/* ── Phone portrait (≤ 480 px) ── */
+@media (max-width: 480px) {
+  /* Category scroll-box: ~2 rows of the 195px mobile cards */
+  .categories .movies-grid {
+    max-height: 520px;
+  }
+
+  .loaded-count {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+  }
+
+  .load-more-btn {
+    width: 100%;
+    min-height: 44px;
+    padding: 13px 24px;
+  }
+}
+
+/* ── Very small phone (≤ 360 px) ── */
+@media (max-width: 360px) {
+  /* Category scroll-box: ~2 rows of the 170px mobile cards */
+  .categories .movies-grid {
+    max-height: 470px;
+  }
+}
+
+/* ===== Responsive: trailer & actor modals (appended) ===== */
+
+/* ── Large phone / small tablet (≤ 700 px) ── */
+@media (max-width: 700px) {
+  .trailer-modal {
+    padding: 0 16px;
+  }
+
+  .trailer-inner {
+    width: 100%;
+    max-width: 100%;
+    padding-bottom: 56.25%; /* keep 16:9 at full width */
+    border-radius: 16px;
+  }
+
+  #trailer-close {
+    top: 8px;
+    right: 8px;
+    z-index: 3;
+    background: rgba(0,0,0,0.55);
+    border-color: rgba(255,255,255,0.3);
+  }
+
+  /* Actor modal reuses .detail-modal shell but scrolls via .actor-layout */
+  .actor-layout {
+    max-height: calc(90vh - 8px);
+    max-height: calc(90dvh - 8px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
+/* ── Phone portrait (≤ 480 px) ── */
+@media (max-width: 480px) {
+  .trailer-modal {
+    padding: 0 10px;
+  }
+
+  .trailer-inner {
+    border-radius: 12px;
+    padding-bottom: 56.25%;
+  }
+
+  #trailer-close {
+    top: 6px;
+    right: 6px;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    font-size: 15px;
+  }
+
+  .actor-layout {
+    padding: 22px 16px;
+  }
+
+  #actor-name {
+    font-size: 20px;
+    margin-bottom: 8px;
+  }
+
+  .actor-bio {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  #actor-photo,
+  .actor-photo-placeholder {
+    width: 84px;
+    height: 84px;
+  }
+
+  .actor-photo-placeholder {
+    font-size: 34px;
+  }
+
+  #actor-close {
+    top: 12px;
+    right: 12px;
+  }
+
+  #actor-works.movies-grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-gap: 10px;
+    gap: 10px;
+  }
+}
+
+/* ── Very small phone (≤ 360 px) ── */
+@media (max-width: 360px) {
+  .actor-layout {
+    padding: 20px 12px;
+  }
+
+  #actor-name {
+    font-size: 18px;
+  }
+
+  .actor-bio {
+    font-size: 12.5px;
+  }
+
+  #actor-photo,
+  .actor-photo-placeholder {
+    width: 72px;
+    height: 72px;
+  }
+
+  .actor-photo-placeholder {
+    font-size: 30px;
+  }
+
+  #actor-close {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+  }
+
+  #actor-works.movies-grid {
+    grid-gap: 8px;
+    gap: 8px;
+  }
+}
+
+/* ── Mobile landscape: trailer fills width without vertical clipping ── */
+@media (max-height: 500px) and (orientation: landscape) {
+  .trailer-modal {
+    padding: 0 12px;
+  }
+
+  .trailer-inner {
+    width: auto;
+    max-width: none;
+    height: 84vh;
+    height: 84dvh;
+    padding-bottom: 0;
+    aspect-ratio: 16 / 9;
+    margin: 0 auto;
+  }
+
+  #trailer-close {
+    top: 8px;
+    right: 8px;
+    z-index: 3;
+    background: rgba(0,0,0,0.55);
+    border-color: rgba(255,255,255,0.3);
+  }
+
+  .actor-layout {
+    max-height: 92vh;
+    max-height: 92dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ── Touch targets: modal close buttons ── */
+@media (hover: none) and (pointer: coarse) {
+  #trailer-close,
+  #actor-close {
+    min-width: 44px;
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .actor-layout {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
+/* ===== Responsive: watchlist & profiles (appended) ===== */
+
+/* ── Watchlist header actions: large phone / small tablet (≤ 700 px) ── */
+@media (max-width: 700px) {
+  .wl-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .wl-header-actions > #wl-add-list-btn,
+  .wl-header-actions > #clear-watchlist {
+    -webkit-flex: 1 1 auto;
+    flex: 1 1 auto;
+    -webkit-justify-content: center;
+    justify-content: center;
+  }
+
+  .wl-inline-new {
+    -webkit-flex: 1 1 100%;
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .wl-inline-input {
+    -webkit-flex: 1 1 auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+/* ── Watchlist header actions: phone portrait (≤ 480 px) ── */
+@media (max-width: 480px) {
+  .wl-header-actions {
+    -webkit-flex-direction: column;
+    flex-direction: column;
+    -webkit-align-items: stretch;
+    align-items: stretch;
+  }
+
+  .wl-header-actions > #wl-add-list-btn,
+  .wl-header-actions > #clear-watchlist {
+    width: 100%;
+    -webkit-flex: 0 0 auto;
+    flex: 0 0 auto;
+    min-height: 44px;
+  }
+
+  .wl-inline-new {
+    -webkit-flex-wrap: wrap;
+    flex-wrap: wrap;
+  }
+
+  .wl-inline-input {
+    -webkit-flex: 1 1 100%;
+    flex: 1 1 100%;
+    height: 40px;
+  }
+
+  .wl-inline-new > #wl-inline-confirm,
+  .wl-inline-new > #wl-inline-cancel {
+    -webkit-flex: 1 1 0;
+    flex: 1 1 0;
+    -webkit-justify-content: center;
+    justify-content: center;
+    min-height: 44px;
+  }
+}
+
+/* ── Profile chooser: phones (≤ 600 px) — intro.css handles 700/480 ── */
+@media (max-width: 600px) {
+  .profile-chooser-inner {
+    padding: 20px 16px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .profile-chooser-inner h1 {
+    font-size: 28px;
+    margin-bottom: 28px;
+  }
+
+  .profile-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 120px));
+    -webkit-justify-content: center;
+    justify-content: center;
+    gap: 18px;
+    margin: 0 auto 22px;
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .profile-card {
+    margin: 0;
+    width: 100%;
+  }
+
+  .profile-add-btn {
+    width: 100%;
+    max-width: 320px;
+    -webkit-justify-content: center;
+    justify-content: center;
+    min-height: 44px;
+    box-sizing: border-box;
+  }
+}
+
+/* ── Profile chooser: very small phone (≤ 380 px) ── */
+@media (max-width: 380px) {
+  .profile-chooser-inner h1 {
+    font-size: 24px;
+    margin-bottom: 22px;
+  }
+
+  .profile-grid {
+    gap: 14px;
+    max-width: 260px;
+  }
+
+  .profile-grid .profile-avatar-wrap {
+    width: 100px;
+    height: 100px;
+  }
+
+  .profile-grid .profile-avatar {
+    width: 100px;
+    height: 100px;
+    font-size: 38px;
+  }
+
+  .profile-name {
+    font-size: 13px;
+  }
+}
+
+/* ── Add-profile modal: phone portrait (≤ 480 px) ── */
+@media (max-width: 480px) {
+  .profile-add-inner {
+    width: 100%;
+    max-width: 100%;
+    padding: 28px 22px;
+    border-radius: 14px;
+    box-sizing: border-box;
+  }
+
+  .profile-add-inner h3 {
+    font-size: 20px;
+    margin-bottom: 22px;
+  }
+
+  .profile-add-inner input {
+    padding: 14px 16px;
+    margin-bottom: 18px;
+  }
+
+  .profile-theme-picker {
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+
+  .theme-option {
+    padding: 12px 0;
+    min-height: 44px;
+  }
+
+  .theme-option:not(:last-child) {
+    margin-right: 0;
+  }
+
+  .profile-add-actions {
+    -webkit-flex-direction: column;
+    flex-direction: column;
+  }
+
+  .profile-add-actions button {
+    width: 100%;
+    min-height: 44px;
+    padding: 12px 0;
+  }
+
+  .profile-add-actions button:not(:last-child) {
+    margin-right: 0;
+    margin-bottom: 10px;
+  }
+}
+
+/* ── Touch-device optimisations: profiles & watchlist header ── */
+@media (hover: none) and (pointer: coarse) {
+  .profile-card,
+  .profile-add-btn,
+  .theme-option,
+  .profile-add-actions button,
+  .wl-header-actions #wl-add-list-btn,
+  .wl-header-actions #clear-watchlist,
+  .wl-inline-new #wl-inline-confirm,
+  .wl-inline-new #wl-inline-cancel {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .profile-add-btn,
+  .theme-option,
+  .profile-add-actions button,
+  .wl-header-actions #wl-add-list-btn,
+  .wl-header-actions #clear-watchlist,
+  .wl-inline-new #wl-inline-confirm,
+  .wl-inline-new #wl-inline-cancel {
+    min-height: 44px;
+  }
+
+  .profile-avatar-wrap {
+    min-width: 80px;
+    min-height: 80px;
+  }
+}

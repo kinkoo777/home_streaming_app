@@ -6,9 +6,11 @@ function buildCard(movie, extraClass = '') {
   const mediaType = movie.media_type || (movie.title ? 'movie' : 'tv')
   const inFav     = isFavorite(movie.id, mediaType)
   const watched   = typeof isWatched === 'function' && isWatched(movie.id)
-  const progress  = window._profileProgress ? window._profileProgress[String(movie.id)] : null
-  const pct = progress && movie.runtime
-    ? Math.min(100, (parseFloat(progress) / (movie.runtime * 60)) * 100).toFixed(0)
+  const _pEntry   = window._profileProgress ? window._profileProgress[String(movie.id)] : null
+  const pSeconds  = _pEntry && typeof _pEntry === 'object' ? _pEntry.seconds  : _pEntry
+  const pDuration = _pEntry && typeof _pEntry === 'object' && _pEntry.duration ? _pEntry.duration : (movie.runtime ? movie.runtime * 60 : null)
+  const pct = pSeconds && pDuration
+    ? Math.min(100, (parseFloat(pSeconds) / pDuration) * 100).toFixed(0)
     : null
 
   return `
@@ -55,7 +57,24 @@ function applyFiltersAndSort(containerId) {
 
   const c = document.getElementById(containerId)
   if (!c) return
+  const prevScroll = c.scrollTop
   c.innerHTML = movies.map(m => buildCard(m)).join('')
+  c.scrollTop = prevScroll
+}
+
+// containerId -> loaded-count label element id
+const countElementMap = {
+  'popular-movies': 'count-popular',
+  'trending':       'count-trending',
+  'top-rated':      'count-top-rated'
+}
+
+function updateLoadedCount(containerId) {
+  const id = countElementMap[containerId]
+  if (!id) return
+  const el = document.getElementById(id)
+  if (!el || !gridState[containerId]) return
+  el.textContent = `Zobrazeno ${gridState[containerId].allMovies.length}`
 }
 
 function buildGenreFilters(containerId, movies, filtersId) {
@@ -105,6 +124,8 @@ async function fetchMovies(type, containerId, page = 1, append = false) {
     }[containerId]
     if (filtersId) buildGenreFilters(containerId, gridState[containerId].allMovies, filtersId)
 
+    updateLoadedCount(containerId)
+
   } catch {
     document.getElementById(containerId).innerHTML = '<p style="color:gray;padding:20px">Nepodařilo se načíst.</p>'
   }
@@ -143,11 +164,44 @@ document.addEventListener('click', e => {
   }
 })
 
-// ── Load more ──
+// ── Load more (shared by button + auto-load) ──
+const gridLoading = {} // { [containerId]: true } while a page is loading
+
+function loadNextPage(btn) {
+  if (!btn) return
+  const grid = btn.dataset.grid
+  if (gridLoading[grid]) return
+  gridLoading[grid] = true
+
+  const page = parseInt(btn.dataset.page) + 1
+  btn.dataset.page = page
+
+  const original = btn.innerHTML
+  btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Načítání...'
+  btn.disabled = true
+
+  return fetchMovies(btn.dataset.type, grid, page, true)
+    .finally(() => {
+      btn.innerHTML = original
+      btn.disabled = false
+      gridLoading[grid] = false
+    })
+}
+
 document.querySelectorAll('.load-more-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const page = parseInt(btn.dataset.page) + 1
-    btn.dataset.page = page
-    fetchMovies(btn.dataset.type, btn.dataset.grid, page, true)
+  btn.addEventListener('click', () => { loadNextPage(btn) })
+})
+
+// ── Auto-load on scroll (infinite scroll inside each category grid) ──
+const SCROLL_THRESHOLD = 120
+;['popular-movies', 'trending', 'top-rated'].forEach(containerId => {
+  const grid = document.getElementById(containerId)
+  if (!grid) return
+  grid.addEventListener('scroll', () => {
+    if (gridLoading[containerId]) return
+    if (grid.scrollTop + grid.clientHeight >= grid.scrollHeight - SCROLL_THRESHOLD) {
+      const btn = document.querySelector(`.load-more-btn[data-grid="${containerId}"]`)
+      loadNextPage(btn)
+    }
   })
 })

@@ -3,3 +3,4 @@ test-results/
 .claude/
 *.log
 data/
+.env

@@ -34,6 +34,53 @@ section {
   gap: 24px;
 }
 
+/* Fixed scroll box (~2 card rows) — category grids only */
+/* card row ≈ poster 330 + info margin 14 + info block ~44 = ~388px; +24px gap */
+.categories .movies-grid {
+  max-height: 800px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.18) transparent;
+}
+
+.categories .movies-grid::-webkit-scrollbar {
+  width: 8px;
+}
+
+.categories .movies-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.categories .movies-grid::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.18);
+  border-radius: 999px;
+}
+
+.categories .movies-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.28);
+}
+
+body:not(.dark) .categories .movies-grid {
+  scrollbar-color: rgba(0,0,0,0.2) transparent;
+}
+
+body:not(.dark) .categories .movies-grid::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.2);
+}
+
+body:not(.dark) .categories .movies-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.3);
+}
+
+/* Loaded-count label */
+.loaded-count {
+  font-size: 13px;
+  color: #71717a;
+  font-weight: 500;
+}
+
 /* ================= SKELETON ================= */
 
 @keyframes shimmer {
@@ -196,4 +243,18 @@ body.dark .load-more-btn {
 
 body.dark .load-more-btn:hover {
   background: rgba(255,255,255,0.05);
+}
+
+.load-more-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.load-more-btn .bi-arrow-repeat {
+  display: inline-block;
+  animation: load-more-spin 0.8s linear infinite;
+}
+
+@keyframes load-more-spin {
+  to { transform: rotate(360deg); }
 }

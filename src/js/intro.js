@@ -265,7 +265,11 @@
       document.getElementById('profile-chooser').style.opacity = '0'
       applyTheme(active.theme)
       updateNavbarProfile(active)
-      if (typeof loadProfileProgress === 'function') loadProfileProgress()
+      if (typeof loadProfileProgress === 'function') {
+        loadProfileProgress().then(() => {
+          if (window.reloadContinueWatching) window.reloadContinueWatching()
+        })
+      }
       return
     }
 

@@ -3,7 +3,7 @@
 function openActorModal(actorId) {
   const modal = document.getElementById('actor-modal')
   modal.classList.remove('hidden')
-  document.body.classList.add('modal-open')
+  openModal()
   document.getElementById('actor-name').textContent = 'Načítání...'
   document.getElementById('actor-bio').textContent  = ''
   document.getElementById('actor-works').innerHTML  = renderSkeletonsHTML(8)
@@ -36,7 +36,7 @@ function openActorModal(actorId) {
 
 function closeActorModal() {
   document.getElementById('actor-modal').classList.add('hidden')
-  document.body.classList.remove('modal-open')
+  closeModal()
 }
 
 document.getElementById('actor-close').addEventListener('click', closeActorModal)

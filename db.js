@@ -175,13 +175,14 @@ const progress = {
     return entry ? entry.items : {};
   },
 
-  set(profileId, tmdbId, seconds) {
+  set(profileId, tmdbId, seconds, duration) {
     const all = read(PROGRESS_FILE);
+    const entry = { seconds: Number(seconds), duration: duration != null ? Number(duration) : null };
     const idx = all.findIndex(e => e.profileId === profileId);
     if (idx >= 0) {
-      all[idx].items[String(tmdbId)] = seconds;
+      all[idx].items[String(tmdbId)] = entry;
     } else {
-      all.push({ profileId, items: { [String(tmdbId)]: seconds } });
+      all.push({ profileId, items: { [String(tmdbId)]: entry } });
     }
     write(PROGRESS_FILE, all);
   },

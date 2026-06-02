@@ -1,6 +1,6 @@
 // ================= CONTINUE WATCHING =================
 
-function renderContinueWatching() {
+async function renderContinueWatching() {
   const section   = document.getElementById('continue-watching-section')
   const container = document.getElementById('continue-watching-movies')
   if (!section || !container) return
@@ -8,15 +8,49 @@ function renderContinueWatching() {
   const progress = window._profileProgress || {}
   const items = []
 
-  for (const [tmdbId, seconds] of Object.entries(progress)) {
+  for (const [tmdbId, val] of Object.entries(progress)) {
+    const seconds  = (val && typeof val === 'object') ? val.seconds  : val
+    const duration = (val && typeof val === 'object') ? val.duration : null
     if (!seconds || seconds <= 30) continue
     if (typeof isWatched === 'function' && isWatched(parseInt(tmdbId))) continue
+    if (duration && (seconds / duration) >= 0.9) continue
     const metaRaw = localStorage.getItem('filmbox_meta_' + tmdbId)
     if (!metaRaw) continue
-    items.push({ ...JSON.parse(metaRaw), _progress: seconds })
+    items.push({ ...JSON.parse(metaRaw), _hasDuration: !!duration })
   }
 
   if (!items.length) { section.style.display = 'none'; return }
+
+  // Fetch full TMDB details for items missing display fields (rating, year, runtime).
+  // Skip only when the item already has a usable rating AND a way to draw the progress line.
+  // Results are merged back into localStorage so the fetch only happens once per item.
+  await Promise.all(items.map(async m => {
+    if (m.vote_average && (m._hasDuration || m.runtime)) return
+    try {
+      const r = await fetch(`/tmdb/details?id=${m.id}&type=${m.media_type || 'movie'}`)
+      if (!r.ok) return
+      const d = await r.json()
+      m.vote_average  = (m.vote_average != null && m.vote_average !== 0) ? m.vote_average : d.vote_average
+      m.runtime       = m.runtime      || d.runtime
+      m.release_date  = m.release_date || d.release_date
+      m.first_air_date = m.first_air_date || d.first_air_date
+      m.poster_path   = m.poster_path  || d.poster_path
+      m.genre_ids     = m.genre_ids    || (Array.isArray(d.genres) ? d.genres.map(g => g.id) : undefined)
+      const key = 'filmbox_meta_' + m.id
+      const raw = localStorage.getItem(key)
+      if (raw) {
+        const mm = JSON.parse(raw)
+        if (d.vote_average  != null) mm.vote_average  = mm.vote_average  || d.vote_average
+        if (d.runtime       != null) mm.runtime       = mm.runtime       || d.runtime
+        if (d.release_date  != null) mm.release_date  = mm.release_date  || d.release_date
+        if (d.first_air_date != null) mm.first_air_date = mm.first_air_date || d.first_air_date
+        if (d.poster_path   != null) mm.poster_path   = mm.poster_path   || d.poster_path
+        if (Array.isArray(d.genres))  mm.genre_ids    = mm.genre_ids     || d.genres.map(g => g.id)
+        localStorage.setItem(key, JSON.stringify(mm))
+      }
+    } catch {}
+  }))
+
   section.style.display = 'block'
   section.classList.remove('section-reveal')
   void section.offsetWidth
@@ -29,6 +63,7 @@ function renderContinueWatching() {
 const DEFAULT_LIST_ID = 'default'
 let activeListId = DEFAULT_LIST_ID
 let _listsCache = null
+let _wlExplicitlyOpen = false   // keep the section visible (for list management) even when empty
 
 function getLists() {
   if (_listsCache) return _listsCache
@@ -50,7 +85,7 @@ async function _loadLists() {
 function saveLists(lists) {
   _listsCache = lists
   const profileId = getActiveProfileId()
-  if (profileId === 'default') return
+  if (profileId === 'default') { showToast('Nejprve si vyberte profil'); return }
   fetch(`/api/profiles/${profileId}/watchlists`, {
     method:  'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -110,6 +145,63 @@ function deleteList(listId) {
   showToast('Seznam smazán')
 }
 
+function renameList(listId, newName) {
+  if (listId === DEFAULT_LIST_ID) { showToast('Výchozí seznam nelze přejmenovat'); return }
+  const name = (newName || '').trim()
+  if (!name) return
+  const lists = getLists()
+  const list  = lists.find(l => l.id === listId)
+  if (!list) return
+  if (lists.some(l => l.id !== listId && l.name.toLowerCase() === name.toLowerCase())) {
+    showToast('Seznam s tímto názvem již existuje')
+    return
+  }
+  list.name = name
+  saveLists(lists)
+  renderWatchlistTabs()
+  renderWatchlist()
+  if (!document.getElementById('wl-modal').classList.contains('hidden')) renderWlModalLists()
+  showToast('Seznam přejmenován')
+}
+
+// Swap an element for an inline rename input; commits on Enter/blur, cancels on Escape.
+function _inlineRename(targetEl, listId, rerender) {
+  const list = getListById(listId)
+  if (!list || !targetEl) return
+  const input = document.createElement('input')
+  input.type = 'text'
+  input.className = 'wl-inline-input'
+  input.value = list.name
+  input.maxLength = 30
+  const commit = () => {
+    const val = input.value.trim()
+    if (val && val.toLowerCase() !== list.name.toLowerCase()) renameList(listId, val)
+    else rerender()
+  }
+  input.addEventListener('click', e => e.stopPropagation())
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur() }
+    else if (e.key === 'Escape') { input.value = list.name; input.blur() }
+  })
+  input.addEventListener('blur', commit, { once: true })
+  targetEl.replaceWith(input)
+  input.focus()
+  input.select()
+}
+
+window.startRenameTab = function(id) {
+  const wrap = document.getElementById('watchlist-tabs')
+  if (!wrap) return
+  // Render the whole tab row as a single rename input, restored after commit.
+  wrap.innerHTML = '<span class="wl-tab-rename-host"></span>'
+  _inlineRename(wrap.firstChild, id, renderWatchlistTabs)
+}
+
+window.startRenameModalList = function(id) {
+  const nameEl = document.querySelector(`#wl-modal-lists .wl-list-name[data-id="${id}"]`)
+  _inlineRename(nameEl, id, renderWlModalLists)
+}
+
 // ── Watchlist tabs ──
 
 function renderWatchlistTabs() {
@@ -118,8 +210,9 @@ function renderWatchlistTabs() {
   if (!wrap) return
   wrap.innerHTML = lists.map(l => `
     <button class="wl-tab${l.id === activeListId ? ' active' : ''}" onclick="switchList('${l.id}')">
-      ${l.name}
+      <span class="wl-tab-name">${l.name}</span>
       <span class="wl-tab-count">${l.movies.length}</span>
+      ${l.id !== DEFAULT_LIST_ID ? `<span class="wl-tab-rename" title="Přejmenovat" onclick="event.stopPropagation();startRenameTab('${l.id}')"><i class="bi bi-pencil"></i></span>` : ''}
     </button>
   `).join('')
 }
@@ -138,7 +231,8 @@ function renderWatchlist() {
   const container = document.getElementById('watchlist-movies')
   const totalMovies = lists.reduce((sum, l) => sum + l.movies.length, 0)
 
-  if (!totalMovies) { section.style.display = 'none'; return }
+  // Hide only when there's nothing AND the user hasn't explicitly opened it for list management
+  if (!totalMovies && !_wlExplicitlyOpen) { section.style.display = 'none'; return }
   section.style.display = 'block'
   section.classList.remove('section-reveal')
   void section.offsetWidth
@@ -232,11 +326,14 @@ function renderWlModalLists() {
         <div class="wl-list-item-left">
           <div class="wl-list-check${inList ? ' checked' : ''}">${inList ? '<i class="bi bi-check"></i>' : ''}</div>
           <div>
-            <div class="wl-list-name">${l.name}</div>
+            <div class="wl-list-name" data-id="${l.id}">${l.name}</div>
             <div class="wl-list-meta">${l.movies.length} položek</div>
           </div>
         </div>
-        ${l.id !== DEFAULT_LIST_ID ? `<button class="wl-list-delete" onclick="event.stopPropagation();deleteList('${l.id}')"><i class="bi bi-trash"></i></button>` : ''}
+        ${l.id !== DEFAULT_LIST_ID ? `<div class="wl-list-actions">
+          <button class="wl-list-rename" title="Přejmenovat" onclick="event.stopPropagation();startRenameModalList('${l.id}')"><i class="bi bi-pencil"></i></button>
+          <button class="wl-list-delete" title="Smazat" onclick="event.stopPropagation();deleteList('${l.id}')"><i class="bi bi-trash"></i></button>
+        </div>` : ''}
       </div>
     `
   }).join('')
@@ -278,15 +375,37 @@ document.getElementById('clear-watchlist').addEventListener('click', () => {
 
 document.getElementById('watchlist-toggle')?.addEventListener('click', () => {
   const section = document.getElementById('watchlist-section')
-  const lists   = getLists()
-  const total   = lists.reduce((s, l) => s + l.movies.length, 0)
-  if (!total) { showToast('Váš seznam je prázdný'); return }
   if (section.style.display === 'none' || !section.style.display) {
+    _wlExplicitlyOpen = true   // open even when empty so lists can be created/managed
     renderWatchlist()
     section.scrollIntoView({ behavior: 'smooth' })
   } else {
     section.style.display = 'none'
+    _wlExplicitlyOpen = false
   }
+})
+
+// ── Inline "Nový seznam" in the watchlist section header ──
+document.getElementById('wl-add-list-btn')?.addEventListener('click', () => {
+  const box   = document.getElementById('wl-inline-new')
+  const input = document.getElementById('wl-inline-input')
+  box.classList.toggle('hidden')
+  if (!box.classList.contains('hidden')) { input.value = ''; input.focus() }
+})
+document.getElementById('wl-inline-confirm')?.addEventListener('click', () => {
+  const input = document.getElementById('wl-inline-input')
+  const id = createList(input.value)
+  if (id) { activeListId = id; renderWatchlist() }
+  document.getElementById('wl-inline-new').classList.add('hidden')
+  input.value = ''
+})
+document.getElementById('wl-inline-cancel')?.addEventListener('click', () => {
+  document.getElementById('wl-inline-new').classList.add('hidden')
+  document.getElementById('wl-inline-input').value = ''
+})
+document.getElementById('wl-inline-input')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter')       { e.preventDefault(); document.getElementById('wl-inline-confirm').click() }
+  else if (e.key === 'Escape') { document.getElementById('wl-inline-cancel').click() }
 })
 
 window.reloadWatchlist = async function() {

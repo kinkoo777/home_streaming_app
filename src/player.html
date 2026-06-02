@@ -360,6 +360,51 @@
 
       .speed-option:hover { background: rgba(255,255,255,0.08); }
       .speed-option.active { color: #fff; font-weight: 600; }
+
+      /* ── RESPONSIVE / PHONE ── */
+      @media (max-width: 600px) {
+        .player-controls { padding: 40px 16px 18px; }
+        .player-topbar { padding: 16px; gap: 12px; }
+
+        .ctrl-btn { width: 38px; height: 38px; font-size: 16px; }
+        #play-pause-btn { font-size: 20px; }
+
+        #player-back { padding: 9px 14px; font-size: 13px; }
+        #player-title { font-size: 15px; }
+
+        .controls-left, .controls-right { gap: 4px; }
+
+        .seek-row { gap: 10px; margin-bottom: 10px; }
+        .time-label { font-size: 12px; }
+
+        #volume-slider { width: 56px; }
+
+        #speed-btn { min-width: 46px; font-size: 12px; }
+      }
+
+      @media (max-width: 380px) {
+        #volume-slider { display: none; }
+        .controls-left, .controls-right { gap: 2px; }
+        #player-title { font-size: 14px; }
+        #player-back { padding: 8px 12px; }
+      }
+
+      @media (max-height: 500px) and (orientation: landscape) {
+        .player-controls { padding: 32px 20px 12px; }
+        .player-topbar { padding: 10px 16px; }
+        .seek-row { margin-bottom: 8px; }
+      }
+
+      /* ── TOUCH NICETIES ── */
+      @media (hover: none) and (pointer: coarse) {
+        .ctrl-btn,
+        #player-back,
+        .quality-item,
+        .speed-option {
+          -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
+        }
+      }
     </style>
   </head>
   <body>
@@ -478,13 +523,30 @@
         _playerMediaType = data.mediaType || 'movie'
 
         if (data.tmdbId) {
-          localStorage.setItem('filmbox_meta_' + data.tmdbId, JSON.stringify({
+          const _baseMeta = {
             id:          data.tmdbId,
             title:       data.title,
             media_type:  data.mediaType || 'movie',
             mediaType:   data.mediaType || 'movie',
             poster_path: data.posterPath || null
-          }))
+          }
+          localStorage.setItem('filmbox_meta_' + data.tmdbId, JSON.stringify(_baseMeta))
+          // Upgrade with full TMDB details (rating, runtime, year) — non-blocking, never delays playback
+          fetch(`/tmdb/details?id=${data.tmdbId}&type=${data.mediaType || 'movie'}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (!d) return
+              localStorage.setItem('filmbox_meta_' + data.tmdbId, JSON.stringify({
+                ..._baseMeta,
+                poster_path:    data.posterPath || d.poster_path || null,
+                vote_average:   d.vote_average,
+                runtime:        d.runtime,
+                release_date:   d.release_date,
+                first_air_date: d.first_air_date,
+                genre_ids:      Array.isArray(d.genres) ? d.genres.map(g => g.id) : undefined
+              }))
+            })
+            .catch(() => {})
         }
 
         if (data.videos.length === 1) {
@@ -552,7 +614,8 @@
             const res = await fetch(`/api/profiles/${pid}/progress`)
             if (res.ok) {
               const map = await res.json()
-              const saved = parseFloat(map[String(_playerTmdbId)])
+              const val  = map[String(_playerTmdbId)]
+              const saved = (val && typeof val === 'object') ? val.seconds : parseFloat(val)
               if (saved && saved > 0 && saved < video.duration - 5) {
                 video.currentTime = saved
               }
@@ -567,7 +630,7 @@
         fetch(`/api/profiles/${pid}/progress/${_playerTmdbId}`, {
           method:  'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ seconds: video.currentTime })
+          body:    JSON.stringify({ seconds: video.currentTime, duration: video.duration })
         }).catch(() => {})
       }
 
@@ -755,7 +818,7 @@
         const pid = _profileId()
         if (_playerTmdbId && pid !== 'default' && video.currentTime > 5) {
           const url  = `/api/profiles/${pid}/progress/${_playerTmdbId}`
-          const body = JSON.stringify({ seconds: video.currentTime })
+          const body = JSON.stringify({ seconds: video.currentTime, duration: video.duration })
           navigator.sendBeacon
             ? navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }))
             : fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body }).catch(() => {})

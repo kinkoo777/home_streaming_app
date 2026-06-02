@@ -151,6 +151,19 @@
     </section>
   </main>
 
+  <!-- ── Watched ── -->
+  <main class="container" id="watched-section" style="display:none; padding-top: 40px;">
+    <section>
+      <div class="section-header">
+        <div>
+          <h3>Zhlédnuto</h3>
+          <p>Filmy a seriály, které jste již viděli</p>
+        </div>
+      </div>
+      <div class="movies-grid" id="watched-movies"></div>
+    </section>
+  </main>
+
   <!-- ── Watchlist ── -->
   <main class="container" id="watchlist-section" style="display:none; padding-top: 40px;">
     <section>
@@ -159,9 +172,19 @@
           <h3>Můj seznam</h3>
           <p>Filmy, které chcete vidět</p>
         </div>
-        <button id="clear-watchlist" class="info-btn" style="font-size:13px; padding:8px 16px;">
-          <i class="bi bi-trash"></i> Vymazat
-        </button>
+        <div class="wl-header-actions">
+          <div class="wl-inline-new hidden" id="wl-inline-new">
+            <input type="text" id="wl-inline-input" class="wl-inline-input" placeholder="Název seznamu..." maxlength="30" />
+            <button id="wl-inline-confirm" class="info-btn" style="font-size:13px; padding:8px 14px;"><i class="bi bi-check-lg"></i></button>
+            <button id="wl-inline-cancel" class="info-btn" style="font-size:13px; padding:8px 14px;"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <button id="wl-add-list-btn" class="info-btn" style="font-size:13px; padding:8px 16px;">
+            <i class="bi bi-plus-lg"></i> Nový seznam
+          </button>
+          <button id="clear-watchlist" class="info-btn" style="font-size:13px; padding:8px 16px;">
+            <i class="bi bi-trash"></i> Vymazat
+          </button>
+        </div>
       </div>
       <div id="watchlist-tabs" class="watchlist-tabs"></div>
       <div class="movies-grid" id="watchlist-movies"></div>
@@ -186,7 +209,7 @@
       <div class="section-header">
         <div>
           <h3>Nejnavštěvovanější</h3>
-          <p>Nejlepší obsah z TMDB databáze</p>
+          <p>Nejlepší obsah z TMDB databáze <span class="loaded-count" id="count-popular"></span></p>
         </div>
         <div class="grid-controls">
           <div class="sort-tabs" data-grid="popular-movies" data-type="popular">
@@ -205,7 +228,7 @@
       <div class="section-header">
         <div>
           <h3>Trendy</h3>
-          <p>Nejlepší obsah z TMDB databáze</p>
+          <p>Nejlepší obsah z TMDB databáze <span class="loaded-count" id="count-trending"></span></p>
         </div>
         <div class="grid-controls">
           <div class="sort-tabs" data-grid="trending" data-type="trending">
@@ -224,7 +247,7 @@
       <div class="section-header">
         <div>
           <h3>Nejlépe hodnocené</h3>
-          <p>Nejlepší obsah z TMDB databáze</p>
+          <p>Nejlepší obsah z TMDB databáze <span class="loaded-count" id="count-top-rated"></span></p>
         </div>
         <div class="grid-controls">
           <div class="sort-tabs" data-grid="top-rated" data-type="top_rated">
@@ -237,19 +260,6 @@
       <div class="genre-filters" id="genre-filters-top-rated"></div>
       <div class="movies-grid" id="top-rated"></div>
       <button class="load-more-btn" data-grid="top-rated" data-type="top_rated" data-page="1">Načíst více</button>
-    </section>
-  </main>
-
-  <!-- ── Watched ── -->
-  <main class="container" id="watched-section" style="display:none; padding-top: 40px; padding-bottom: 60px;">
-    <section>
-      <div class="section-header">
-        <div>
-          <h3>Uzřeno</h3>
-          <p>Filmy a seriály, které jste již viděli</p>
-        </div>
-      </div>
-      <div class="movies-grid" id="watched-movies"></div>
     </section>
   </main>
 

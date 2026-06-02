@@ -92,6 +92,73 @@ body.dark .wl-tab.active {
   background: rgba(0,0,0,0.12);
 }
 
+.wl-tab-rename {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  opacity: 0.55;
+  margin-left: 2px;
+}
+
+.wl-tab-rename:hover { opacity: 1; }
+
+/* ── New-list / rename controls ── */
+
+.wl-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wl-inline-new {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wl-inline-new.hidden { display: none; }
+
+.wl-inline-input {
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: transparent;
+  color: inherit;
+  padding: 0 12px;
+  font-size: 13px;
+  outline: none;
+  transition: 0.2s;
+}
+
+body.dark .wl-inline-input { border-color: rgba(255,255,255,0.15); }
+.wl-inline-input:focus { border-color: #52525b; }
+
+.wl-list-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wl-list-rename {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #71717a;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: 0.15s;
+  opacity: 0;
+}
+
+.wl-list-item:hover .wl-list-rename { opacity: 1; }
+.wl-list-rename:hover { color: #fafafa; background: rgba(255,255,255,0.08); }
+
 /* ── Watched section ── */
 
 .watched-time {
