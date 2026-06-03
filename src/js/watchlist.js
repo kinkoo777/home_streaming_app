@@ -8,15 +8,35 @@ async function renderContinueWatching() {
   const progress = window._profileProgress || {}
   const items = []
 
-  for (const [tmdbId, val] of Object.entries(progress)) {
-    const seconds  = (val && typeof val === 'object') ? val.seconds  : val
-    const duration = (val && typeof val === 'object') ? val.duration : null
+  for (const [key, val] of Object.entries(progress)) {
+    const isObj    = val && typeof val === 'object'
+    const seconds  = isObj ? val.seconds  : val
+    const duration = isObj ? val.duration : null
     if (!seconds || seconds <= 30) continue
-    if (typeof isWatched === 'function' && isWatched(parseInt(tmdbId))) continue
+    const tmdbId      = (isObj && val.tmdbId != null) ? val.tmdbId : parseInt(key)
+    const episodeLabel = isObj ? (val.episodeLabel || null) : null
+    // Hide finished movies, but never hide an in-progress episode just because the show is "watched".
+    if (typeof isWatched === 'function' && isWatched(tmdbId) && !episodeLabel) continue
     if (duration && (seconds / duration) >= 0.9) continue
-    const metaRaw = localStorage.getItem('filmbox_meta_' + tmdbId)
-    if (!metaRaw) continue
-    items.push({ ...JSON.parse(metaRaw), _hasDuration: !!duration })
+
+    // Prefer device-independent server metadata; fall back to this browser's localStorage cache.
+    let meta = null
+    if (isObj && val.title) {
+      meta = { id: tmdbId, title: val.title, poster_path: val.posterPath || null, media_type: val.mediaType || 'movie' }
+    } else {
+      const metaRaw = localStorage.getItem('filmbox_meta_' + key)
+      if (metaRaw) meta = JSON.parse(metaRaw)
+    }
+    if (!meta) continue
+
+    items.push({
+      ...meta,
+      _key:          key,
+      _seconds:      seconds,
+      _duration:     duration,
+      _hasDuration:  !!duration,
+      _episodeLabel: episodeLabel
+    })
   }
 
   if (!items.length) { section.style.display = 'none'; return }
@@ -56,6 +76,18 @@ async function renderContinueWatching() {
   void section.offsetWidth
   section.classList.add('section-reveal')
   container.innerHTML = items.map(m => buildCard(m, 'continue-card')).join('')
+}
+
+// Remove a single title/episode from Continue Watching (deletes its progress entry).
+window.removeFromContinue = async function(key) {
+  const profileId = getActiveProfileId()
+  if (profileId === 'default') return
+  try {
+    await fetch(`/api/profiles/${profileId}/progress/${encodeURIComponent(key)}`, { method: 'DELETE' })
+  } catch {}
+  if (window._profileProgress) delete window._profileProgress[key]
+  renderContinueWatching()
+  showToast('Odebráno z „Pokračovat ve sledování"')
 }
 
 // ================= MULTI-LIST (SEZNAM) =================
@@ -210,7 +242,7 @@ function renderWatchlistTabs() {
   if (!wrap) return
   wrap.innerHTML = lists.map(l => `
     <button class="wl-tab${l.id === activeListId ? ' active' : ''}" onclick="switchList('${l.id}')">
-      <span class="wl-tab-name">${l.name}</span>
+      <span class="wl-tab-name">${escapeHtml(l.name)}</span>
       <span class="wl-tab-count">${l.movies.length}</span>
       ${l.id !== DEFAULT_LIST_ID ? `<span class="wl-tab-rename" title="Přejmenovat" onclick="event.stopPropagation();startRenameTab('${l.id}')"><i class="bi bi-pencil"></i></span>` : ''}
     </button>
@@ -326,7 +358,7 @@ function renderWlModalLists() {
         <div class="wl-list-item-left">
           <div class="wl-list-check${inList ? ' checked' : ''}">${inList ? '<i class="bi bi-check"></i>' : ''}</div>
           <div>
-            <div class="wl-list-name" data-id="${l.id}">${l.name}</div>
+            <div class="wl-list-name" data-id="${l.id}">${escapeHtml(l.name)}</div>
             <div class="wl-list-meta">${l.movies.length} položek</div>
           </div>
         </div>

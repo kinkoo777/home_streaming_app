@@ -73,7 +73,13 @@
   .detail-content {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    /* stretch (not center) so text children fill the modal width and wrap,
+       instead of shrinking to their max-content width and overflowing */
+    align-items: stretch;
+    align-self: stretch;
+    width: 100%;
+    min-width: 0;
+    text-align: center;
   }
 
   .detail-genres {
@@ -161,6 +167,12 @@
     text-align: center;
   }
 
+  /* Let the name/bio wrapper fill the width and wrap instead of overflowing */
+  .actor-header > div:last-child {
+    width: 100%;
+    min-width: 0;
+  }
+
   #actor-photo,
   .actor-photo-placeholder {
     margin-right: 0;
@@ -170,7 +182,10 @@
 
 /* ── Large phone / small tablet (≤ 700 px) ── */
 @media (max-width: 700px) {
+  /* Hide the "Streamovací platforma" subtitle, but keep the profile-switch
+     ("Profil · Změnit") link visible so users can still change profile. */
   .logo-wrapper p { display: none; }
+  .logo-wrapper .profile-switch-line { display: block; }
 
   .hero-content h2 { font-size: 36px; }
   .hero-content p  { font-size: 14px; }
@@ -238,6 +253,18 @@
     overscroll-behavior: contain;
   }
 
+  /* Surface the action buttons near the top on phones so Play/Trailer aren't
+     buried below the poster, overview and cast. .detail-content is already
+     flex-column from the ≤860 rule, so we only need to reorder its children. */
+  .detail-genres   { -webkit-order: 1; order: 1; }
+  #detail-title    { -webkit-order: 2; order: 2; }
+  .detail-meta     { -webkit-order: 3; order: 3; }
+  .detail-actions  { -webkit-order: 4; order: 4; margin-bottom: 18px; }
+  .detail-overview { -webkit-order: 5; order: 5; }
+  .detail-cast     { -webkit-order: 6; order: 6; }
+  .detail-seasons  { -webkit-order: 7; order: 7; }
+  .detail-similar  { -webkit-order: 8; order: 8; }
+
   /* WL modal as bottom sheet */
   .wl-modal { align-items: flex-end; }
   .wl-modal-inner {
@@ -257,8 +284,9 @@
     display: flex;
     -webkit-flex-direction: row;
     flex-direction: row;
-    -webkit-align-items: center;
-    align-items: center;
+    -webkit-align-items: flex-start;
+    align-items: flex-start;
+    gap: 10px;
     position: fixed;
     top: 0; right: 0; bottom: 0; left: 0;
     z-index: 9999;
@@ -266,10 +294,6 @@
     background: rgba(9,9,11,0.97);
     border: none;
     border-radius: 0;
-  }
-
-  .search-wrapper.mobile-open > *:not(:last-child) {
-    margin-right: 10px;
   }
 
   .search-wrapper.mobile-open input {
@@ -288,6 +312,8 @@
 
   .search-wrapper.mobile-open #search-close-mobile {
     display: flex;
+    width: 50px;
+    height: 50px;
   }
 
   .search-wrapper.mobile-open .search-results {
@@ -351,7 +377,7 @@
   .detail-actions .info-btn {
     font-size: 13px;
     padding: 10px 18px;
-    width: 100%;
+    width: 50%;
     justify-content: center;
   }
 
@@ -359,6 +385,7 @@
     width: 100%;
     -webkit-flex-direction: column;
     flex-direction: column;
+    align-items: center;
   }
 
   .detail-actions > *:not(:last-child) {
@@ -915,73 +942,9 @@
   }
 }
 
-/* ── Profile chooser: phones (≤ 600 px) — intro.css handles 700/480 ── */
-@media (max-width: 600px) {
-  .profile-chooser-inner {
-    padding: 20px 16px;
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-  }
-
-  .profile-chooser-inner h1 {
-    font-size: 28px;
-    margin-bottom: 28px;
-  }
-
-  .profile-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 120px));
-    -webkit-justify-content: center;
-    justify-content: center;
-    gap: 18px;
-    margin: 0 auto 22px;
-    width: 100%;
-    max-width: 320px;
-  }
-
-  .profile-card {
-    margin: 0;
-    width: 100%;
-  }
-
-  .profile-add-btn {
-    width: 100%;
-    max-width: 320px;
-    -webkit-justify-content: center;
-    justify-content: center;
-    min-height: 44px;
-    box-sizing: border-box;
-  }
-}
-
-/* ── Profile chooser: very small phone (≤ 380 px) ── */
-@media (max-width: 380px) {
-  .profile-chooser-inner h1 {
-    font-size: 24px;
-    margin-bottom: 22px;
-  }
-
-  .profile-grid {
-    gap: 14px;
-    max-width: 260px;
-  }
-
-  .profile-grid .profile-avatar-wrap {
-    width: 100px;
-    height: 100px;
-  }
-
-  .profile-grid .profile-avatar {
-    width: 100px;
-    height: 100px;
-    font-size: 38px;
-  }
-
-  .profile-name {
-    font-size: 13px;
-  }
-}
+/* Profile chooser (.profile-grid / .profile-card / avatars) responsiveness is
+   owned by intro.css (loads after this file). Do NOT override it here — doing so
+   collides with intro.css's flex layout and breaks the chooser on phones. */
 
 /* ── Add-profile modal: phone portrait (≤ 480 px) ── */
 @media (max-width: 480px) {
@@ -1061,5 +1024,61 @@
   .profile-avatar-wrap {
     min-width: 80px;
     min-height: 80px;
+  }
+}
+
+/* ================= FOOTER ================= */
+
+@media (max-width: 860px) {
+  .site-footer {
+    margin-top: 48px;
+    padding: 40px 0 24px;
+  }
+
+  .footer-inner {
+    gap: 28px;
+  }
+
+  .footer-links {
+    gap: 40px;
+  }
+}
+
+@media (max-width: 600px) {
+  .footer-inner {
+    flex-direction: column;
+    gap: 28px;
+    padding-bottom: 28px;
+  }
+
+  .footer-links {
+    width: 100%;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .footer-col {
+    flex: 1;
+  }
+
+  .footer-bottom {
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 20px;
+  }
+}
+
+@media (max-width: 360px) {
+  .site-footer {
+    padding: 32px 0 20px;
+  }
+
+  .footer-links {
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .footer-brand h4 {
+    font-size: 15px;
   }
 }

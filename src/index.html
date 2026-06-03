@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="css/intro.css" />
   <link rel="stylesheet" href="css/animations.css" />
   <link rel="stylesheet" href="css/settings.css" />
+  <link rel="stylesheet" href="css/footer.css" />
 </head>
 
 <body>
@@ -478,6 +479,20 @@
             <input type="checkbox" id="settings-autoplay" />
             <span>Automaticky přehrávat upoutávky</span>
           </label>
+        </section>
+
+        <!-- Data -->
+        <section class="settings-section">
+          <label class="settings-label">Moje data</label>
+          <div class="settings-inline">
+            <button id="settings-export" class="settings-btn-secondary">
+              <i class="bi bi-download"></i> Exportovat
+            </button>
+            <button id="settings-wipe" class="settings-btn-secondary">
+              <i class="bi bi-eraser"></i> Vymazat data
+            </button>
+          </div>
+          <p class="settings-hint">Export stáhne vaše oblíbené, sledované, seznamy a průběh jako JSON. Vymazání ponechá profil, ale smaže jeho knihovnu.</p>
         </section>
 
         <!-- Danger -->

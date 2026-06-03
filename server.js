@@ -95,6 +95,7 @@ async function tmdbFetch(path) {
 app.get('/tmdb/search', async (req, res) => {
     const q = req.query.q;
     if (!q) return res.status(400).json({ error: 'Chybí q' });
+    if (typeof q !== 'string' || q.length > 200) return res.status(400).json({ error: 'Neplatný dotaz' });
     try { res.json(await tmdbFetch(`/search/multi?language=cs-CZ&query=${encodeURIComponent(q)}`)); }
     catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -246,6 +247,7 @@ async function searchPrehrajto(q) {
 app.get('/search', async (req, res) => {
     const q = req.query.q;
     if (!q) return res.status(400).json({ error: 'Chybí query parameter "q"' });
+    if (typeof q !== 'string' || q.length > 200) return res.status(400).json({ error: 'Neplatný dotaz' });
 
     const cacheKey = 'search:' + q.toLowerCase().trim();
     const cached = getCache(cacheKey);
@@ -271,11 +273,13 @@ async function getVideoPrehrajto(url) {
 
         // Capture video stream URLs from network traffic — fires before DOM update
         const captured = new Set();
+        const subsCaptured = new Set();
         await p.setRequestInterception(true);
         p.on('request', req => {
             try {
                 const u = req.url();
                 if (/\.(m3u8|mp4|mkv|webm)(\?|$)/i.test(u)) captured.add(u);
+                if (/\.(vtt|srt)(\?|$)/i.test(u)) subsCaptured.add(u);
                 if (BLOCK_TYPES.includes(req.resourceType())) {
                     req.abort().catch(() => {});
                 } else {
@@ -307,7 +311,13 @@ async function getVideoPrehrajto(url) {
                     else if (prop === 'duration') duration = m.content;
                     else if (prop === 'thumbnailUrl') thumbnail = m.content;
                 }
-                return { name, duration, thumbnail };
+                // Subtitle <track> elements declared on the player, if any
+                const tracks = Array.from(w.querySelectorAll('track')).map(t => ({
+                    src:   t.src || t.getAttribute('src'),
+                    label: t.label || t.getAttribute('label') || t.srclang || 'Titulky',
+                    lang:  t.srclang || t.getAttribute('srclang') || ''
+                })).filter(t => t.src);
+                return { name, duration, thumbnail, tracks };
             })
         );
 
@@ -319,10 +329,15 @@ async function getVideoPrehrajto(url) {
 
         if (captured.size === 0) throw new Error('Nepodařilo se zachytit video URL');
 
-        return [...captured].map((src, i) => ({
-            ...(metadata[i] ?? metadata[0] ?? {}),
-            videoSrc: src
-        }));
+        // Merge subtitle tracks: those declared in the DOM plus any .vtt/.srt seen on the wire.
+        const netSubs = [...subsCaptured].map(src => ({ src, label: 'Titulky', lang: '' }));
+
+        return [...captured].map((src, i) => {
+            const meta = metadata[i] ?? metadata[0] ?? {};
+            const subtitles = [...(meta.tracks || []), ...netSubs]
+                .filter((s, idx, arr) => arr.findIndex(x => x.src === s.src) === idx);
+            return { ...meta, videoSrc: src, subtitles };
+        });
     } finally {
         await p.close();
     }
@@ -339,6 +354,32 @@ function isAllowedVideoUrl(raw) {
         return false;
     }
 }
+
+// Convert a SubRip (.srt) document to WebVTT so <track> can render it.
+function srtToVtt(srt) {
+    const body = srt
+        .replace(/\r+/g, '')
+        .replace(/^\d+\s*$/gm, '')                                   // drop sequence numbers
+        .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');           // comma → dot in timestamps
+    return 'WEBVTT\n\n' + body.replace(/\n{3,}/g, '\n\n').trim() + '\n';
+}
+
+// Proxy + normalize subtitle files (avoids cross-origin <track> failures).
+app.get('/get_subtitle', async (req, res) => {
+    const url = req.query.url;
+    if (!url) return res.status(400).json({ error: 'Chybí query parameter "url"' });
+    if (!isAllowedVideoUrl(url)) return res.status(400).json({ error: 'Nepovolená URL' });
+    try {
+        const r = await fetch(url);
+        if (!r.ok) return res.status(502).json({ error: 'Titulky se nepodařilo načíst' });
+        const text = await r.text();
+        const vtt = /\.srt(\?|$)/i.test(url) || !/^\s*WEBVTT/.test(text) ? srtToVtt(text) : text;
+        res.set('Content-Type', 'text/vtt; charset=utf-8');
+        res.send(vtt);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 app.get('/get_video', async (req, res) => {
     const url = req.query.url;
@@ -396,9 +437,11 @@ initBrowser().catch(console.error);
 app.get('/autocomplete_data', async (req, res) => {
     const q = req.query.q;
     if (!q) return res.status(400).json({ error: 'Chybí query parameter "q"' });
+    if (typeof q !== 'string' || q.length > 200) return res.status(400).json({ error: 'Neplatný dotaz' });
     if (q == "none") {
-        console.log("Invalid input text!");
-        return;
+        // sentinel value — nothing to autocomplete; reply with an empty list
+        // rather than leaving the request hanging.
+        return res.json([]);
     }
 
 
@@ -578,11 +621,57 @@ app.get('/api/profiles/:id/progress', (req, res) => {
     res.json(progressDB.getAll(req.params.id));
 });
 
-app.put('/api/profiles/:id/progress/:tmdbId', (req, res) => {
+app.put('/api/profiles/:id/progress/:key', (req, res) => {
     const seconds = Number(req.body.seconds);
     if (isNaN(seconds)) return res.status(400).json({ error: 'seconds must be a number' });
-    const duration = req.body.duration != null ? Number(req.body.duration) : null;
-    progressDB.set(req.params.id, req.params.tmdbId, seconds, duration);
+    const b = req.body;
+    const data = {
+        seconds,
+        duration:     b.duration != null ? Number(b.duration) : null,
+        title:        b.title || null,
+        posterPath:   b.posterPath || null,
+        mediaType:    b.mediaType || 'movie',
+        tmdbId:       b.tmdbId != null ? Number(b.tmdbId) : null,
+        episodeLabel: b.episodeLabel || null,
+        updatedAt:    new Date().toISOString()
+    };
+    progressDB.set(req.params.id, req.params.key, data);
+    res.json({ ok: true });
+});
+
+app.delete('/api/profiles/:id/progress/:key', (req, res) => {
+    const ok = progressDB.remove(req.params.id, req.params.key);
+    res.json({ ok });
+});
+
+// ====================
+// DATA EXPORT / WIPE
+// ====================
+
+// Download everything stored for one profile as a single JSON document.
+app.get('/api/profiles/:id/export', (req, res) => {
+    const id = req.params.id;
+    const profile = profilesDB.get(id);
+    if (!profile) return res.status(404).json({ error: 'Profil nenalezen' });
+    const safe = typeof sanitizeProfile === 'function' ? sanitizeProfile(profile) : profile;
+    res.json({
+        exportedAt: new Date().toISOString(),
+        profile:    safe,
+        favorites:  favoritesDB.list(id),
+        watched:    watchedDB.list(id),
+        watchlists: watchlistsDB.getByProfile(id),
+        progress:   progressDB.getAll(id)
+    });
+});
+
+// Wipe a profile's library (favorites, watched, watchlists, progress) but keep the profile.
+app.delete('/api/profiles/:id/data', (req, res) => {
+    const id = req.params.id;
+    if (!profilesDB.get(id)) return res.status(404).json({ error: 'Profil nenalezen' });
+    favoritesDB.deleteByProfile(id);
+    watchedDB.deleteByProfile(id);
+    watchlistsDB.deleteByProfile(id);
+    progressDB.deleteByProfile(id);
     res.json({ ok: true });
 });
 

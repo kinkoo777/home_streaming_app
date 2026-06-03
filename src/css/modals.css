@@ -366,6 +366,8 @@ body.modal-open {
   line-height: 1.75;
   color: #d4d4d8;
   margin-bottom: 24px;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .detail-cast {
@@ -639,6 +641,11 @@ body.modal-open {
   margin-bottom: 32px;
 }
 
+/* Name/bio wrapper must be allowed to shrink so long bios wrap, not overflow */
+.actor-header > div:last-child {
+  min-width: 0;
+}
+
 .actor-photo-placeholder {
   width: 100px;
   height: 100px;
@@ -670,6 +677,8 @@ body.modal-open {
   font-size: 14px;
   line-height: 1.7;
   color: #a1a1aa;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 /* ================= WL MODAL ================= */

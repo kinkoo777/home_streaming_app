@@ -182,3 +182,51 @@
   pointer-events: none;
   z-index: 2;
 }
+
+/* ── Episode label + remaining-time badge on Continue Watching cards ── */
+
+.remaining-badge {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── Remove (✕) button on Continue Watching cards ── */
+
+.continue-remove {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: none;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.2s ease;
+  z-index: 3;
+}
+
+.movie-card:hover .continue-remove { opacity: 1; }
+.continue-remove:hover { background: rgba(239,68,68,0.85); }
+
+/* Keep the remove button reachable on touch devices (no hover) */
+@media (hover: none) and (pointer: coarse) {
+  .continue-remove { opacity: 1; }
+}

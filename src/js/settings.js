@@ -280,6 +280,44 @@
       catch (err) { toast('Chyba: ' + err.message) }
     })
 
+    // Export data
+    document.getElementById('settings-export')?.addEventListener('click', async () => {
+      const active = getActive()
+      if (!active) return
+      try {
+        const data = await apiFetch(`/api/profiles/${active.id}/export`)
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+        const url  = URL.createObjectURL(blob)
+        const a    = document.createElement('a')
+        const safe = (active.name || 'profil').replace(/[^\w\-]+/g, '_')
+        a.href = url
+        a.download = `filmbox-${safe}-${new Date().toISOString().slice(0, 10)}.json`
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+        toast('Data exportována')
+      } catch (err) { toast('Chyba: ' + err.message) }
+    })
+
+    // Wipe library data (keep profile)
+    document.getElementById('settings-wipe')?.addEventListener('click', async () => {
+      const active = getActive()
+      if (!active) return
+      if (!confirm('Opravdu vymazat oblíbené, sledované, seznamy a průběh? Profil zůstane zachován.')) return
+      try {
+        await apiFetch(`/api/profiles/${active.id}/data`, { method: 'DELETE' })
+        if (window._profileProgress) window._profileProgress = {}
+        await Promise.all([
+          window.reloadWatched ? window.reloadWatched() : null,
+          window.reloadWatchlist ? window.reloadWatchlist() : null,
+          window.reloadFavorites ? window.reloadFavorites() : null
+        ].filter(Boolean))
+        if (window.reloadContinueWatching) window.reloadContinueWatching()
+        toast('Data vymazána')
+      } catch (err) { toast('Chyba: ' + err.message) }
+    })
+
     // Delete profile
     document.getElementById('settings-delete')?.addEventListener('click', async () => {
       const active = getActive()

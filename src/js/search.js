@@ -105,10 +105,10 @@ async function performSearch(query) {
       return
     }
 
-    filtered.slice(0, 8).forEach(movie => {
-      const title = movie.title || movie.name
+    searchResults.innerHTML = filtered.slice(0, 8).map(movie => {
+      const title = escapeHtml(movie.title || movie.name)
       searchDataMap[movie.id] = movie
-      searchResults.innerHTML += `
+      return `
         <div class="search-item" onclick="selectSearchItem(${movie.id})">
           <img src="https://image.tmdb.org/t/p/w500${movie.poster_path}" alt="${title}"/>
           <div class="search-item-info">
@@ -117,7 +117,7 @@ async function performSearch(query) {
           </div>
         </div>
       `
-    })
+    }).join('')
     searchResults.classList.add('active')
   } catch {}
 }
@@ -150,6 +150,20 @@ document.addEventListener('keydown', e => {
     searchResults.classList.remove('active')
     searchInput.value = ''
   }
+})
+
+// ── "/" focuses search from anywhere (unless already typing in a field) ──
+document.addEventListener('keydown', e => {
+  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
+  const t = e.target
+  const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
+  if (typing) return
+  e.preventDefault()
+  if (searchMobileBtn && getComputedStyle(searchMobileBtn).display !== 'none') {
+    searchWrapper.classList.add('mobile-open')
+  }
+  searchInput.focus()
+  if (!searchInput.value.trim()) showHistory()
 })
 
 // ── Theme toggle ──

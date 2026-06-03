@@ -234,13 +234,106 @@
 
       .seek-bar-wrap:hover { height: 6px; }
 
+      #seek-buffered {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.3);
+        pointer-events: none;
+        z-index: 0;
+      }
+
       #seek-filled {
         height: 100%;
         border-radius: 999px;
         background: #fff;
         pointer-events: none;
         position: relative;
+        z-index: 1;
       }
+
+      #speed-indicator {
+        position: absolute;
+        top: 90px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-radius: 999px;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(10px);
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease;
+        z-index: 6;
+      }
+      #speed-indicator.show { opacity: 1; }
+
+      /* keyboard-shortcut help overlay */
+      #shortcuts-help {
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.7);
+        backdrop-filter: blur(6px);
+      }
+      #shortcuts-help.show { display: flex; }
+      #shortcuts-help .sh-card {
+        background: rgba(20,20,20,0.95);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 14px;
+        padding: 24px 28px;
+        max-width: 360px;
+        width: calc(100% - 48px);
+        color: #fff;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      }
+      #shortcuts-help h3 {
+        margin: 0 0 16px;
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      #shortcuts-help dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 10px 16px;
+        align-items: center;
+      }
+      #shortcuts-help dt { text-align: right; }
+      #shortcuts-help dd { margin: 0; color: #cfcfcf; font-size: 14px; }
+      #shortcuts-help kbd {
+        display: inline-block;
+        min-width: 20px;
+        text-align: center;
+        padding: 3px 8px;
+        border-radius: 6px;
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.2);
+        border-bottom-width: 2px;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      #shortcuts-help .sh-hint {
+        margin: 16px 0 0;
+        font-size: 12px;
+        color: #888;
+        text-align: center;
+      }
+      #help-btn { font-size: 18px; }
 
       #seek-filled::after {
         content: '';
@@ -405,6 +498,60 @@
           touch-action: manipulation;
         }
       }
+
+      /* ── BUFFERING SPINNER ── */
+      #buffer-spinner {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 52px;
+        color: #fff;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+        z-index: 6;
+      }
+      #buffer-spinner.show { opacity: 0.9; }
+      #buffer-spinner i { display: inline-block; animation: buffer-spin 0.9s linear infinite; }
+      @keyframes buffer-spin { to { transform: rotate(360deg); } }
+
+      /* ── RESUME / NEXT-EPISODE PROMPTS ── */
+      .resume-prompt, .next-ep-prompt {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(4px);
+        z-index: 20;
+        animation: prompt-fade 0.25s ease;
+      }
+      @keyframes prompt-fade { from { opacity: 0; } to { opacity: 1; } }
+      .resume-card, .next-ep-card {
+        background: #18181b;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 16px;
+        padding: 28px 32px;
+        text-align: center;
+        max-width: 90%;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      }
+      .resume-card p, .next-ep-card p { color: #fafafa; font-size: 17px; margin-bottom: 18px; }
+      .resume-actions, .next-ep-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+      .resume-yes, .next-ep-yes {
+        background: #fafafa; color: #18181b; border: none;
+        padding: 11px 20px; border-radius: 10px; font-weight: 700; font-size: 15px;
+        cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+        transition: transform 0.15s ease, opacity 0.15s ease;
+      }
+      .resume-no, .next-ep-no {
+        background: transparent; color: #d4d4d8; border: 1px solid rgba(255,255,255,0.18);
+        padding: 11px 20px; border-radius: 10px; font-weight: 600; font-size: 15px;
+        cursor: pointer; transition: background 0.15s ease;
+      }
+      .resume-yes:hover, .next-ep-yes:hover { transform: translateY(-1px); }
+      .resume-no:hover, .next-ep-no:hover { background: rgba(255,255,255,0.08); }
     </style>
   </head>
   <body>
@@ -438,30 +585,56 @@
         <div class="quality-list" id="quality-list"></div>
       </div>
 
+      <!-- buffering spinner -->
+      <div id="buffer-spinner"><i class="bi bi-arrow-repeat"></i></div>
+
       <!-- center play/pause feedback -->
       <div id="center-indicator"><i class="bi bi-play-fill" id="center-icon"></i></div>
+
+      <!-- 2× speed hold indicator -->
+      <div id="speed-indicator">2× <i class="bi bi-fast-forward-fill"></i></div>
+
+      <!-- keyboard shortcut help -->
+      <div id="shortcuts-help">
+        <div class="sh-card">
+          <h3><i class="bi bi-keyboard"></i> Klávesové zkratky</h3>
+          <dl>
+            <dt><kbd>Mezerník</kbd> / <kbd>K</kbd></dt><dd>Přehrát / pozastavit</dd>
+            <dt><kbd>←</kbd> / <kbd>→</kbd></dt><dd>Přetočit o 10 s</dd>
+            <dt><kbd>↑</kbd> / <kbd>↓</kbd></dt><dd>Hlasitost</dd>
+            <dt><kbd>M</kbd></dt><dd>Ztlumit</dd>
+            <dt><kbd>F</kbd></dt><dd>Celá obrazovka</dd>
+            <dt><kbd>Podržet</kbd></dt><dd>2× rychlost</dd>
+            <dt><kbd>?</kbd></dt><dd>Tato nápověda</dd>
+          </dl>
+          <p class="sh-hint">Stiskněte <kbd>?</kbd> nebo <kbd>Esc</kbd> pro zavření</p>
+        </div>
+      </div>
 
       <!-- bottom controls -->
       <div class="player-controls">
         <div class="seek-row">
           <span class="time-label" id="time-current">0:00</span>
           <div class="seek-bar-wrap" id="seek-bar">
+            <div id="seek-buffered" style="width:0%"></div>
             <div id="seek-filled" style="width:0%"></div>
           </div>
-          <span class="time-label" id="time-total">0:00</span>
+          <span class="time-label" id="time-total" style="cursor:pointer" title="Přepnout na zbývající čas">0:00</span>
         </div>
 
         <div class="controls-row">
           <div class="controls-left">
-            <button class="ctrl-btn" id="play-pause-btn"><i class="bi bi-play-fill"></i></button>
+            <button class="ctrl-btn" id="skip-back-btn" title="−10 s" aria-label="Přetočit o 10 sekund zpět"><i class="bi bi-arrow-counterclockwise"></i></button>
+            <button class="ctrl-btn" id="play-pause-btn" aria-label="Přehrát nebo pozastavit"><i class="bi bi-play-fill"></i></button>
+            <button class="ctrl-btn" id="skip-fwd-btn" title="+10 s" aria-label="Přetočit o 10 sekund vpřed"><i class="bi bi-arrow-clockwise"></i></button>
             <div class="volume-wrap">
-              <button class="ctrl-btn" id="mute-btn"><i class="bi bi-volume-up-fill"></i></button>
-              <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" />
+              <button class="ctrl-btn" id="mute-btn" aria-label="Ztlumit"><i class="bi bi-volume-up-fill"></i></button>
+              <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" aria-label="Hlasitost" />
             </div>
           </div>
           <div class="controls-right">
             <div class="speed-wrap">
-              <button class="ctrl-btn" id="speed-btn">1×</button>
+              <button class="ctrl-btn" id="speed-btn" aria-label="Rychlost přehrávání">1×</button>
               <div class="speed-menu" id="speed-menu">
                 <div class="speed-option" data-speed="0.5">0.5×</div>
                 <div class="speed-option active" data-speed="1">1×</div>
@@ -470,8 +643,10 @@
                 <div class="speed-option" data-speed="2">2×</div>
               </div>
             </div>
-            <button class="ctrl-btn" id="pip-btn" title="Picture in Picture"><i class="bi bi-pip"></i></button>
-            <button class="ctrl-btn" id="fullscreen-btn"><i class="bi bi-fullscreen"></i></button>
+            <button class="ctrl-btn" id="cc-btn" title="Titulky" aria-label="Titulky" style="display:none"><i class="bi bi-badge-cc"></i></button>
+            <button class="ctrl-btn" id="pip-btn" title="Picture in Picture" aria-label="Obraz v obraze"><i class="bi bi-pip"></i></button>
+            <button class="ctrl-btn" id="help-btn" title="Klávesové zkratky (?)" aria-label="Klávesové zkratky"><i class="bi bi-keyboard"></i></button>
+            <button class="ctrl-btn" id="fullscreen-btn" aria-label="Celá obrazovka"><i class="bi bi-fullscreen"></i></button>
           </div>
         </div>
       </div>
@@ -500,6 +675,13 @@
       const speedBtn     = document.getElementById('speed-btn')
       const speedMenu    = document.getElementById('speed-menu')
       const pipBtn       = document.getElementById('pip-btn')
+      const skipBackBtn  = document.getElementById('skip-back-btn')
+      const skipFwdBtn   = document.getElementById('skip-fwd-btn')
+      const helpBtn      = document.getElementById('help-btn')
+      const shortcutsHelp = document.getElementById('shortcuts-help')
+      const seekBuffered = document.getElementById('seek-buffered')
+      const speedIndicator = document.getElementById('speed-indicator')
+      let showRemaining  = localStorage.getItem('filmbox_show_remaining') === '1'
 
       // ── Load data from sessionStorage ──
       function _profileId() {
@@ -512,15 +694,20 @@
       const raw = sessionStorage.getItem('filmbox_player')
       let _playerTmdbId = null
       let _playerMediaType = 'movie'
+      let _playerData = null
+      // Progress key: tmdbId for movies/whole shows, "tmdbId:S01E05" for episodes.
+      let _playerKey = null
 
       if (!raw) {
         showError('Žádná data přehrávače. Vraťte se zpět a vyberte video.')
       } else {
         const data = JSON.parse(raw)
+        _playerData = data
         playerTitle.textContent = data.title || 'FilmBox'
         document.title = (data.title || 'FilmBox') + ' — Player'
         _playerTmdbId    = data.tmdbId || null
         _playerMediaType = data.mediaType || 'movie'
+        _playerKey       = data.progressKey || (data.tmdbId != null ? String(data.tmdbId) : null)
 
         if (data.tmdbId) {
           const _baseMeta = {
@@ -530,13 +717,13 @@
             mediaType:   data.mediaType || 'movie',
             poster_path: data.posterPath || null
           }
-          localStorage.setItem('filmbox_meta_' + data.tmdbId, JSON.stringify(_baseMeta))
+          localStorage.setItem('filmbox_meta_' + (_playerKey || data.tmdbId), JSON.stringify(_baseMeta))
           // Upgrade with full TMDB details (rating, runtime, year) — non-blocking, never delays playback
           fetch(`/tmdb/details?id=${data.tmdbId}&type=${data.mediaType || 'movie'}`)
             .then(r => r.ok ? r.json() : null)
             .then(d => {
               if (!d) return
-              localStorage.setItem('filmbox_meta_' + data.tmdbId, JSON.stringify({
+              localStorage.setItem('filmbox_meta_' + (_playerKey || data.tmdbId), JSON.stringify({
                 ..._baseMeta,
                 poster_path:    data.posterPath || d.poster_path || null,
                 vote_average:   d.vote_average,
@@ -574,6 +761,7 @@
         playerWrap.style.display = 'block'
         qualitySelector.style.display = 'block'
 
+        qualityList.innerHTML = ''   // avoid stacking duplicates if reopened
         videos.forEach((v, i) => {
           const item = document.createElement('div')
           item.className = 'quality-item'
@@ -589,61 +777,175 @@
         })
       }
 
+      const ccBtn = document.getElementById('cc-btn')
+      function _renderSubtitles(subs) {
+        // Remove any tracks from a previous source
+        video.querySelectorAll('track').forEach(t => t.remove())
+        const list = Array.isArray(subs) ? subs.filter(s => s && s.src) : []
+        if (!list.length) { ccBtn.style.display = 'none'; return }
+        list.forEach((s, i) => {
+          const tr = document.createElement('track')
+          tr.kind = 'subtitles'
+          tr.label = s.label || ('Titulky ' + (i + 1))
+          if (s.lang) tr.srclang = s.lang
+          // Proxy through the server so cross-origin .vtt/.srt loads (and SRT converts)
+          tr.src = `/get_subtitle?url=${encodeURIComponent(s.src)}`
+          video.appendChild(tr)
+        })
+        ccBtn.style.display = ''
+      }
+      // CC toggles the first text track on/off.
+      let _ccOn = false
+      ccBtn.addEventListener('click', () => {
+        const tracks = video.textTracks
+        if (!tracks.length) return
+        _ccOn = !_ccOn
+        for (let i = 0; i < tracks.length; i++) tracks[i].mode = (i === 0 && _ccOn) ? 'showing' : 'hidden'
+        ccBtn.classList.toggle('active', _ccOn)
+      })
+
       function startVideo(v) {
         loadingScreen.style.display = 'none'
         playerWrap.style.display = 'block'
         video.src = v.videoSrc
+        _renderSubtitles(v.subtitles)
         video.play().catch(() => {})
       }
 
       // ── Format time ──
       function fmt(s) {
         if (isNaN(s)) return '0:00'
-        const m = Math.floor(s / 60)
+        const h = Math.floor(s / 3600)
+        const m = Math.floor((s % 3600) / 60)
         const sec = Math.floor(s % 60)
+        if (h >= 1) return `${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
         return `${m}:${sec.toString().padStart(2, '0')}`
+      }
+
+      // ── Skip ±10s ──
+      function skip(delta) {
+        if (isNaN(video.duration)) return
+        video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + delta))
+      }
+      skipBackBtn.addEventListener('click', () => skip(-10))
+      skipFwdBtn.addEventListener('click', () => skip(10))
+
+      // ── Total-time label: full duration or remaining countdown ──
+      function updateTotalLabel() {
+        if (isNaN(video.duration)) { timeTotal.textContent = '0:00'; return }
+        timeTotal.textContent = showRemaining
+          ? '-' + fmt(Math.max(0, video.duration - video.currentTime))
+          : fmt(video.duration)
+      }
+      timeTotal.addEventListener('click', () => {
+        showRemaining = !showRemaining
+        localStorage.setItem('filmbox_show_remaining', showRemaining ? '1' : '0')
+        updateTotalLabel()
+      })
+
+      // ── Buffered indicator ──
+      function updateBuffered() {
+        if (!video.duration || !video.buffered.length) return
+        const end = video.buffered.end(video.buffered.length - 1)
+        seekBuffered.style.width = Math.min(100, (end / video.duration) * 100) + '%'
+      }
+      video.addEventListener('progress', updateBuffered)
+
+      // ── Resume prompt ──
+      // Instead of silently jumping to the saved spot, offer "resume / start over".
+      function _showResumePrompt(saved) {
+        const ov = document.createElement('div')
+        ov.className = 'resume-prompt'
+        ov.innerHTML = `
+          <div class="resume-card">
+            <p>Pokračovat od <strong>${fmt(saved)}</strong>?</p>
+            <div class="resume-actions">
+              <button class="resume-yes"><i class="bi bi-play-fill"></i> Pokračovat</button>
+              <button class="resume-no">Od začátku</button>
+            </div>
+          </div>`
+        playerWrap.appendChild(ov)
+        let _settled = false
+        const resume = () => { if (_settled) return; _settled = true; video.currentTime = saved; ov.remove(); video.play().catch(() => {}) }
+        const restart = () => { if (_settled) return; _settled = true; ov.remove(); video.play().catch(() => {}) }
+        ov.querySelector('.resume-yes').addEventListener('click', resume)
+        ov.querySelector('.resume-no').addEventListener('click', restart)
+        // Default to resuming if the viewer doesn't choose within 8s.
+        setTimeout(resume, 8000)
+        video.pause()
       }
 
       // ── Video events ──
       video.addEventListener('loadedmetadata', async () => {
-        timeTotal.textContent = fmt(video.duration)
+        updateTotalLabel()
         // Restore saved progress from server
         const pid = _profileId()
-        if (_playerTmdbId && pid !== 'default') {
+        if (_playerKey && pid !== 'default') {
           try {
             const res = await fetch(`/api/profiles/${pid}/progress`)
             if (res.ok) {
               const map = await res.json()
-              const val  = map[String(_playerTmdbId)]
+              const val  = map[_playerKey]
               const saved = (val && typeof val === 'object') ? val.seconds : parseFloat(val)
               if (saved && saved > 0 && saved < video.duration - 5) {
-                video.currentTime = saved
+                _showResumePrompt(saved)
               }
             }
           } catch {}
         }
       })
 
+      // Full progress payload: position + display metadata so Continue Watching
+      // can render server-side without depending on this browser's localStorage.
+      function _progressBody() {
+        const d = _playerData || {}
+        return {
+          seconds:      video.currentTime,
+          duration:     isFinite(video.duration) ? video.duration : null,
+          title:        d.title || null,
+          posterPath:   d.posterPath || null,
+          mediaType:    d.mediaType || 'movie',
+          tmdbId:       d.tmdbId != null ? d.tmdbId : null,
+          episodeLabel: d.episodeLabel || null
+        }
+      }
+
       function _saveProgressToApi() {
         const pid = _profileId()
-        if (!_playerTmdbId || pid === 'default' || !video.currentTime) return
-        fetch(`/api/profiles/${pid}/progress/${_playerTmdbId}`, {
+        if (!_playerKey || pid === 'default' || !video.currentTime) return
+        fetch(`/api/profiles/${pid}/progress/${encodeURIComponent(_playerKey)}`, {
           method:  'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ seconds: video.currentTime, duration: video.duration })
+          body:    JSON.stringify(_progressBody())
         }).catch(() => {})
       }
 
-      let progressSaveTimer = null
+      // Persist progress to the JSON store once a minute while playing.
+      // (A debounced timeupdate timer never fired during continuous playback
+      //  because timeupdate kept resetting it, so progress was rarely saved.)
+      let _progressSaveInterval = null
+      function _startProgressSaver() {
+        if (_progressSaveInterval) return
+        _progressSaveInterval = setInterval(() => {
+          if (!video.paused) _saveProgressToApi()
+        }, 60000)
+      }
+      function _stopProgressSaver() {
+        clearInterval(_progressSaveInterval)
+        _progressSaveInterval = null
+      }
+      video.addEventListener('play',  _startProgressSaver)
+      video.addEventListener('pause', () => { _stopProgressSaver(); _saveProgressToApi() })
+      video.addEventListener('ended', _stopProgressSaver)
+
       let _watchedFired = false
       video.addEventListener('timeupdate', () => {
         if (!video.duration) return
         const pct = (video.currentTime / video.duration) * 100
         seekFilled.style.width = pct + '%'
         timeCurrent.textContent = fmt(video.currentTime)
-        // Save progress to server every 5s
-        clearTimeout(progressSaveTimer)
-        progressSaveTimer = setTimeout(_saveProgressToApi, 5000)
+        if (showRemaining) updateTotalLabel()
+        updateBuffered()
         // Auto-mark watched at 90%
         if (!_watchedFired && video.currentTime / video.duration >= 0.9) {
           _watchedFired = true
@@ -662,6 +964,10 @@
                   posterPath: _d.posterPath || null
                 })
               }).catch(() => {})
+              // Finished → drop the progress entry so it leaves Continue Watching.
+              if (_playerKey) {
+                fetch(`/api/profiles/${pid}/progress/${encodeURIComponent(_playerKey)}`, { method: 'DELETE' }).catch(() => {})
+              }
             }
           }
         }
@@ -677,11 +983,85 @@
 
       video.addEventListener('ended', () => {
         playPauseBtn.innerHTML = '<i class="bi bi-arrow-counterclockwise"></i>'
+        _hideSpinner()
+        if (_playerData && _playerData.episode) _showNextEpisodePrompt()
       })
 
       video.addEventListener('error', () => {
         showError('Video se nepodařilo načíst. Zkuste jiný zdroj.')
       })
+
+      // ── Buffering spinner ──
+      const bufferSpinner = document.getElementById('buffer-spinner')
+      const _showSpinner = () => bufferSpinner.classList.add('show')
+      const _hideSpinner = () => bufferSpinner.classList.remove('show')
+      video.addEventListener('waiting',  _showSpinner)
+      video.addEventListener('seeking',  _showSpinner)
+      video.addEventListener('playing',  _hideSpinner)
+      video.addEventListener('canplay',  _hideSpinner)
+      video.addEventListener('seeked',   _hideSpinner)
+
+      // ── Auto-play next episode (TV only) ──
+      async function _playNextEpisode() {
+        const d = _playerData
+        if (!d || !d.episode || !d.tmdbId) return false
+        const nextNum = d.episode.number + 1
+        const sNum = String(d.episode.season).padStart(2, '0')
+        const eNum = String(nextNum).padStart(2, '0')
+        const base = (d.title || '').replace(/\s*S\d{2}E\d{2}.*$/i, '').trim()
+        const query = `${base} S${sNum}E${eNum}`
+        try {
+          const r = await fetch(`/search?q=${encodeURIComponent(query)}`)
+          if (!r.ok) return false
+          const results = await r.json()
+          if (!results.length) return false
+          // results are HTML card strings — extract the first playable href.
+          const doc  = new DOMParser().parseFromString(results.join(''), 'text/html')
+          const href = doc.querySelector('a[href]')?.getAttribute('href')
+          if (!href) return false
+          const vr = await fetch(`/get_video?url=${encodeURIComponent(href)}`)
+          if (!vr.ok) return false
+          const videos = (await vr.json()).filter(v => v.videoSrc && !v.videoSrc.startsWith('blob:'))
+          if (!videos.length) return false
+          sessionStorage.setItem('filmbox_player', JSON.stringify({
+            title:       query,
+            videos,
+            tmdbId:      d.tmdbId,
+            mediaType:   'tv',
+            posterPath:  d.posterPath || null,
+            episode:     { season: d.episode.season, number: nextNum },
+            episodeLabel: `S${sNum}E${eNum}`,
+            progressKey: `${d.tmdbId}:S${sNum}E${eNum}`
+          }))
+          window.location.reload()
+          return true
+        } catch { return false }
+      }
+
+      function _showNextEpisodePrompt() {
+        const d = _playerData
+        if (!d || !d.episode) return
+        const ov = document.createElement('div')
+        ov.className = 'next-ep-prompt'
+        ov.innerHTML = `
+          <div class="next-ep-card">
+            <p>Epizoda skončila</p>
+            <div class="next-ep-actions">
+              <button class="next-ep-yes"><i class="bi bi-skip-end-fill"></i> Další epizoda <span class="next-ep-count">(10)</span></button>
+              <button class="next-ep-no">Zavřít</button>
+            </div>
+          </div>`
+        playerWrap.appendChild(ov)
+        let n = 10, done = false
+        const go = async () => { if (done) return; done = true; clearInterval(t); const ok = await _playNextEpisode(); if (!ok) ov.querySelector('p').textContent = 'Další epizoda nenalezena' }
+        const t = setInterval(() => {
+          n--
+          const c = ov.querySelector('.next-ep-count'); if (c) c.textContent = `(${n})`
+          if (n <= 0) go()
+        }, 1000)
+        ov.querySelector('.next-ep-yes').addEventListener('click', go)
+        ov.querySelector('.next-ep-no').addEventListener('click', () => { done = true; clearInterval(t); ov.remove() })
+      }
 
       // ── Play / Pause ──
       function togglePlay() {
@@ -702,14 +1082,51 @@
         centerIndicator._t = setTimeout(() => centerIndicator.classList.remove('show'), 600)
       }
 
-      playPauseBtn.addEventListener('click', togglePlay)
-      video.addEventListener('click', togglePlay)
+      playPauseBtn.addEventListener('click', () => {
+        if (suppressClick) { suppressClick = false; return }
+        togglePlay()
+      })
+      video.addEventListener('click', () => {
+        if (suppressClick) { suppressClick = false; return }
+        togglePlay()
+      })
+
+      // ── Hold anywhere on the video for 2× playback (release to restore) ──
+      let holdTimer = null
+      let holdActive = false
+      let suppressClick = false
+      let _prevRate = 1
+      function startHold() {
+        holdTimer = setTimeout(() => {
+          holdActive = true
+          _prevRate = video.playbackRate
+          video.playbackRate = 2
+          speedIndicator.classList.add('show')
+        }, 350)
+      }
+      function endHold() {
+        clearTimeout(holdTimer)
+        if (holdActive) {
+          video.playbackRate = _prevRate
+          speedIndicator.classList.remove('show')
+          holdActive = false
+          suppressClick = true
+        }
+      }
+      video.addEventListener('mousedown', startHold)
+      video.addEventListener('touchstart', startHold, { passive: true })
+      video.addEventListener('mouseup', endHold)
+      video.addEventListener('mouseleave', endHold)
+      video.addEventListener('touchend', endHold)
+      video.addEventListener('touchcancel', endHold)
 
       // ── Seek ──
       let seeking = false
 
       function applySek(e) {
+        if (!video.duration || !isFinite(video.duration)) return
         const rect = seekBar.getBoundingClientRect()
+        if (!rect.width) return
         const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
         video.currentTime = pct * video.duration
       }
@@ -784,12 +1201,22 @@
         pipBtn.style.display = 'none'
       }
 
+      // ── Keyboard shortcut help overlay ──
+      function toggleHelp(force) {
+        const show = force != null ? force : !shortcutsHelp.classList.contains('show')
+        shortcutsHelp.classList.toggle('show', show)
+      }
+      helpBtn.addEventListener('click', () => toggleHelp())
+      shortcutsHelp.addEventListener('click', e => { if (e.target === shortcutsHelp) toggleHelp(false) })
+
       // ── Keyboard shortcuts ──
       document.addEventListener('keydown', e => {
         if (e.target.tagName === 'INPUT') return
+        if (e.key === '?') { e.preventDefault(); toggleHelp(); return }
+        if (e.key === 'Escape' && shortcutsHelp.classList.contains('show')) { toggleHelp(false); return }
         if (e.key === ' ' || e.key === 'k') { e.preventDefault(); togglePlay() }
-        if (e.key === 'ArrowRight') video.currentTime = Math.min(video.duration, video.currentTime + 10)
-        if (e.key === 'ArrowLeft')  video.currentTime = Math.max(0, video.currentTime - 10)
+        if (e.key === 'ArrowRight') skip(10)
+        if (e.key === 'ArrowLeft')  skip(-10)
         if (e.key === 'ArrowUp')    { video.volume = Math.min(1, video.volume + 0.1); volumeSlider.value = video.volume; updateMuteIcon() }
         if (e.key === 'ArrowDown')  { video.volume = Math.max(0, video.volume - 0.1); volumeSlider.value = video.volume; updateMuteIcon() }
         if (e.key === 'f') fullscreenBtn.click()
@@ -816,9 +1243,9 @@
 
       window.addEventListener('pagehide', () => {
         const pid = _profileId()
-        if (_playerTmdbId && pid !== 'default' && video.currentTime > 5) {
-          const url  = `/api/profiles/${pid}/progress/${_playerTmdbId}`
-          const body = JSON.stringify({ seconds: video.currentTime, duration: video.duration })
+        if (_playerKey && pid !== 'default' && video.currentTime > 5) {
+          const url  = `/api/profiles/${pid}/progress/${encodeURIComponent(_playerKey)}`
+          const body = JSON.stringify(_progressBody())
           navigator.sendBeacon
             ? navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }))
             : fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body }).catch(() => {})

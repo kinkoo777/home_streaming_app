@@ -9,7 +9,7 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 - **Per-profile favorites** — heart any movie or series; favorites are isolated per profile and saved to JSON
 - **Multiple named watchlists** — create, rename and delete several lists per profile; a title can live in any of them; every change is saved to per-profile JSON
 - **Watched history** — mark titles as watched (with a watched badge); auto-marked at ~90% progress; isolated per profile and stored in JSON
-- **Continue Watching** — a dedicated row of titles you started but haven't finished (under 90%), each card showing a **green progress line** at the exact point where you stopped; the player resumes from the saved per-profile position. The stop point is stored as `{ seconds, duration }`, so the line is accurate even for streams of unknown length
+- **Continue Watching** — a dedicated row of titles you started but haven't finished (under 90%), each card showing a **green progress line** at the exact point where you stopped, the **episode label** (TV) and the **remaining minutes**. Progress is written to the JSON store **every minute while playing** (and on pause/close), so it survives crashes. Each TV episode is tracked **separately** under a composite `tmdbId:S01E05` key instead of colliding on the show id, and each entry carries its own title/poster so the row renders on **any device** without relying on browser storage. Reopening a title shows a **Resume / Start over** prompt, every card has a **✕ remove** button, and finishing a title drops it from the row automatically
 - **Theme persistence** — dark/light toggle saved to the profile in the JSON store
 - **Hero banner** — rotating trending movies with backdrop, title and description
 - **3 browsable grids** — Most Visited, Trending, Top Rated; genre filters, sort tabs, load-more
@@ -17,7 +17,8 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 - **Detail modal** — poster, genres, cast, overview, trailer, season/episode browser for TV, similar titles
 - **Trailer modal** — embedded YouTube player
 - **Actor modal** — photo, biography and top works
-- **Player** — searches prehraj.to for the title; supports custom query if nothing is found
+- **Player** — searches prehraj.to for the title; supports custom query if nothing is found; keyboard shortcuts, buffering spinner, **resume prompt**, **subtitle (CC) support**, and **auto-play next episode** for TV; press <kbd>/</kbd> anywhere to jump to search
+- **Export / wipe my data** — from a profile's settings, download everything (favorites, watched, watchlists, progress) as one JSON file, or wipe the library while keeping the profile
 - **Fully responsive** — 360 px phone → tablet → laptop → large TV
 
 ## Tech Stack
@@ -44,7 +45,7 @@ home_streaming_app/
 │   ├── favorites.json
 │   ├── watched.json
 │   ├── watchlists.json   # Per-profile array of named lists { id, name, movies[] }
-│   └── progress.json     # Per-profile playback position { tmdbId: seconds }
+│   └── progress.json     # Per-profile playback position, keyed by tmdbId or "tmdbId:S01E05" → { seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }
 └── src/
     ├── index.html
     ├── css/
@@ -55,6 +56,7 @@ home_streaming_app/
     │   ├── grid.css
     │   ├── modals.css
     │   ├── responsive.css
+    │   ├── footer.css
     │   └── intro.css
     └── js/
         ├── intro.js      # Intro animation + profile chooser (API-driven)
@@ -89,11 +91,18 @@ npm install
 
 ### Configure
 
-Open `server.js` and set your TMDB API key at the top:
+The TMDB credential is read from an environment variable — it is **not** stored in the source. Copy the example env file and paste your TMDB **API v4 read access token**:
 
-```js
-const TMDB_API_KEY = "your_key_here";
+```bash
+cp .env.example .env
 ```
+
+```ini
+# .env
+TMDB_READ_TOKEN=your_tmdb_v4_read_access_token_here
+```
+
+`.env` is git-ignored. The server refuses to start if `TMDB_READ_TOKEN` is missing.
 
 ### Run
 
@@ -149,8 +158,16 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/profiles/:id/progress` | Get playback progress map `{ tmdbId: seconds }` |
-| `PUT` | `/api/profiles/:id/progress/:tmdbId` | Save playback position `{ seconds }` |
+| `GET` | `/api/profiles/:id/progress` | Get playback progress map, keyed by `tmdbId` (or `tmdbId:S01E05` per episode) |
+| `PUT` | `/api/profiles/:id/progress/:key` | Save position + metadata `{ seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }` |
+| `DELETE` | `/api/profiles/:id/progress/:key` | Remove a single Continue Watching entry |
+
+### Data export / wipe
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/profiles/:id/export` | Download the profile + favorites/watched/watchlists/progress as one JSON document |
+| `DELETE` | `/api/profiles/:id/data` | Wipe the profile's library (favorites, watched, watchlists, progress); keeps the profile |
 
 ### TMDB Proxy
 
@@ -170,7 +187,8 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 | Endpoint | Description |
 |---|---|
 | `GET /search?q=<query>` | Title search |
-| `GET /get_video?url=<url>` | Extract video stream URL |
+| `GET /get_video?url=<url>` | Extract video stream URL(s) + any subtitle tracks |
+| `GET /get_subtitle?url=<url>` | Proxy + normalize a subtitle file to WebVTT (SRT auto-converted) |
 | `GET /autocomplete_data?q=<query>` | Autocomplete suggestions |
 
 TMDB responses are cached in memory for 5 minutes.

@@ -15,7 +15,12 @@ function closePrehrajModal() {
   closeModal()
 }
 
-async function openPrehrajSearch(title, tmdbId = null, mediaType = null, posterPath = null) {
+let _prehrajCtx = { tmdbId: null, mediaType: null, posterPath: null, episode: null }
+
+// episode (TV only) = { season, number } — kept so each episode tracks its own
+// progress under a composite key "tmdbId:S01E05" instead of colliding on the show id.
+async function openPrehrajSearch(title, tmdbId = null, mediaType = null, posterPath = null, episode = null) {
+  _prehrajCtx = { tmdbId, mediaType, posterPath, episode }
   prehrajModal.classList.remove('hidden')
   openModal()
   prehrajModalTitle.textContent    = title
@@ -67,12 +72,20 @@ async function openPrehrajSearch(title, tmdbId = null, mediaType = null, posterP
           const videos = await res.json()
           const valid  = videos.filter(v => v.videoSrc && !v.videoSrc.startsWith('blob:'))
           if (!valid.length) throw new Error('Nepodařilo se získat odkaz na video')
+          const ep = episode
+          const episodeLabel = ep
+            ? 'S' + String(ep.season).padStart(2, '0') + 'E' + String(ep.number).padStart(2, '0')
+            : null
+          const progressKey = (tmdbId && episodeLabel) ? `${tmdbId}:${episodeLabel}` : (tmdbId != null ? String(tmdbId) : null)
           sessionStorage.setItem('filmbox_player', JSON.stringify({
             title:      prehrajModalTitle.textContent,
             videos:     valid,
             tmdbId,
             mediaType,
-            posterPath
+            posterPath,
+            episode,
+            episodeLabel,
+            progressKey
           }))
           window.location.href = 'player.html'
         } catch (err) {
@@ -91,5 +104,5 @@ async function openPrehrajSearch(title, tmdbId = null, mediaType = null, posterP
 window.retryPrehrajSearch = function(btn) {
   const input = btn.previousElementSibling
   const name  = input ? input.value.trim() : ''
-  if (name) openPrehrajSearch(name)
+  if (name) openPrehrajSearch(name, _prehrajCtx.tmdbId, _prehrajCtx.mediaType, _prehrajCtx.posterPath, _prehrajCtx.episode)
 }

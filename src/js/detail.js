@@ -67,17 +67,19 @@ window.openDetailModal = async function(id, type, title) {
     ].filter(Boolean).join('  ·  ')
 
     document.getElementById('detail-genres').innerHTML = (d.genres || [])
-      .map(g => `<span class="genre-tag">${g.name}</span>`).join('')
+      .map(g => `<span class="genre-tag">${escapeHtml(g.name)}</span>`).join('')
 
     document.getElementById('detail-cast').innerHTML = (d.cast || [])
-      .map(a => `
-        <div class="cast-item" onclick="openActorModal(${a.id})" style="cursor:pointer" title="${a.name}">
+      .map(a => {
+        const name = escapeHtml(a.name)
+        return `
+        <div class="cast-item" onclick="openActorModal(${a.id})" style="cursor:pointer" title="${name}">
           ${a.profile_path
-            ? `<img src="https://image.tmdb.org/t/p/w92${a.profile_path}" alt="${a.name}">`
+            ? `<img src="https://image.tmdb.org/t/p/w92${a.profile_path}" alt="${name}">`
             : '<div class="cast-placeholder"><i class="bi bi-person"></i></div>'}
-          <span>${a.name}</span>
+          <span>${name}</span>
         </div>
-      `).join('')
+      `}).join('')
 
     const movieTitle = d.title || d.name
     const movieData  = {
@@ -164,17 +166,22 @@ async function loadSeason(tvId, seasonNum) {
     const data = await res.json()
     const eps       = data.episodes || []
     const showTitle = document.getElementById('detail-title').textContent || ''
+    const showPoster = (document.getElementById('detail-poster')?.src || '').includes('/t/p/')
+      ? document.getElementById('detail-poster').src.split('/t/p/w342')[1] || null
+      : null
     const sNum      = String(seasonNum).padStart(2, '0')
 
     list.innerHTML = eps.map(ep => {
       const eNum  = String(ep.episode_number).padStart(2, '0')
       const query = encodeURIComponent(showTitle + ' S' + sNum + 'E' + eNum)
+      const epArg = `{season:${seasonNum},number:${ep.episode_number}}`
+      const posterArg = showPoster ? `'${showPoster}'` : 'null'
       return `
-        <div class="episode-item" onclick="openPrehrajSearch(decodeURIComponent('${query}'),${tvId},'tv')">
+        <div class="episode-item" onclick="openPrehrajSearch(decodeURIComponent('${query}'),${tvId},'tv',${posterArg},${epArg})">
           <div class="episode-num">S${sNum}E${eNum}</div>
           <div class="episode-info">
-            <strong>${ep.name || 'Epizoda ' + ep.episode_number}</strong>
-            <span>${ep.overview ? ep.overview.slice(0, 80) + '\u2026' : ''}</span>
+            <strong>${escapeHtml(ep.name || 'Epizoda ' + ep.episode_number)}</strong>
+            <span>${ep.overview ? escapeHtml(ep.overview.slice(0, 80)) + '\u2026' : ''}</span>
           </div>
         </div>
       `

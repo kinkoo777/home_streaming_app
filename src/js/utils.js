@@ -1,3 +1,17 @@
+// ================= HTML ESCAPE =================
+
+// Escape user-controlled text before injecting into innerHTML, to prevent XSS
+// (e.g. a watchlist named `<img src=x onerror=...>`).
+function escapeHtml(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+window.escapeHtml = escapeHtml
+
 // ================= TOAST =================
 
 function showToast(msg, duration = 2500) {

@@ -25,7 +25,15 @@ function ensure() {
 function read(file) {
   ensure();
   if (!fs.existsSync(file)) return [];
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (err) {
+    // A corrupt/half-written JSON file must not crash the whole app on every
+    // request. Preserve the bad file for manual recovery, then degrade to empty.
+    console.error(`Poškozený JSON soubor ${file}: ${err.message} — zálohuji a pokračuji s prázdnými daty.`);
+    try { fs.renameSync(file, file + '.corrupt-' + Date.now()); } catch {}
+    return [];
+  }
 }
 
 function write(file, data) {
@@ -133,6 +141,7 @@ const favorites = {
   },
 
   add({ profileId, tmdbId, mediaType, title, posterPath = null }) {
+    tmdbId = Number(tmdbId);
     const all = read(FAVORITES_FILE);
     if (all.some(f => f.profileId === profileId && f.tmdbId === tmdbId && f.mediaType === mediaType)) {
       const err = new Error('Already in favorites');
@@ -225,16 +234,31 @@ const progress = {
     return entry ? entry.items : {};
   },
 
-  set(profileId, tmdbId, seconds, duration) {
+  // `key` is the tmdbId for movies/whole shows, or a composite "tmdbId:S01E05"
+  // for individual TV episodes so each episode keeps its own position.
+  // `data` carries the position plus enough display metadata (title, poster,
+  // mediaType, episodeLabel) to render Continue Watching without localStorage.
+  set(profileId, key, data) {
     const all = read(PROGRESS_FILE);
-    const entry = { seconds: Number(seconds), duration: duration != null ? Number(duration) : null };
+    const k   = String(key);
     const idx = all.findIndex(e => e.profileId === profileId);
     if (idx >= 0) {
-      all[idx].items[String(tmdbId)] = entry;
+      const prev    = all[idx].items[k];
+      const prevObj = (prev && typeof prev === 'object') ? prev : {};
+      all[idx].items[k] = { ...prevObj, ...data };
     } else {
-      all.push({ profileId, items: { [String(tmdbId)]: entry } });
+      all.push({ profileId, items: { [k]: { ...data } } });
     }
     write(PROGRESS_FILE, all);
+  },
+
+  remove(profileId, key) {
+    const all   = read(PROGRESS_FILE);
+    const entry = all.find(e => e.profileId === profileId);
+    if (!entry || !(String(key) in entry.items)) return false;
+    delete entry.items[String(key)];
+    write(PROGRESS_FILE, all);
+    return true;
   },
 
   deleteByProfile(profileId) {

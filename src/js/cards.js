@@ -1,31 +1,44 @@
 // ================= MOVIE CARD BUILDER =================
 
 function buildCard(movie, extraClass = '') {
-  const title     = movie.title || movie.name
-  const year      = (movie.release_date || movie.first_air_date || '').slice(0, 4)
-  const mediaType = movie.media_type || (movie.title ? 'movie' : 'tv')
-  const inFav     = isFavorite(movie.id, mediaType)
-  const watched   = typeof isWatched === 'function' && isWatched(movie.id)
+  const title      = movie.title || movie.name
+  const safeTitle  = escapeHtml(title)
+  const year       = (movie.release_date || movie.first_air_date || '').slice(0, 4)
+  const mediaType  = movie.media_type || (movie.title ? 'movie' : 'tv')
+  const inFav      = isFavorite(movie.id, mediaType)
+  const watched    = typeof isWatched === 'function' && isWatched(movie.id)
+  const isContinue = extraClass.split(' ').includes('continue-card')
+
+  // Continue-Watching cards pass an explicit position (movie._seconds/_duration)
+  // because their progress can be keyed per-episode, not by the show's tmdbId.
   const _pEntry   = window._profileProgress ? window._profileProgress[String(movie.id)] : null
-  const pSeconds  = _pEntry && typeof _pEntry === 'object' ? _pEntry.seconds  : _pEntry
-  const pDuration = _pEntry && typeof _pEntry === 'object' && _pEntry.duration ? _pEntry.duration : (movie.runtime ? movie.runtime * 60 : null)
+  const pSeconds  = movie._seconds != null ? movie._seconds
+                  : (_pEntry && typeof _pEntry === 'object' ? _pEntry.seconds : _pEntry)
+  const pDuration = movie._duration != null ? movie._duration
+                  : (_pEntry && typeof _pEntry === 'object' && _pEntry.duration ? _pEntry.duration : (movie.runtime ? movie.runtime * 60 : null))
   const pct = pSeconds && pDuration
     ? Math.min(100, (parseFloat(pSeconds) / pDuration) * 100).toFixed(0)
     : null
+  const remainMin = (isContinue && pSeconds && pDuration && pDuration > pSeconds)
+    ? Math.round((pDuration - pSeconds) / 60)
+    : null
+  const epLabel = movie._episodeLabel || null
 
   return `
     <div class="movie-card${extraClass ? ' ' + extraClass : ''}" onclick="openDetailModal(${movie.id},'${mediaType}',decodeURIComponent('${encodeURIComponent(title)}'))">
       <div class="movie-poster">
-        <img src="https://image.tmdb.org/t/p/w500${movie.poster_path}" alt="${title}" loading="lazy">
+        <img src="https://image.tmdb.org/t/p/w500${movie.poster_path}" alt="${safeTitle}" loading="lazy">
         <div class="rating">⭐ ${(movie.vote_average || 0).toFixed(1)}</div>
-        ${watched ? '<div class="watched-badge">✓ Seen</div>' : ''}
+        ${watched && !isContinue ? '<div class="watched-badge">✓ Seen</div>' : ''}
+        ${isContinue ? `<button class="continue-remove" title="Odebrat" onclick="event.stopPropagation();removeFromContinue('${movie._key}')"><i class="bi bi-x-lg"></i></button>` : ''}
         <button class="fav-btn${inFav ? ' active' : ''}" data-tmdb-id="${movie.id}" data-media-type="${mediaType}" onclick="event.stopPropagation();favToggleCard(this,${movie.id},'${mediaType}')">
           <i class="bi ${inFav ? 'bi-heart-fill' : 'bi-heart'}"></i>
         </button>
+        ${(epLabel || remainMin != null) ? `<div class="remaining-badge">${[epLabel, remainMin != null ? 'Zbývá ' + remainMin + ' min' : null].filter(Boolean).join(' · ')}</div>` : ''}
         ${pct ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
       </div>
       <div class="movie-info">
-        <h4>${title}</h4>
+        <h4>${safeTitle}</h4>
         <div class="movie-meta"><span>${year}</span><span>${mediaType === 'tv' ? 'Seriál' : 'Film'}</span></div>
       </div>
     </div>
