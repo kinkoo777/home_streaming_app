@@ -681,6 +681,9 @@
       const shortcutsHelp = document.getElementById('shortcuts-help')
       const seekBuffered = document.getElementById('seek-buffered')
       const speedIndicator = document.getElementById('speed-indicator')
+      // Declared here (not lower) because startVideo() runs during initial load and
+      // calls _renderSubtitles(), which references ccBtn — a lower `const` would TDZ-crash.
+      const ccBtn        = document.getElementById('cc-btn')
       let showRemaining  = localStorage.getItem('filmbox_show_remaining') === '1'
 
       // ── Load data from sessionStorage ──
@@ -777,7 +780,6 @@
         })
       }
 
-      const ccBtn = document.getElementById('cc-btn')
       function _renderSubtitles(subs) {
         // Remove any tracks from a previous source
         video.querySelectorAll('track').forEach(t => t.remove())
