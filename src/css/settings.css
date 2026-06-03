@@ -1,0 +1,260 @@
+/* ── Settings modal & PIN prompt ───────────────────────────── */
+
+#settings-btn,
+#theme-toggle {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  padding: 6px;
+  border-radius: 10px;
+  transition: background 0.18s ease, transform 0.18s ease;
+}
+#settings-btn:hover { background: rgba(255, 255, 255, 0.1); transform: rotate(30deg); }
+
+/* Overlay shared layout */
+.settings-modal,
+.pin-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* PIN prompt is triggered from the profile chooser (z-index 99998) and the
+   intro screen (99999), so it must sit above both to stay clickable. */
+.pin-modal { z-index: 100001; }
+.settings-modal.hidden,
+.pin-modal.hidden { display: none; }
+
+.settings-backdrop,
+.pin-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(4px);
+}
+
+/* ── Settings card ── */
+.settings-inner {
+  position: relative;
+  width: min(520px, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: #18181b;
+  color: #f4f4f5;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  animation: settings-pop 0.25s ease;
+}
+@keyframes settings-pop {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  position: sticky;
+  top: 0;
+  background: #18181b;
+  z-index: 1;
+}
+.settings-header h3 { margin: 0; font-size: 19px; font-weight: 700; }
+#settings-close {
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  color: #f4f4f5;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+#settings-close:hover { background: rgba(255, 255, 255, 0.16); }
+
+.settings-body { padding: 8px 24px 24px; }
+
+.settings-section {
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.settings-section:last-child { border-bottom: none; }
+
+.settings-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #a1a1aa;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.settings-hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  color: #71717a;
+  margin-left: 6px;
+}
+
+/* Inputs & buttons */
+.settings-inline { display: flex; gap: 8px; flex-wrap: wrap; }
+.settings-inline input[type="text"],
+.settings-inline input[type="password"] { flex: 1 1 140px; }
+
+#settings-modal input[type="text"],
+#settings-modal input[type="password"] {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  color: #f4f4f5;
+  padding: 10px 14px;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.18s ease;
+}
+#settings-modal input:focus { border-color: #e50914; }
+
+.settings-btn-primary,
+.settings-btn-secondary,
+.settings-btn-danger {
+  border: none;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease, opacity 0.18s ease;
+  white-space: nowrap;
+}
+.settings-btn-primary { background: #e50914; color: #fff; }
+.settings-btn-primary:hover { background: #c40811; }
+.settings-btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f4f4f5;
+}
+.settings-btn-secondary:hover { background: rgba(255, 255, 255, 0.16); }
+.settings-btn-danger {
+  background: rgba(229, 9, 20, 0.14);
+  color: #ff6b73;
+  width: 100%;
+}
+.settings-btn-danger:hover { background: rgba(229, 9, 20, 0.24); }
+
+/* Picture */
+.settings-picture-row { display: flex; align-items: center; gap: 16px; }
+.settings-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  font-weight: 700;
+  color: #fff;
+  overflow: hidden;
+  background: linear-gradient(135deg, #e50914, #b81d24);
+}
+.settings-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.settings-picture-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Theme options */
+.settings-theme-options { display: flex; gap: 10px; }
+.settings-theme-option {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  color: #f4f4f5;
+  padding: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.settings-theme-option:hover { background: rgba(255, 255, 255, 0.1); }
+.settings-theme-option.active { border-color: #e50914; background: rgba(229, 9, 20, 0.12); }
+
+/* Toggles */
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 15px;
+  cursor: pointer;
+}
+.settings-toggle input { width: 18px; height: 18px; accent-color: #e50914; cursor: pointer; }
+
+/* ── PIN prompt ── */
+.pin-inner {
+  position: relative;
+  width: min(360px, 90vw);
+  background: #18181b;
+  color: #f4f4f5;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  padding: 30px 28px;
+  text-align: center;
+  animation: settings-pop 0.25s ease;
+}
+.pin-lock {
+  font-size: 28px;
+  color: #e50914;
+  margin-bottom: 8px;
+}
+.pin-inner h3 { margin: 0 0 18px; font-size: 18px; font-weight: 700; }
+.pin-input {
+  width: 160px;
+  text-align: center;
+  letter-spacing: 14px;
+  font-size: 26px;
+  padding: 12px 10px 12px 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  color: #f4f4f5;
+  outline: none;
+  transition: border-color 0.18s ease;
+}
+.pin-input:focus { border-color: #e50914; }
+.pin-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: center; }
+.pin-actions button { flex: 1; }
+
+.pin-input.shake { animation: pin-shake 0.4s ease; border-color: #ff4d4d; }
+@keyframes pin-shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-9px); }
+  40%, 80% { transform: translateX(9px); }
+}
+
+/* Light-theme adjustments (app uses body.dark for dark mode) */
+body:not(.dark) .settings-inner,
+body:not(.dark) .settings-header,
+body:not(.dark) .pin-inner {
+  background: #ffffff;
+  color: #18181b;
+  border-color: rgba(0, 0, 0, 0.08);
+}
+body:not(.dark) #settings-modal input[type="text"],
+body:not(.dark) #settings-modal input[type="password"],
+body:not(.dark) .settings-theme-option,
+body:not(.dark) .pin-input {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.14);
+  color: #18181b;
+}
+body:not(.dark) .settings-label { color: #52525b; }
+body:not(.dark) #settings-close,
+body:not(.dark) .settings-btn-secondary { background: rgba(0, 0, 0, 0.06); color: #18181b; }

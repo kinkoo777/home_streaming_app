@@ -1,5 +1,13 @@
 // ================= TRAILER MODAL =================
 
+// Per-profile preference: should the YouTube trailer auto-play on open?
+function trailerAutoplayEnabled() {
+  try {
+    const p = JSON.parse(sessionStorage.getItem('filmbox_active_profile') || 'null')
+    return !p || !p.settings || p.settings.autoplayTrailers !== false
+  } catch { return true }
+}
+
 function openTrailerModal(id, type) {
   const modal = document.getElementById('trailer-modal')
   const embed = document.getElementById('trailer-embed')
@@ -16,7 +24,8 @@ function openTrailerModal(id, type) {
         embed.innerHTML = '<div style="color:#71717a;padding:40px;text-align:center">Trailer není dostupný.</div>'
         return
       }
-      embed.innerHTML = `<iframe src="https://www.youtube.com/embed/${trailer.key}?autoplay=1" frameborder="0" allowfullscreen allow="autoplay; encrypted-media"></iframe>`
+      const autoplay = trailerAutoplayEnabled() ? 1 : 0
+      embed.innerHTML = `<iframe src="https://www.youtube.com/embed/${trailer.key}?autoplay=${autoplay}" frameborder="0" allowfullscreen allow="autoplay; encrypted-media"></iframe>`
     })
     .catch(() => {
       embed.innerHTML = '<div style="color:#f87171;padding:40px;text-align:center">Nepodařilo se načíst trailer.</div>'

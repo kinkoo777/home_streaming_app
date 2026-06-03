@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="css/responsive.css" />
   <link rel="stylesheet" href="css/intro.css" />
   <link rel="stylesheet" href="css/animations.css" />
+  <link rel="stylesheet" href="css/settings.css" />
 </head>
 
 <body>
@@ -74,6 +75,10 @@
       </nav>
 
       <div class="actions">
+        <button id="settings-btn" title="Nastavení">
+          <i class="bi bi-gear"></i>
+        </button>
+
         <button id="theme-toggle">
           <i class="bi bi-moon-stars"></i>
         </button>
@@ -263,6 +268,39 @@
     </section>
   </main>
 
+  <!-- ── Footer ── -->
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <div class="footer-logo-box">FB</div>
+        <div>
+          <h4>FilmBox</h4>
+          <p>Streamovací platforma pro váš domov</p>
+        </div>
+      </div>
+
+      <nav class="footer-links">
+        <div class="footer-col">
+          <h5>Procházet</h5>
+          <a href="#section-popular">Nejnavštěvovanější</a>
+          <a href="#section-trending">Trendy</a>
+          <a href="#section-top-rated">Nejlépe hodnocené</a>
+        </div>
+        <div class="footer-col">
+          <h5>Odkazy</h5>
+          <a href="#" id="footer-top">Zpět nahoru</a>
+          <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a>
+          <a href="https://prehrajto.cz" target="_blank" rel="noopener">prehraj.to</a>
+        </div>
+      </nav>
+    </div>
+
+    <div class="container footer-bottom">
+      <p>© <span id="footer-year">2026</span> FilmBox</p>
+      <p>Data o filmech poskytuje <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a>. Tento produkt není schválen ani certifikován TMDB.</p>
+    </div>
+  </footer>
+
   <div id="detail-modal" class="detail-modal hidden">
     <div class="detail-backdrop"></div>
     <div class="detail-inner">
@@ -369,6 +407,104 @@
     </div>
   </div>
 
+  <!-- Settings modal -->
+  <div id="settings-modal" class="settings-modal hidden">
+    <div class="settings-backdrop" id="settings-backdrop"></div>
+    <div class="settings-inner">
+      <div class="settings-header">
+        <h3>Nastavení profilu</h3>
+        <button id="settings-close" title="Zavřít"><i class="bi bi-x-lg"></i></button>
+      </div>
+
+      <div class="settings-body">
+        <!-- Picture -->
+        <section class="settings-section">
+          <label class="settings-label">Profilový obrázek</label>
+          <div class="settings-picture-row">
+            <div id="settings-avatar" class="settings-avatar"></div>
+            <div class="settings-picture-actions">
+              <button id="settings-pic-upload" class="settings-btn-secondary">
+                <i class="bi bi-upload"></i> Nahrát
+              </button>
+              <button id="settings-pic-remove" class="settings-btn-secondary">
+                <i class="bi bi-trash"></i> Odebrat
+              </button>
+              <input type="file" id="settings-pic-input" accept="image/*" hidden />
+            </div>
+          </div>
+        </section>
+
+        <!-- Name -->
+        <section class="settings-section">
+          <label class="settings-label" for="settings-name-input">Jméno</label>
+          <div class="settings-inline">
+            <input type="text" id="settings-name-input" maxlength="30" placeholder="Jméno profilu" />
+            <button id="settings-name-save" class="settings-btn-primary">Uložit</button>
+          </div>
+        </section>
+
+        <!-- Theme -->
+        <section class="settings-section">
+          <label class="settings-label">Motiv</label>
+          <div class="settings-theme-options">
+            <button class="settings-theme-option" data-theme="dark">
+              <i class="bi bi-moon-stars"></i> Tmavý
+            </button>
+            <button class="settings-theme-option" data-theme="light">
+              <i class="bi bi-sun"></i> Světlý
+            </button>
+          </div>
+        </section>
+
+        <!-- PIN -->
+        <section class="settings-section">
+          <label class="settings-label">PIN profilu <span id="settings-pin-status" class="settings-hint"></span></label>
+          <div class="settings-inline">
+            <input type="password" id="settings-pin-input" inputmode="numeric" maxlength="4"
+                   placeholder="4 číslice" pattern="\d{4}" />
+            <button id="settings-pin-save" class="settings-btn-primary">Nastavit</button>
+            <button id="settings-pin-remove" class="settings-btn-secondary">Odebrat</button>
+          </div>
+        </section>
+
+        <!-- Preferences -->
+        <section class="settings-section">
+          <label class="settings-label">Předvolby</label>
+          <label class="settings-toggle">
+            <input type="checkbox" id="settings-reduce-motion" />
+            <span>Omezit animace</span>
+          </label>
+          <label class="settings-toggle">
+            <input type="checkbox" id="settings-autoplay" />
+            <span>Automaticky přehrávat upoutávky</span>
+          </label>
+        </section>
+
+        <!-- Danger -->
+        <section class="settings-section settings-danger">
+          <button id="settings-delete" class="settings-btn-danger">
+            <i class="bi bi-trash"></i> Smazat tento profil
+          </button>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIN prompt modal -->
+  <div id="pin-prompt-modal" class="pin-modal hidden">
+    <div class="pin-backdrop" id="pin-backdrop"></div>
+    <div class="pin-inner">
+      <div class="pin-lock"><i class="bi bi-lock-fill"></i></div>
+      <h3 id="pin-prompt-title">Zadejte PIN</h3>
+      <input type="password" id="pin-prompt-input" class="pin-input" inputmode="numeric"
+             maxlength="4" placeholder="••••" pattern="\d{4}" autocomplete="off" />
+      <div class="pin-actions">
+        <button id="pin-prompt-cancel" class="settings-btn-secondary">Zrušit</button>
+        <button id="pin-prompt-confirm" class="settings-btn-primary">Potvrdit</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
 
@@ -385,6 +521,7 @@
   <script src="js/search.js"></script>
   <script src="js/hero.js"></script>
   <script src="js/main.js"></script>
+  <script src="js/settings.js"></script>
 </body>
 
 </html>

@@ -61,6 +61,15 @@
     }
   }
 
+  // ── Apply theme + per-profile preferences (reduce motion) ──
+  function applyProfileSettings(profile) {
+    if (!profile) return
+    applyTheme(profile.theme)
+    const reduceMotion = !!(profile.settings && profile.settings.reduceMotion)
+    document.body.classList.toggle('reduce-motion', reduceMotion)
+  }
+  window.applyProfileSettings = applyProfileSettings
+
   // ── Update navbar badge ──
   function updateNavbarProfile(profile) {
     const logoBox = document.getElementById('navbar-logo-box')
@@ -80,10 +89,11 @@
     if (profileText) {
       profileText.innerHTML =
         `<h1>${profile.name}</h1>` +
-        `<p><a class="profile-switch-link" onclick="window.showProfileChooser();return false" href="#">` +
+        `<p class="profile-switch-line"><a class="profile-switch-link" onclick="window.showProfileChooser();return false" href="#">` +
         `Profil · Změnit</a></p>`
     }
   }
+  window.updateNavbarProfile = updateNavbarProfile
 
   // ── Render profile grid ──
   async function renderProfileGrid() {
@@ -138,11 +148,18 @@
   }
 
   // ── Choose a profile ──
-  function chooseProfile(id) {
+  async function chooseProfile(id) {
     const profile = profiles.find(p => p.id === id)
     if (!profile) return
+
+    // Locked profile → require the correct PIN before entering.
+    if (profile.hasPin && typeof window.openPinPrompt === 'function') {
+      const ok = await window.openPinPrompt(profile)
+      if (!ok) return
+    }
+
     setActiveProfile(profile)
-    applyTheme(profile.theme)
+    applyProfileSettings(profile)
 
     const chooser = document.getElementById('profile-chooser')
     chooser.style.transition = 'opacity 0.35s ease'
@@ -263,7 +280,7 @@
       document.getElementById('intro-screen').style.display = 'none'
       document.getElementById('profile-chooser').classList.add('hidden')
       document.getElementById('profile-chooser').style.opacity = '0'
-      applyTheme(active.theme)
+      applyProfileSettings(active)
       updateNavbarProfile(active)
       if (typeof loadProfileProgress === 'function') {
         loadProfileProgress().then(() => {

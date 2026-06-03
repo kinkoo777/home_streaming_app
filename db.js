@@ -1,5 +1,15 @@
-const fs   = require('fs');
-const path = require('path');
+const fs     = require('fs');
+const path   = require('path');
+const bcrypt = require('bcryptjs');
+
+const DEFAULT_SETTINGS = { reduceMotion: false, autoplayTrailers: true };
+
+// Strip pinHash before sending a profile to the client; expose only a boolean.
+function sanitizeProfile(p) {
+  if (!p) return p;
+  const { pinHash, ...rest } = p;
+  return { ...rest, settings: { ...DEFAULT_SETTINGS, ...(p.settings || {}) }, hasPin: !!pinHash };
+}
 
 const DATA_DIR        = path.join(__dirname, 'data');
 const PROFILES_FILE   = path.join(DATA_DIR, 'profiles.json');
@@ -20,7 +30,11 @@ function read(file) {
 
 function write(file, data) {
   ensure();
-  fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
+  // Atomic write: write to a temp file then rename, so a crash mid-write
+  // can never leave a half-written / corrupt JSON file behind.
+  const tmp = file + '.' + process.pid + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+  fs.renameSync(tmp, file);
 }
 
 function newId() {
@@ -45,7 +59,12 @@ const profiles = {
       err.code = 409;
       throw err;
     }
-    const p = { id: newId(), name, picture, theme, createdAt: new Date().toISOString() };
+    const p = {
+      id: newId(), name, picture, theme,
+      pinHash: null,
+      settings: { ...DEFAULT_SETTINGS },
+      createdAt: new Date().toISOString()
+    };
     write(PROFILES_FILE, [...all, p]);
     return p;
   },
@@ -59,9 +78,40 @@ const profiles = {
       err.code = 409;
       throw err;
     }
-    all[idx] = { ...all[idx], ...changes };
+    const { settings: settingsChange, pinHash: _ignorePinHash, ...rest } = changes;
+    all[idx] = { ...all[idx], ...rest };
+    if (settingsChange && typeof settingsChange === 'object') {
+      all[idx].settings = { ...DEFAULT_SETTINGS, ...(all[idx].settings || {}), ...settingsChange };
+    }
     write(PROFILES_FILE, all);
     return all[idx];
+  },
+
+  // Set (4-digit), or clear (null/empty) a profile PIN. Stored as a bcrypt hash.
+  setPin(id, pin) {
+    const all = read(PROFILES_FILE);
+    const idx = all.findIndex(p => p.id === id);
+    if (idx === -1) return null;
+    if (pin == null || pin === '') {
+      all[idx].pinHash = null;
+    } else {
+      if (!/^\d{4}$/.test(String(pin))) {
+        const err = new Error('PIN must be exactly 4 digits');
+        err.code = 400;
+        throw err;
+      }
+      all[idx].pinHash = bcrypt.hashSync(String(pin), 10);
+    }
+    write(PROFILES_FILE, all);
+    return all[idx];
+  },
+
+  // True if PIN matches, or if the profile has no PIN set.
+  verifyPin(id, pin) {
+    const p = read(PROFILES_FILE).find(x => x.id === id);
+    if (!p) return false;
+    if (!p.pinHash) return true;
+    return bcrypt.compareSync(String(pin), p.pinHash);
   },
 
   delete(id) {
@@ -192,4 +242,4 @@ const progress = {
   }
 };
 
-module.exports = { profiles, favorites, watched, watchlists, progress };
+module.exports = { profiles, favorites, watched, watchlists, progress, sanitizeProfile };

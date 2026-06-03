@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const { JSDOM } = require('jsdom');
 const puppeteer = require('puppeteer');
@@ -16,9 +17,7 @@ function getSystemChromium() {
   }
   return undefined
 }
-const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB } = require('./db');
-const TMDB_API_KEY = "4423c40ec92d2d940674ff0c6bf108dc";
-
+const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB, sanitizeProfile } = require('./db');
 const app = express();
 const PORT = 3000;
 
@@ -32,18 +31,54 @@ app.use(cors());
 app.use(express.static(path.join(__dirname, 'src')));
 app.use(express.json());
 
-// ── In-memory cache (5 min TTL) ──
+// ── Cache (5 min TTL, persisted to disk so it survives restarts) ──
 const cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
+const CACHE_FILE = path.join(__dirname, 'data', 'tmdb-cache.json');
+
+// Load any non-expired entries left over from a previous run.
+(function loadCache() {
+    try {
+        const raw = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+        const now = Date.now();
+        for (const [key, e] of Object.entries(raw)) {
+            if (e && now - e.ts < CACHE_TTL) cache.set(key, e);
+        }
+    } catch { /* no cache file yet — fine */ }
+})();
+
+let cacheSaveTimer = null;
+function persistCache() {
+    if (cacheSaveTimer) return;            // debounce: at most one write per 10 s
+    cacheSaveTimer = setTimeout(() => {
+        cacheSaveTimer = null;
+        try {
+            if (!fs.existsSync(path.dirname(CACHE_FILE))) fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true });
+            const now = Date.now();
+            const obj = {};
+            for (const [key, e] of cache) if (now - e.ts < CACHE_TTL) obj[key] = e;
+            const tmp = CACHE_FILE + '.' + process.pid + '.tmp';
+            fs.writeFileSync(tmp, JSON.stringify(obj), 'utf8');
+            fs.renameSync(tmp, CACHE_FILE);
+        } catch (err) { console.error('Cache persist selhalo:', err.message); }
+    }, 10000);
+    if (cacheSaveTimer.unref) cacheSaveTimer.unref();   // don't keep the process alive
+}
+
 function getCache(key) {
     const e = cache.get(key);
     if (e && Date.now() - e.ts < CACHE_TTL) return e.data;
     cache.delete(key); return null;
 }
-function setCache(key, data) { cache.set(key, { data, ts: Date.now() }); }
+function setCache(key, data) { cache.set(key, { data, ts: Date.now() }); persistCache(); }
 
 // ── TMDB helper ──
-const TMDB_AUTH = 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0NDIzYzQwZWM5MmQyZDk0MDY3NGZmMGM2YmYxMDhkYyIsIm5iZiI6MTc2OTY3MzU3MS4zODMwMDAxLCJzdWIiOiI2OTdiMTM2M2E0Yjc3ZjMxNzhjMjE3NGQiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.DkCb0ml_jIVGMcGglLHVdVeooRjwdBmZSVMR4dVdhuQ';
+const TMDB_READ_TOKEN = process.env.TMDB_READ_TOKEN;
+if (!TMDB_READ_TOKEN) {
+    console.error('Chybí TMDB_READ_TOKEN — nastavte ho v .env (viz .env.example)');
+    process.exit(1);
+}
+const TMDB_AUTH = 'Bearer ' + TMDB_READ_TOKEN;
 async function tmdbFetch(path) {
     const cached = getCache('tmdb:' + path);
     if (cached) return cached;
@@ -293,9 +328,22 @@ async function getVideoPrehrajto(url) {
     }
 }
 
+// Only allow scraping prehraj.to hosts — prevents SSRF via attacker-supplied url
+function isAllowedVideoUrl(raw) {
+    try {
+        const u = new URL(raw);
+        if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+        const host = u.hostname.toLowerCase();
+        return host === 'prehrajto.cz' || host.endsWith('.prehrajto.cz');
+    } catch {
+        return false;
+    }
+}
+
 app.get('/get_video', async (req, res) => {
     const url = req.query.url;
     if (!url) return res.status(400).json({ error: 'Chybí query parameter "url"' });
+    if (!isAllowedVideoUrl(url)) return res.status(400).json({ error: 'Nepovolená URL' });
     if (!browser) return res.status(503).json({ error: 'Browser není připraven, zkuste znovu' });
 
     try {
@@ -384,198 +432,13 @@ app.get('/autocomplete_data', async (req, res) => {
 });
 
 
-app.get('/load_most_visited', async (req, res) => {
-    const q = req.query.q;
-    if (!q) return res.status(400).json({ error: 'Chybí query parameter "q"' });
-    try {
-        const options = {
-            method: 'GET',
-            headers: {
-                accept: 'application/json',
-                Authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0NDIzYzQwZWM5MmQyZDk0MDY3NGZmMGM2YmYxMDhkYyIsIm5iZiI6MTc2OTY3MzU3MS4zODMwMDAxLCJzdWIiOiI2OTdiMTM2M2E0Yjc3ZjMxNzhjMjE3NGQiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.DkCb0ml_jIVGMcGglLHVdVeooRjwdBmZSVMR4dVdhuQ'
-            }
-        };
-
-        
-        const response = await fetch(
-            `https://api.themoviedb.org/3/trending/all/${q}?language=en-US`,
-            options
-        );
-        if (!response.ok) throw new Error('TMDB neodpovědělo');
-
-        
-        const data = await response.json();
-
-        // pošli data klientovi
-        res.json(data);
-    } catch (err) {
-        console.error('LOAD POPULAR ERROR:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-
-app.get('/load_trending', async (req, res) => {
-    const q = req.query.q;
-    if (!q) return res.status(400).json({ error: 'Chybí query parameter "q"' });
-    try {
-        const options = {
-            method: 'GET',
-            headers: {
-                accept: 'application/json',
-                Authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0NDIzYzQwZWM5MmQyZDk0MDY3NGZmMGM2YmYxMDhkYyIsIm5iZiI6MTc2OTY3MzU3MS4zODMwMDAxLCJzdWIiOiI2OTdiMTM2M2E0Yjc3ZjMxNzhjMjE3NGQiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.DkCb0ml_jIVGMcGglLHVdVeooRjwdBmZSVMR4dVdhuQ'
-            }
-        };
-        
-        const response = await fetch(
-            q,
-            options
-        );
-        if (!response.ok) throw new Error('TMDB neodpovědělo');
-
-        
-        const data = await response.json();
-
-        // pošli data klientovi
-        res.json(data);
-    } catch (err) {
-        console.error('LOAD POPULAR ERROR:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// movies https://api.themoviedb.org/3/movie/popular?language=en-US&page=1
-// serials https://api.themoviedb.org/3/tv/popular?language=en-US&page=1
-
-app.get('/load_popular', async (req, res) => {
-    const q = req.query.q;
-    if (!q) return res.status(400).json({ error: 'Chybí query parameter "q"' });
-    try {
-        const options = {
-            method: 'GET',
-            headers: {
-                accept: 'application/json',
-                Authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0NDIzYzQwZWM5MmQyZDk0MDY3NGZmMGM2YmYxMDhkYyIsIm5iZiI6MTc2OTY3MzU3MS4zODMwMDAxLCJzdWIiOiI2OTdiMTM2M2E0Yjc3ZjMxNzhjMjE3NGQiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.DkCb0ml_jIVGMcGglLHVdVeooRjwdBmZSVMR4dVdhuQ'
-            }
-        };
-        
-        const response = await fetch(
-            `https://api.themoviedb.org/3/${q}/popular?language=en-US&page=1`,
-            options
-        );
-        if (!response.ok) throw new Error('TMDB neodpovědělo');
-
-        
-        const data = await response.json();
-
-        // pošli data klientovi
-        res.json(data);
-    } catch (err) {
-        console.error('LOAD POPULAR ERROR:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-
-// serials https://api.themoviedb.org/3/tv/top_rated?language=en-US&page=1
-// movies https://api.themoviedb.org/3/movie/top_rated?language=en-US&page=1
-
-app.get('/load_top_rated', async (req, res) => {
-    const q = req.query.q;
-    if (!q) return res.status(400).json({ error: 'Chybí query parameter "q"' });
-
-    try {
-        const options = {
-            method: 'GET',
-            headers: {
-                accept: 'application/json',
-                Authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0NDIzYzQwZWM5MmQyZDk0MDY3NGZmMGM2YmYxMDhkYyIsIm5iZiI6MTc2OTY3MzU3MS4zODMwMDAxLCJzdWIiOiI2OTdiMTM2M2E0Yjc3ZjMxNzhjMjE3NGQiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.DkCb0ml_jIVGMcGglLHVdVeooRjwdBmZSVMR4dVdhuQ'
-            }
-        };
-
-        
-        const response = await fetch(
-            `https://api.themoviedb.org/3/${q}/top_rated?language=en-US&page=1`,
-            options
-        );
-        if (!response.ok) throw new Error('TMDB neodpovědělo');
-
-        
-        const data = await response.json();
-
-        // pošli data klientovi
-        res.json(data);
-    } catch (err) {
-        console.error('LOAD POPULAR ERROR:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-
-
-app.get('/load_now_playing', async (req, res) => {
-    try {
-        const options = {
-            method: 'GET',
-            headers: {
-                accept: 'application/json',
-                Authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0NDIzYzQwZWM5MmQyZDk0MDY3NGZmMGM2YmYxMDhkYyIsIm5iZiI6MTc2OTY3MzU3MS4zODMwMDAxLCJzdWIiOiI2OTdiMTM2M2E0Yjc3ZjMxNzhjMjE3NGQiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.DkCb0ml_jIVGMcGglLHVdVeooRjwdBmZSVMR4dVdhuQ'
-            }
-        };
-
-        
-        const response = await fetch(
-            'https://api.themoviedb.org/3/movie/now_playing?language=en-US&page=1',
-            options
-        );
-        if (!response.ok) throw new Error('TMDB neodpovědělo');
-
-        
-        const data = await response.json();
-
-        // pošli data klientovi
-        res.json(data);
-    } catch (err) {
-        console.error('LOAD POPULAR ERROR:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.get('/load_upcoming', async (req, res) => {
-    try {
-        const options = {
-            method: 'GET',
-            headers: {
-                accept: 'application/json',
-                Authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0NDIzYzQwZWM5MmQyZDk0MDY3NGZmMGM2YmYxMDhkYyIsIm5iZiI6MTc2OTY3MzU3MS4zODMwMDAxLCJzdWIiOiI2OTdiMTM2M2E0Yjc3ZjMxNzhjMjE3NGQiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.DkCb0ml_jIVGMcGglLHVdVeooRjwdBmZSVMR4dVdhuQ'
-            }
-        };
-
-        
-        const response = await fetch(
-            'https://api.themoviedb.org/3/movie/upcoming?language=en-US&page=1',
-            options
-        );
-        if (!response.ok) throw new Error('TMDB neodpovědělo');
-
-        
-        const data = await response.json();
-
-        // pošli data klientovi
-        res.json(data);
-    } catch (err) {
-        console.error('LOAD POPULAR ERROR:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
 // ====================
 // PROFILES API
 // ====================
 
 app.get('/api/profiles', (req, res) => {
     try {
-        res.json(profilesDB.list());
+        res.json(profilesDB.list().map(sanitizeProfile));
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -584,7 +447,7 @@ app.post('/api/profiles', (req, res) => {
         const { name, picture, theme } = req.body;
         if (!name) return res.status(400).json({ error: 'name is required' });
         const profile = profilesDB.create({ name, picture: picture || null, theme: theme || 'dark' });
-        res.status(201).json(profile);
+        res.status(201).json(sanitizeProfile(profile));
     } catch (err) {
         res.status(err.code === 409 ? 409 : 400).json({ error: err.message });
     }
@@ -593,22 +456,41 @@ app.post('/api/profiles', (req, res) => {
 app.get('/api/profiles/:id', (req, res) => {
     const profile = profilesDB.get(req.params.id);
     if (!profile) return res.status(404).json({ error: 'Profile not found' });
-    res.json(profile);
+    res.json(sanitizeProfile(profile));
 });
 
 app.put('/api/profiles/:id', (req, res) => {
     try {
-        const { name, picture, theme } = req.body;
+        const { name, picture, theme, settings } = req.body;
         const changes = {};
         if (name !== undefined) changes.name = name;
         if (picture !== undefined) changes.picture = picture;
         if (theme !== undefined) changes.theme = theme;
+        if (settings !== undefined) changes.settings = settings;
         const profile = profilesDB.update(req.params.id, changes);
         if (!profile) return res.status(404).json({ error: 'Profile not found' });
-        res.json(profile);
+        res.json(sanitizeProfile(profile));
     } catch (err) {
         res.status(err.code === 409 ? 409 : 400).json({ error: err.message });
     }
+});
+
+// Set (4 digits) or clear (null) the profile PIN. Never returns the hash.
+app.post('/api/profiles/:id/pin', (req, res) => {
+    try {
+        const { pin } = req.body;
+        const profile = profilesDB.setPin(req.params.id, pin == null || pin === '' ? null : pin);
+        if (!profile) return res.status(404).json({ error: 'Profile not found' });
+        res.json({ hasPin: !!profile.pinHash });
+    } catch (err) {
+        res.status(err.code === 400 ? 400 : 500).json({ error: err.message });
+    }
+});
+
+// Verify a PIN attempt. Returns { ok: bool }.
+app.post('/api/profiles/:id/pin/verify', (req, res) => {
+    if (!profilesDB.get(req.params.id)) return res.status(404).json({ error: 'Profile not found' });
+    res.json({ ok: profilesDB.verifyPin(req.params.id, req.body.pin) });
 });
 
 app.delete('/api/profiles/:id', (req, res) => {

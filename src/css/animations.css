@@ -439,3 +439,11 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Per-profile "Omezit animace" toggle — disables all motion when set */
+body.reduce-motion *,
+body.reduce-motion *::before,
+body.reduce-motion *::after {
+  animation: none !important;
+  transition: none !important;
+}
