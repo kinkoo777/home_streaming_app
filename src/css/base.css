@@ -1,32 +1,352 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* ═════════════════════════════════════════════════════════════
+   FilmBox design tokens + base
+   Compatibility target: LG webOS 5+ (Chromium 68). That means:
+   no flex `gap` (margins instead), no `inset`, no clamp()/min()/max()
+   without a fallback, and focus rings driven by body.kbd instead of
+   :focus-visible (unknown selectors void the whole rule on old engines).
+   ═════════════════════════════════════════════════════════════ */
+
+:root {
+  --bg:        #07070a;
+  --bg-2:      #0d0d12;
+  --surface:   #15151c;
+  --surface-2: #1e1e27;
+  --surface-3: #2a2a35;
+  --line:      rgba(255,255,255,0.08);
+  --line-2:    rgba(255,255,255,0.14);
+  --text:      #f5f5f7;
+  --muted:     #a1a1aa;
+  --dim:       #71717a;
+  --glass:     rgba(255,255,255,0.10);
+  --glass-2:   rgba(255,255,255,0.18);
+
+  --accent:    #f43f5e;
+  --accent-2:  #f97316;
+  --accent-grad: linear-gradient(135deg, #f43f5e 0%, #f97316 100%);
+  --good:      #22c55e;
+  --warn:      #fbbf24;
+
+  --radius-sm: 10px;
+  --radius:    14px;
+  --radius-lg: 22px;
+  --gutter:    4vw;
+  --nav-h:     72px;
+  --card-w:    176px;
+
+  --shadow:    0 18px 50px rgba(0,0,0,0.45);
+  --shadow-lg: 0 30px 80px rgba(0,0,0,0.6);
+  --ease:      cubic-bezier(0.2, 0.8, 0.2, 1);
+  --spring:    cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-html {
-  scroll-behavior: smooth;
+body:not(.dark) {
+  --bg:        #f3f3f6;
+  --bg-2:      #ebebf0;
+  --surface:   #ffffff;
+  --surface-2: #f4f4f7;
+  --surface-3: #e7e7ec;
+  --line:      rgba(0,0,0,0.08);
+  --line-2:    rgba(0,0,0,0.14);
+  --text:      #111114;
+  --muted:     #52525b;
+  --dim:       #71717a;
+  --glass:     rgba(0,0,0,0.06);
+  --glass-2:   rgba(0,0,0,0.12);
+  --shadow:    0 14px 40px rgba(20,20,40,0.14);
+  --shadow-lg: 0 24px 70px rgba(20,20,40,0.22);
 }
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
 
 body {
-  font-family: 'Inter', sans-serif;
-  background: #f4f4f5;
-  color: #18181b;
-  transition: background 0.3s ease, color 0.3s ease;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.4s ease, color 0.4s ease;
+  min-height: 100vh;
 }
 
-body.dark {
-  background: #050505;
-  color: #fafafa;
+img { display: block; max-width: 100%; }
+a { color: inherit; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: none; }
+
+.hidden { display: none !important; }
+
+body.modal-open { position: fixed; left: 0; right: 0; overflow: hidden; }
+
+::selection { background: rgba(244,63,94,0.35); }
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 999px; border: 2px solid var(--bg); }
+
+/* ── Ambient glow behind everything, tinted by the hero slide ── */
+.ambient {
+  position: fixed;
+  top: -20vh; left: -10vw; right: -10vw;
+  height: 90vh;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.55;
+  background: radial-gradient(60% 60% at 30% 30%, var(--ambient, rgba(244,63,94,0.25)), transparent 70%);
+  transition: background 1.2s ease;
+}
+body:not(.dark) .ambient { opacity: 0.35; }
+
+/* ═════════════ Buttons ═════════════ */
+
+.btn {
+  display: -webkit-inline-flex;
+  display: inline-flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  transition: transform 0.25s var(--spring), background-color 0.2s ease, box-shadow 0.25s ease, color 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.btn i { font-size: 1.15em; margin-right: 8px; }
+.btn.btn-icon-only { width: 44px; padding: 0; }
+.btn.btn-icon-only i { margin-right: 0; }
+.btn:active { transform: scale(0.96); }
+.btn[disabled] { opacity: 0.5; pointer-events: none; }
+
+.btn-lg { height: 54px; padding: 0 28px; font-size: 16px; border-radius: 14px; }
+.btn-lg.btn-icon-only { width: 54px; }
+.btn-sm { height: 36px; padding: 0 14px; font-size: 13px; border-radius: 10px; }
+.btn-sm.btn-icon-only { width: 36px; }
+
+.btn-primary {
+  background: #fff;
+  color: #0a0a0c;
+  box-shadow: 0 8px 24px rgba(255,255,255,0.12);
+}
+.btn-primary:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 12px 32px rgba(255,255,255,0.22); }
+body:not(.dark) .btn-primary { background: #111114; color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,0.18); }
+/* Buttons that sit on imagery stay white in light mode too */
+.hero .btn-primary, .detail-actions .btn-primary,
+body:not(.dark) .hero .btn-primary, body:not(.dark) .detail-actions .btn-primary { background: #fff; color: #0a0a0c; box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+
+.btn-accent { background: var(--accent-grad); color: #fff; box-shadow: 0 10px 30px rgba(244,63,94,0.35); }
+.btn-accent:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 14px 36px rgba(244,63,94,0.5); }
+
+.btn-glass {
+  background: rgba(255,255,255,0.14);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.16);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+.btn-glass:hover { background: rgba(255,255,255,0.24); transform: translateY(-2px); }
+.btn-glass.is-on { color: var(--accent); }
+.btn-glass.is-on.good { color: var(--good); }
+
+.btn-ghost {
+  background: var(--glass);
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+.btn-ghost:hover { background: var(--glass-2); }
+
+.btn-danger { background: rgba(239,68,68,0.14); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+.btn-danger:hover { background: rgba(239,68,68,0.24); }
+
+.icon-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: -webkit-inline-flex;
+  display: inline-flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  font-size: 18px;
+  color: var(--text);
+  transition: background-color 0.2s ease, transform 0.25s var(--spring);
+}
+.icon-btn:hover { background: var(--glass); transform: scale(1.06); }
+
+/* ═════════════ Fields ═════════════ */
+
+.field {
+  height: 46px;
+  width: 100%;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line-2);
+  background: var(--glass);
+  color: var(--text);
+  outline: none;
+  font-size: 15px;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+.field::-webkit-input-placeholder { color: var(--dim); }
+.field::placeholder { color: var(--dim); }
+.field:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(244,63,94,0.18); }
+.field-sm { height: 36px; font-size: 13px; padding: 0 12px; border-radius: 10px; }
+
+/* ═════════════ Segmented control / chips ═════════════ */
+
+.segmented {
+  display: -webkit-inline-flex;
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+}
+.segmented > button {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  transition: background-color 0.2s ease, color 0.2s ease;
+  display: -webkit-inline-flex;
+  display: inline-flex;
+  -webkit-align-items: center;
+  align-items: center;
+}
+.segmented > button i { margin-right: 6px; }
+.segmented > button + button { margin-left: 2px; }
+.segmented > button:hover { color: var(--text); }
+.segmented > button.active { background: var(--surface); color: var(--text); box-shadow: 0 2px 10px rgba(0,0,0,0.25); }
+body.dark .segmented > button.active { background: rgba(255,255,255,0.14); }
+
+.chip-row {
+  display: -webkit-flex;
+  display: flex;
+  overflow-x: auto;
+  padding: 2px var(--gutter) 6px;
+  scrollbar-width: none;
+}
+.chip-row::-webkit-scrollbar { display: none; }
+.chip-row > * { -webkit-flex-shrink: 0; flex-shrink: 0; margin-right: 8px; }
+
+.chip, .genre-chip {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s var(--spring);
+  display: -webkit-inline-flex;
+  display: inline-flex;
+  -webkit-align-items: center;
+  align-items: center;
+}
+.chip:hover, .genre-chip:hover { color: var(--text); border-color: var(--dim); }
+.chip.active, .genre-chip.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+.chip i { margin-right: 6px; }
+
+.eyebrow {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
 }
 
-.container {
-  width: 92%;
-  max-width: 1450px;
-  margin: auto;
+/* ═════════════ Skeletons ═════════════ */
+
+@keyframes fb-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: var(--surface-2);
+  background-image: linear-gradient(90deg, rgba(255,255,255,0) 0, rgba(255,255,255,0.06) 50%, rgba(255,255,255,0) 100%);
+  background-size: 400px 100%;
+  background-repeat: no-repeat;
+  -webkit-animation: fb-shimmer 1.4s infinite linear;
+  animation: fb-shimmer 1.4s infinite linear;
+}
+body:not(.dark) .skeleton {
+  background-image: linear-gradient(90deg, rgba(255,255,255,0) 0, rgba(255,255,255,0.7) 50%, rgba(255,255,255,0) 100%);
 }
 
-/* Footer styles now live in css/footer.css */
+/* ═════════════ Toast ═════════════ */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  z-index: 6000;
+  max-width: 90vw;
+  padding: 13px 22px;
+  border-radius: 999px;
+  background: rgba(22,22,28,0.96);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: var(--shadow);
+  font-size: 14px;
+  font-weight: 500;
+  -webkit-transform: translateX(-50%);
+  transform: translateX(-50%);
+  -webkit-animation: fb-toast-in 0.4s var(--spring);
+  animation: fb-toast-in 0.4s var(--spring);
+  text-align: center;
+}
+@keyframes fb-toast-in {
+  from { opacity: 0; transform: translate(-50%, 20px) scale(0.92); }
+  to   { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+/* ═════════════ Focus (keyboard / TV remote) ═════════════ */
+
+:focus { outline: none; }
+body.kbd button:focus,
+body.kbd a:focus,
+body.kbd input:focus,
+body.kbd [tabindex]:focus {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+body.kbd:not(.dark) button:focus,
+body.kbd:not(.dark) a:focus,
+body.kbd:not(.dark) [tabindex]:focus { outline-color: #111; }
+body.kbd .btn:focus, body.kbd .icon-btn:focus { transform: scale(1.06); }
+
+/* Reveal-on-scroll */
+.reveal { opacity: 0; -webkit-transform: translateY(24px); transform: translateY(24px); transition: opacity 0.7s var(--ease), transform 0.7s var(--ease); }
+.reveal.in { opacity: 1; -webkit-transform: none; transform: none; }
+
+/* Reduced motion (OS setting or profile preference) */
+body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after {
+  -webkit-animation-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important;
+  -webkit-animation-iteration-count: 1 !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+body.reduce-motion .reveal { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  .reveal { opacity: 1; transform: none; }
+}

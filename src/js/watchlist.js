@@ -8,133 +8,118 @@ async function renderContinueWatching() {
   const progress = window._profileProgress || {}
   const items = []
 
-  for (const [key, val] of Object.entries(progress)) {
+  Object.keys(progress).forEach(key => {
+    const val      = progress[key]
     const isObj    = val && typeof val === 'object'
     const seconds  = isObj ? val.seconds  : val
     const duration = isObj ? val.duration : null
-    if (!seconds || seconds <= 30) continue
-    const tmdbId      = (isObj && val.tmdbId != null) ? val.tmdbId : parseInt(key)
+    if (!seconds || seconds <= 30) return
+    const tmdbId       = (isObj && val.tmdbId != null) ? val.tmdbId : parseInt(key, 10)
     const episodeLabel = isObj ? (val.episodeLabel || null) : null
+    const mediaType    = isObj ? (val.mediaType || 'movie') : 'movie'
     // Hide finished movies, but never hide an in-progress episode just because the show is "watched".
-    if (typeof isWatched === 'function' && isWatched(tmdbId) && !episodeLabel) continue
-    if (duration && (seconds / duration) >= 0.9) continue
+    if (!episodeLabel && isWatched(tmdbId, mediaType)) return
+    if (duration && (seconds / duration) >= 0.9) return
 
     // Prefer device-independent server metadata; fall back to this browser's localStorage cache.
     let meta = null
     if (isObj && val.title) {
-      meta = { id: tmdbId, title: val.title, poster_path: val.posterPath || null, media_type: val.mediaType || 'movie' }
+      meta = { id: tmdbId, title: val.title, poster_path: val.posterPath || null, media_type: mediaType }
     } else {
-      const metaRaw = localStorage.getItem('filmbox_meta_' + key)
-      if (metaRaw) meta = JSON.parse(metaRaw)
+      try { meta = JSON.parse(lsGet('filmbox_meta_' + key, 'null')) } catch (e) { meta = null }
     }
-    if (!meta) continue
+    if (!meta) return
 
-    items.push({
-      ...meta,
+    items.push(Object.assign({}, meta, {
       _key:          key,
       _seconds:      seconds,
       _duration:     duration,
-      _hasDuration:  !!duration,
-      _episodeLabel: episodeLabel
-    })
-  }
+      _episodeLabel: episodeLabel,
+      _updatedAt:    isObj ? val.updatedAt : null
+    }))
+  })
 
   if (!items.length) { section.style.display = 'none'; return }
 
-  // Fetch full TMDB details for items missing display fields (rating, year, runtime).
-  // Skip only when the item already has a usable rating AND a way to draw the progress line.
-  // Results are merged back into localStorage so the fetch only happens once per item.
+  // Most recently watched first.
+  items.sort((a, b) => String(b._updatedAt || '').localeCompare(String(a._updatedAt || '')))
+
+  // Fill in rating/year/runtime for items that lack them (one TMDB call each, cached server-side).
   await Promise.all(items.map(async m => {
-    if (m.vote_average && (m._hasDuration || m.runtime)) return
+    if (m.vote_average && (m._duration || m.runtime)) return
     try {
       const r = await fetch(`/tmdb/details?id=${m.id}&type=${m.media_type || 'movie'}`)
       if (!r.ok) return
       const d = await r.json()
-      m.vote_average  = (m.vote_average != null && m.vote_average !== 0) ? m.vote_average : d.vote_average
-      m.runtime       = m.runtime      || d.runtime
-      m.release_date  = m.release_date || d.release_date
+      m.vote_average   = m.vote_average || d.vote_average
+      m.runtime        = m.runtime      || d.runtime
+      m.release_date   = m.release_date || d.release_date
       m.first_air_date = m.first_air_date || d.first_air_date
-      m.poster_path   = m.poster_path  || d.poster_path
-      m.genre_ids     = m.genre_ids    || (Array.isArray(d.genres) ? d.genres.map(g => g.id) : undefined)
-      const key = 'filmbox_meta_' + m.id
-      const raw = localStorage.getItem(key)
-      if (raw) {
-        const mm = JSON.parse(raw)
-        if (d.vote_average  != null) mm.vote_average  = mm.vote_average  || d.vote_average
-        if (d.runtime       != null) mm.runtime       = mm.runtime       || d.runtime
-        if (d.release_date  != null) mm.release_date  = mm.release_date  || d.release_date
-        if (d.first_air_date != null) mm.first_air_date = mm.first_air_date || d.first_air_date
-        if (d.poster_path   != null) mm.poster_path   = mm.poster_path   || d.poster_path
-        if (Array.isArray(d.genres))  mm.genre_ids    = mm.genre_ids     || d.genres.map(g => g.id)
-        localStorage.setItem(key, JSON.stringify(mm))
-      }
-    } catch {}
+      m.poster_path    = m.poster_path  || d.poster_path
+    } catch (e) {}
   }))
 
   section.style.display = 'block'
-  section.classList.remove('section-reveal')
-  void section.offsetWidth
-  section.classList.add('section-reveal')
-  container.innerHTML = items.map(m => buildCard(m, 'continue-card')).join('')
+  container.innerHTML = items.map((m, i) => buildCard(m, { index: i, variant: 'continue', remove: 'continue', removeTitle: 'Odebrat z Pokračovat' })).join('')
+  if (window.updateRowArrows) window.updateRowArrows(container)
 }
 
 // Remove a single title/episode from Continue Watching (deletes its progress entry).
-window.removeFromContinue = async function(key) {
+window.removeFromContinue = async function (key) {
   const profileId = getActiveProfileId()
   if (profileId === 'default') return
   try {
     await fetch(`/api/profiles/${profileId}/progress/${encodeURIComponent(key)}`, { method: 'DELETE' })
-  } catch {}
+  } catch (e) {}
   if (window._profileProgress) delete window._profileProgress[key]
   renderContinueWatching()
-  showToast('Odebráno z „Pokračovat ve sledování"')
+  showToast('Odebráno z „Pokračovat ve sledování“')
 }
 
 // ================= MULTI-LIST (SEZNAM) =================
 
 const DEFAULT_LIST_ID = 'default'
+const defaultLists = () => [{ id: DEFAULT_LIST_ID, name: 'Můj seznam', movies: [] }]
 let activeListId = DEFAULT_LIST_ID
 let _listsCache = null
 let _wlExplicitlyOpen = false   // keep the section visible (for list management) even when empty
 
 function getLists() {
-  if (_listsCache) return _listsCache
-  _listsCache = [{ id: DEFAULT_LIST_ID, name: 'Můj seznam', movies: [] }]
+  if (!_listsCache) _listsCache = defaultLists()
   return _listsCache
 }
 
 async function _loadLists() {
   const profileId = getActiveProfileId()
-  if (profileId === 'default') { _listsCache = [{ id: DEFAULT_LIST_ID, name: 'Můj seznam', movies: [] }]; return }
+  if (profileId === 'default') { _listsCache = defaultLists(); return }
   try {
     const res = await fetch(`/api/profiles/${profileId}/watchlists`)
-    _listsCache = res.ok ? await res.json() : [{ id: DEFAULT_LIST_ID, name: 'Můj seznam', movies: [] }]
-  } catch {
-    _listsCache = [{ id: DEFAULT_LIST_ID, name: 'Můj seznam', movies: [] }]
+    const lists = res.ok ? await res.json() : null
+    _listsCache = Array.isArray(lists) && lists.length ? lists : defaultLists()
+  } catch (e) {
+    _listsCache = defaultLists()
   }
+  if (!getListById(activeListId)) activeListId = DEFAULT_LIST_ID
 }
 
 function saveLists(lists) {
   _listsCache = lists
   const profileId = getActiveProfileId()
   if (profileId === 'default') { showToast('Nejprve si vyberte profil'); return }
-  fetch(`/api/profiles/${profileId}/watchlists`, {
-    method:  'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(lists)
-  }).catch(() => {})
+  fetch(`/api/profiles/${profileId}/watchlists`, jsonBody('PUT', lists)).catch(() => {})
 }
 
-function getListById(id) {
-  return getLists().find(l => l.id === id) || null
-}
+function getListById(id) { return getLists().find(l => l.id === id) || null }
+function isInAnyList(movieId) { return getLists().some(l => l.movies.some(m => m.id === movieId)) }
 
-function isInAnyList(movieId) {
-  return getLists().some(l => l.movies.some(m => m.id === movieId))
+// Only keep what a card needs — list entries are stored in the profile JSON.
+function slimMovie(m) {
+  return {
+    id: m.id, title: m.title, name: m.name, poster_path: m.poster_path || null,
+    vote_average: m.vote_average, release_date: m.release_date, first_air_date: m.first_air_date,
+    media_type: m.media_type || (m.title ? 'movie' : 'tv')
+  }
 }
-
-function getWatchlist()    { return (getListById(DEFAULT_LIST_ID) || { movies: [] }).movies }
-function isInWatchlist(id) { return isInAnyList(id) }
 
 function toggleMovieInList(listId, movie) {
   const lists = getLists()
@@ -146,34 +131,36 @@ function toggleMovieInList(listId, movie) {
     saveLists(lists)
     return false
   }
-  list.movies.unshift(movie)
+  list.movies.unshift(slimMovie(movie))
   saveLists(lists)
   return true
 }
 
 function createList(name) {
-  if (!name.trim()) return
+  const clean = (name || '').trim()
+  if (!clean) return null
   const lists = getLists()
-  if (lists.some(l => l.name.toLowerCase() === name.trim().toLowerCase())) {
+  if (lists.some(l => l.name.toLowerCase() === clean.toLowerCase())) {
     showToast('Seznam s tímto názvem již existuje')
-    return
+    return null
   }
   const id = 'list_' + Date.now()
-  lists.push({ id, name: name.trim(), movies: [] })
+  lists.push({ id, name: clean, movies: [] })
   saveLists(lists)
   renderWatchlistTabs()
-  showToast('Seznam "' + name.trim() + '" vytvořen ✓')
+  showToast('Seznam „' + clean + '“ vytvořen ✓')
   return id
 }
 
-function deleteList(listId) {
+async function deleteList(listId) {
   if (listId === DEFAULT_LIST_ID) { showToast('Výchozí seznam nelze smazat'); return }
-  const lists = getLists().filter(l => l.id !== listId)
-  saveLists(lists)
+  const list = getListById(listId)
+  if (!list) return
+  if (!(await confirmDialog(`Smazat seznam „${list.name}“?`, 'Smazat'))) return
+  saveLists(getLists().filter(l => l.id !== listId))
   if (activeListId === listId) activeListId = DEFAULT_LIST_ID
-  renderWatchlistTabs()
   renderWatchlist()
-  if (!document.getElementById('wl-modal').classList.contains('hidden')) renderWlModalLists()
+  if (isModalOpen(document.getElementById('wl-modal'))) renderWlModalLists()
   showToast('Seznam smazán')
 }
 
@@ -190,9 +177,8 @@ function renameList(listId, newName) {
   }
   list.name = name
   saveLists(lists)
-  renderWatchlistTabs()
   renderWatchlist()
-  if (!document.getElementById('wl-modal').classList.contains('hidden')) renderWlModalLists()
+  if (isModalOpen(document.getElementById('wl-modal'))) renderWlModalLists()
   showToast('Seznam přejmenován')
 }
 
@@ -202,58 +188,52 @@ function _inlineRename(targetEl, listId, rerender) {
   if (!list || !targetEl) return
   const input = document.createElement('input')
   input.type = 'text'
-  input.className = 'wl-inline-input'
+  input.className = 'field field-sm wl-inline-input'
   input.value = list.name
   input.maxLength = 30
+  let cancelled = false
   const commit = () => {
     const val = input.value.trim()
-    if (val && val.toLowerCase() !== list.name.toLowerCase()) renameList(listId, val)
+    if (!cancelled && val && val.toLowerCase() !== list.name.toLowerCase()) renameList(listId, val)
     else rerender()
   }
   input.addEventListener('click', e => e.stopPropagation())
   input.addEventListener('keydown', e => {
+    e.stopPropagation()
     if (e.key === 'Enter') { e.preventDefault(); input.blur() }
-    else if (e.key === 'Escape') { input.value = list.name; input.blur() }
+    else if (e.key === 'Escape' || e.keyCode === 461) { e.preventDefault(); cancelled = true; input.blur() }
   })
   input.addEventListener('blur', commit, { once: true })
-  targetEl.replaceWith(input)
+  targetEl.parentNode.replaceChild(input, targetEl)
   input.focus()
   input.select()
-}
-
-window.startRenameTab = function(id) {
-  const wrap = document.getElementById('watchlist-tabs')
-  if (!wrap) return
-  // Render the whole tab row as a single rename input, restored after commit.
-  wrap.innerHTML = '<span class="wl-tab-rename-host"></span>'
-  _inlineRename(wrap.firstChild, id, renderWatchlistTabs)
-}
-
-window.startRenameModalList = function(id) {
-  const nameEl = document.querySelector(`#wl-modal-lists .wl-list-name[data-id="${id}"]`)
-  _inlineRename(nameEl, id, renderWlModalLists)
 }
 
 // ── Watchlist tabs ──
 
 function renderWatchlistTabs() {
-  const lists = getLists()
-  const wrap  = document.getElementById('watchlist-tabs')
+  const wrap = document.getElementById('watchlist-tabs')
   if (!wrap) return
-  wrap.innerHTML = lists.map(l => `
-    <button class="wl-tab${l.id === activeListId ? ' active' : ''}" onclick="switchList('${l.id}')">
+  wrap.innerHTML = getLists().map(l => `
+    <button class="wl-tab${l.id === activeListId ? ' active' : ''}${l.id !== DEFAULT_LIST_ID ? ' has-rename' : ''}" data-list="${escapeHtml(l.id)}">
       <span class="wl-tab-name">${escapeHtml(l.name)}</span>
       <span class="wl-tab-count">${l.movies.length}</span>
-      ${l.id !== DEFAULT_LIST_ID ? `<span class="wl-tab-rename" title="Přejmenovat" onclick="event.stopPropagation();startRenameTab('${l.id}')"><i class="bi bi-pencil"></i></span>` : ''}
-    </button>
-  `).join('')
+      ${l.id !== DEFAULT_LIST_ID ? `<span class="wl-tab-rename" data-rename="${escapeHtml(l.id)}" title="Přejmenovat"><i class="bi bi-pencil"></i></span>` : ''}
+    </button>`).join('')
 }
 
-window.switchList = function(id) {
-  activeListId = id
-  renderWatchlistTabs()
-  renderWatchlist()
-}
+document.getElementById('watchlist-tabs').addEventListener('click', e => {
+  const ren = e.target.closest('[data-rename]')
+  if (ren) {
+    e.stopPropagation()
+    const wrap = document.getElementById('watchlist-tabs')
+    wrap.innerHTML = '<span></span>'
+    _inlineRename(wrap.firstChild, ren.dataset.rename, renderWatchlistTabs)
+    return
+  }
+  const tab = e.target.closest('[data-list]')
+  if (tab) { activeListId = tab.dataset.list; renderWatchlist() }
+})
 
 // ── Render watchlist ──
 
@@ -266,9 +246,6 @@ function renderWatchlist() {
   // Hide only when there's nothing AND the user hasn't explicitly opened it for list management
   if (!totalMovies && !_wlExplicitlyOpen) { section.style.display = 'none'; return }
   section.style.display = 'block'
-  section.classList.remove('section-reveal')
-  void section.offsetWidth
-  section.classList.add('section-reveal')
 
   renderWatchlistTabs()
 
@@ -276,178 +253,156 @@ function renderWatchlist() {
   const movies = list ? list.movies : []
 
   if (!movies.length) {
-    container.innerHTML = '<p style="color:gray;padding:20px">Tento seznam je prázdný.</p>'
+    container.innerHTML = '<div class="row-empty"><i class="bi bi-bookmark"></i>&nbsp; Tento seznam je prázdný — přidejte tituly tlačítkem „Přidat“ v detailu.</div>'
     return
   }
-
-  container.innerHTML = movies.map(movie => {
-    const title = movie.title || movie.name
-    const year  = (movie.release_date || movie.first_air_date || '').slice(0, 4)
-    return `
-      <div class="movie-card" onclick="openDetailModal(${movie.id},'${movie.media_type || 'movie'}',decodeURIComponent('${encodeURIComponent(title)}'))">
-        <div class="movie-poster">
-          <img src="https://image.tmdb.org/t/p/w500${movie.poster_path}" alt="${title}" loading="lazy">
-          <div class="rating">⭐ ${(movie.vote_average || 0).toFixed(1)}</div>
-          <button class="wl-btn active" onclick="event.stopPropagation();removeFromCurrentList(${movie.id})">
-            <i class="bi bi-bookmark-fill"></i>
-          </button>
-        </div>
-        <div class="movie-info">
-          <h4>${title}</h4>
-          <div class="movie-meta"><span>${year}</span></div>
-        </div>
-      </div>
-    `
-  }).join('')
+  container.innerHTML = movies.map((m, i) => buildCard(m, { index: i, remove: 'list', removeTitle: 'Odebrat ze seznamu' })).join('')
+  if (window.updateRowArrows) window.updateRowArrows(container)
 }
 
-window.removeFromCurrentList = function(movieId) {
+window.removeFromCurrentList = function (movieId) {
   const lists = getLists()
   const list  = lists.find(l => l.id === activeListId)
   if (!list) return
   list.movies = list.movies.filter(m => m.id !== movieId)
   saveLists(lists)
   renderWatchlist()
-  renderContinueWatching()
   showToast('Odebráno ze seznamu')
 }
 
-window.toggleWatchlistCard = function(btn, id) {
-  let movie = searchDataMap[id]
-  if (!movie) {
-    for (const l of getLists()) {
-      movie = l.movies.find(m => m.id === id)
-      if (movie) break
-    }
-  }
-  if (!movie) return
-  const added = toggleMovieInList(activeListId, movie)
-  btn.classList.toggle('active', added)
-  btn.querySelector('i').className = 'bi ' + (added ? 'bi-bookmark-fill' : 'bi-bookmark')
+// Open the watchlist section (navbar "Můj seznam"), even when it's empty.
+window.openWatchlistSection = function () {
+  _wlExplicitlyOpen = true
+  renderWatchlist()
   const section = document.getElementById('watchlist-section')
-  if (section.style.display === 'block') renderWatchlist()
-  renderContinueWatching()
-  showToast(added ? 'Přidáno do "' + (getListById(activeListId) || {}).name + '" ✓' : 'Odebráno ze seznamu')
+  const top = section.getBoundingClientRect().top + window.pageYOffset - 90
+  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
 }
 
-// ── WL Modal ──
+// ── Add-to-list modal ──
 
 let wlModalMovie = null
+const wlModal = document.getElementById('wl-modal')
 
 function openWlModal(movie) {
+  if (!hasActiveProfile()) { showToast('Nejprve vyberte profil'); return }
   wlModalMovie = movie
-  const modal = document.getElementById('wl-modal')
-  modal.classList.remove('hidden')
-  openModal()
   renderWlModalLists()
+  openModal(wlModal, closeWlModal)
 }
 
 function closeWlModal() {
-  document.getElementById('wl-modal').classList.add('hidden')
-  closeModal()
+  closeModal(wlModal)
   wlModalMovie = null
 }
 
 function renderWlModalLists() {
-  const lists     = getLists()
   const container = document.getElementById('wl-modal-lists')
-  container.innerHTML = lists.map(l => {
+  container.innerHTML = getLists().map(l => {
     const inList = wlModalMovie ? l.movies.some(m => m.id === wlModalMovie.id) : false
     return `
-      <div class="wl-list-item" onclick="wlModalToggle('${l.id}')">
+      <div class="wl-list-item" tabindex="0" role="checkbox" aria-checked="${inList}" data-toggle="${escapeHtml(l.id)}">
         <div class="wl-list-item-left">
           <div class="wl-list-check${inList ? ' checked' : ''}">${inList ? '<i class="bi bi-check"></i>' : ''}</div>
-          <div>
-            <div class="wl-list-name" data-id="${l.id}">${escapeHtml(l.name)}</div>
-            <div class="wl-list-meta">${l.movies.length} položek</div>
+          <div style="min-width:0">
+            <div class="wl-list-name" data-id="${escapeHtml(l.id)}">${escapeHtml(l.name)}</div>
+            <div class="wl-list-meta">${l.movies.length} ${l.movies.length === 1 ? 'položka' : (l.movies.length >= 2 && l.movies.length <= 4 ? 'položky' : 'položek')}</div>
           </div>
         </div>
         ${l.id !== DEFAULT_LIST_ID ? `<div class="wl-list-actions">
-          <button class="wl-list-rename" title="Přejmenovat" onclick="event.stopPropagation();startRenameModalList('${l.id}')"><i class="bi bi-pencil"></i></button>
-          <button class="wl-list-delete" title="Smazat" onclick="event.stopPropagation();deleteList('${l.id}')"><i class="bi bi-trash"></i></button>
+          <button class="wl-list-rename" title="Přejmenovat" data-rename-list="${escapeHtml(l.id)}"><i class="bi bi-pencil"></i></button>
+          <button class="wl-list-delete" title="Smazat" data-delete-list="${escapeHtml(l.id)}"><i class="bi bi-trash"></i></button>
         </div>` : ''}
-      </div>
-    `
+      </div>`
   }).join('')
 }
 
-window.wlModalToggle = function(listId) {
+document.getElementById('wl-modal-lists').addEventListener('click', e => {
+  const del = e.target.closest('[data-delete-list]')
+  if (del) { e.stopPropagation(); deleteList(del.dataset.deleteList); return }
+  const ren = e.target.closest('[data-rename-list]')
+  if (ren) {
+    e.stopPropagation()
+    const nameEl = document.querySelector(`#wl-modal-lists .wl-list-name[data-id="${ren.dataset.renameList}"]`)
+    _inlineRename(nameEl, ren.dataset.renameList, renderWlModalLists)
+    return
+  }
+  const item = e.target.closest('[data-toggle]')
+  if (item) wlModalToggle(item.dataset.toggle)
+})
+
+function wlModalToggle(listId) {
   if (!wlModalMovie) return
-  toggleMovieInList(listId, wlModalMovie)
+  const focusedId = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.toggle : null
+  const added = toggleMovieInList(listId, wlModalMovie)
   renderWlModalLists()
+  if (focusedId) {
+    const again = document.querySelector(`#wl-modal-lists [data-toggle="${focusedId}"]`)
+    if (again) again.focus()
+  }
   renderWatchlist()
-  renderContinueWatching()
-  const inAny = isInAnyList(wlModalMovie.id)
-  const wlBtn = document.getElementById('detail-wl-btn')
-  if (wlBtn) wlBtn.innerHTML = `<i class="bi ${inAny ? 'bi-bookmark-fill' : 'bi-bookmark'}"></i> ${inAny ? 'V seznamu' : 'Přidat'}`
+  if (window.syncDetailListButton) window.syncDetailListButton()
+  if (window.syncHeroListButton) window.syncHeroListButton()
+  showToast(added ? 'Přidáno do „' + getListById(listId).name + '“ ✓' : 'Odebráno ze seznamu')
 }
 
-document.getElementById('wl-modal-close').addEventListener('click', closeWlModal)
-document.getElementById('wl-modal-backdrop').addEventListener('click', closeWlModal)
 document.getElementById('wl-new-list-btn').addEventListener('click', () => {
   const input = document.getElementById('wl-new-list-input')
-  if (input.value.trim()) {
-    createList(input.value.trim())
+  const id = createList(input.value)
+  if (id) {
     input.value = ''
+    if (wlModalMovie) toggleMovieInList(id, wlModalMovie)
     renderWlModalLists()
+    renderWatchlist()
+    if (window.syncDetailListButton) window.syncDetailListButton()
   }
 })
 document.getElementById('wl-new-list-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('wl-new-list-btn').click()
 })
 
-document.getElementById('clear-watchlist').addEventListener('click', () => {
-  const lists = getLists()
-  const list  = lists.find(l => l.id === activeListId)
-  if (list) { list.movies = []; saveLists(lists) }
+document.getElementById('clear-watchlist').addEventListener('click', async () => {
+  const list = getListById(activeListId)
+  if (!list || !list.movies.length) return
+  if (!(await confirmDialog(`Vymazat všechny tituly ze seznamu „${list.name}“?`, 'Vymazat'))) return
+  list.movies = []
+  saveLists(getLists())
   renderWatchlist()
-  renderContinueWatching()
   showToast('Seznam vymazán')
 })
 
-document.getElementById('watchlist-toggle')?.addEventListener('click', () => {
-  const section = document.getElementById('watchlist-section')
-  if (section.style.display === 'none' || !section.style.display) {
-    _wlExplicitlyOpen = true   // open even when empty so lists can be created/managed
-    renderWatchlist()
-    section.scrollIntoView({ behavior: 'smooth' })
-  } else {
-    section.style.display = 'none'
-    _wlExplicitlyOpen = false
-  }
-})
-
 // ── Inline "Nový seznam" in the watchlist section header ──
-document.getElementById('wl-add-list-btn')?.addEventListener('click', () => {
+document.getElementById('wl-add-list-btn').addEventListener('click', () => {
   const box   = document.getElementById('wl-inline-new')
   const input = document.getElementById('wl-inline-input')
   box.classList.toggle('hidden')
   if (!box.classList.contains('hidden')) { input.value = ''; input.focus() }
 })
-document.getElementById('wl-inline-confirm')?.addEventListener('click', () => {
+document.getElementById('wl-inline-confirm').addEventListener('click', () => {
   const input = document.getElementById('wl-inline-input')
   const id = createList(input.value)
   if (id) { activeListId = id; renderWatchlist() }
   document.getElementById('wl-inline-new').classList.add('hidden')
   input.value = ''
 })
-document.getElementById('wl-inline-cancel')?.addEventListener('click', () => {
+document.getElementById('wl-inline-cancel').addEventListener('click', () => {
   document.getElementById('wl-inline-new').classList.add('hidden')
   document.getElementById('wl-inline-input').value = ''
 })
-document.getElementById('wl-inline-input')?.addEventListener('keydown', e => {
+document.getElementById('wl-inline-input').addEventListener('keydown', e => {
   if (e.key === 'Enter')       { e.preventDefault(); document.getElementById('wl-inline-confirm').click() }
-  else if (e.key === 'Escape') { document.getElementById('wl-inline-cancel').click() }
+  else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); document.getElementById('wl-inline-cancel').click() }
 })
 
-window.reloadWatchlist = async function() {
+window.reloadWatchlist = async function () {
   await _loadLists()
   renderWatchlist()
 }
 window.reloadContinueWatching = renderContinueWatching
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await _loadLists()
+  if (!hasActiveProfile()) return
+  await Promise.all([_loadLists(), loadProfileProgress()])
   renderContinueWatching()
   renderWatchlist()
 })

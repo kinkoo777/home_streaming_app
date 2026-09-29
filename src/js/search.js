@@ -1,208 +1,201 @@
 // ================= SEARCH =================
 
-const searchInput           = document.getElementById('search-input')
-const searchResults         = document.getElementById('search-results')
-const searchMoviesSection   = document.getElementById('search-movies-section')
-const searchMoviesContainer = document.getElementById('search-movies')
-const clearSearchMoviesBtn  = document.getElementById('clear-search-movies')
+const searchInput         = document.getElementById('search-input')
+const searchResults       = document.getElementById('search-results')
+const searchWrapper       = document.getElementById('search-wrapper')
+const searchMobileBtn     = document.getElementById('search-mobile-btn')
+const searchCloseBtn      = document.getElementById('search-close-mobile')
+const searchMoviesSection = document.getElementById('search-movies-section')
+const searchMoviesGrid    = document.getElementById('search-movies')
 
-const addedMovieIds = new Set()
 let searchFocusIdx = -1
+let searchSeq = 0
+let lastResults = []
 
 function setSearchFocus(idx) {
   const items = searchResults.querySelectorAll('.search-item')
   if (!items.length) return
   searchFocusIdx = Math.max(-1, Math.min(idx, items.length - 1))
   items.forEach((el, i) => el.classList.toggle('focused', i === searchFocusIdx))
+  if (searchFocusIdx >= 0) items[searchFocusIdx].scrollIntoView({ block: 'nearest' })
 }
 
-clearSearchMoviesBtn.addEventListener('click', () => {
-  searchMoviesContainer.innerHTML = ''
-  addedMovieIds.clear()
-  searchMoviesSection.style.display = 'none'
-})
+function openDropdown() { searchResults.classList.add('active') }
+function closeDropdown() { searchResults.classList.remove('active'); searchFocusIdx = -1 }
 
 // ── Search history ──
 
 function getSearchHistory() {
-  return JSON.parse(localStorage.getItem('filmbox_history') || '[]')
+  try { return JSON.parse(lsGet('filmbox_history', '[]')) || [] } catch (e) { return [] }
 }
-
 function addToHistory(q) {
   const h = getSearchHistory().filter(t => t !== q)
   h.unshift(q)
-  localStorage.setItem('filmbox_history', JSON.stringify(h.slice(0, 8)))
+  lsSet('filmbox_history', JSON.stringify(h.slice(0, 8)))
 }
 
 function showHistory() {
   searchFocusIdx = -1
   const h = getSearchHistory()
-  if (!h.length) return
+  if (!h.length) { closeDropdown(); return }
   searchResults.innerHTML = `
-    <div class="search-history-label"><i class="bi bi-clock-history"></i> Nedávné</div>
+    <div class="search-history-label"><i class="bi bi-clock-history"></i>Nedávné hledání</div>
     ${h.map(t => `
-      <div class="search-item" onclick="selectHistoryItem(decodeURIComponent('${encodeURIComponent(t)}'))">
-        <i class="bi bi-clock-history" style="font-size:20px;color:#71717a;flex-shrink:0"></i>
-        <div class="search-item-info"><h4>${t}</h4></div>
-      </div>
-    `).join('')}
-  `
-  searchResults.classList.add('active')
+      <div class="search-item" data-history="${escapeHtml(t)}">
+        <span class="search-hist-icon"><i class="bi bi-clock-history"></i></span>
+        <div class="search-item-info"><h4>${escapeHtml(t)}</h4></div>
+      </div>`).join('')}`
+  openDropdown()
 }
 
-window.selectHistoryItem = function(title) {
-  searchInput.value = title
-  searchResults.classList.remove('active')
-  performSearch(title)
+function isPlayable(item) {
+  return item && item.poster_path && (item.media_type === 'movie' || item.media_type === 'tv' || item.title)
 }
+
+async function fetchSearch(query) {
+  const res  = await fetch(`/tmdb/search?q=${encodeURIComponent(query)}`)
+  const data = await res.json()
+  const list = (data.results || []).filter(isPlayable)
+  rememberMovies(list)
+  return list
+}
+
+async function performSearch(query) {
+  const seq = ++searchSeq
+  try {
+    const list = await fetchSearch(query)
+    if (seq !== searchSeq) return          // a newer query already answered
+    lastResults = list
+    searchFocusIdx = -1
+
+    if (!list.length) {
+      searchResults.innerHTML = '<div class="search-empty">Nic nebylo nalezeno.</div>'
+      openDropdown()
+      return
+    }
+    searchResults.innerHTML = list.slice(0, 7).map(movie => {
+      const title = escapeHtml(movie.title || movie.name)
+      const year  = (movie.release_date || movie.first_air_date || '').slice(0, 4)
+      return `
+        <div class="search-item" data-id="${movie.id}">
+          <img src="${tmdbImg(movie.poster_path, 'w92')}" alt="" loading="lazy"/>
+          <div class="search-item-info">
+            <h4>${title}</h4>
+            <p><span class="tag">${movie.media_type === 'tv' ? 'Seriál' : 'Film'}</span>${year}${movie.vote_average ? ' · ★ ' + Number(movie.vote_average).toFixed(1) : ''}</p>
+          </div>
+        </div>`
+    }).join('') + `<div class="search-footer">Stiskněte <kbd>Enter</kbd> pro všechny výsledky (${list.length})</div>`
+    openDropdown()
+  } catch (e) {}
+}
+
+// Full results grid (Enter)
+async function showAllResults(query) {
+  addToHistory(query)
+  closeDropdown()
+  let list = lastResults
+  if (!list.length || searchInput.dataset.lastQuery !== query) list = await fetchSearch(query)
+  document.getElementById('search-results-title').textContent = `Výsledky pro „${query}“`
+  document.getElementById('search-results-sub').textContent = list.length ? `${list.length} titulů` : 'Nic nebylo nalezeno'
+  searchMoviesGrid.innerHTML = list.map((m, i) => buildCard(m, { index: i })).join('')
+  searchMoviesSection.style.display = 'block'
+  searchMoviesSection.classList.add('in')
+  closeSearchUI()
+  searchInput.blur()
+  window.scrollTo({ top: Math.max(0, searchMoviesSection.getBoundingClientRect().top + window.pageYOffset - 90), behavior: 'smooth' })
+  const first = searchMoviesGrid.querySelector('.movie-card')
+  if (first && document.body.classList.contains('kbd')) setTimeout(() => first.focus({ preventScroll: true }), 300)
+}
+
+function selectSearchItem(id) {
+  const movie = searchDataMap[id]
+  if (!movie) return
+  const title = movie.title || movie.name
+  addToHistory(searchInput.value.trim() || title)
+  closeDropdown()
+  openDetailModal(movie.id, movie.media_type || 'movie', title)
+}
+
+searchResults.addEventListener('click', e => {
+  const item = e.target.closest('.search-item')
+  if (!item) return
+  if (item.dataset.history != null) {
+    searchInput.value = item.dataset.history
+    performSearch(item.dataset.history)
+    searchInput.focus()
+    return
+  }
+  selectSearchItem(parseInt(item.dataset.id, 10))
+})
 
 searchInput.addEventListener('focus', () => {
   if (!searchInput.value.trim()) showHistory()
+  else if (searchResults.innerHTML) openDropdown()
 })
 
 let searchDebounce = null
-searchInput.addEventListener('input', e => {
+searchInput.addEventListener('input', () => {
   clearTimeout(searchDebounce)
-  const q = e.target.value.trim()
+  const q = searchInput.value.trim()
   if (q.length < 2) {
-    searchResults.classList.remove('active')
-    if (!q) showHistory()
+    if (!q) showHistory(); else closeDropdown()
     return
   }
-  searchDebounce = setTimeout(() => performSearch(q), 300)
+  searchDebounce = setTimeout(() => { searchInput.dataset.lastQuery = q; performSearch(q) }, 280)
 })
 
 searchInput.addEventListener('keydown', e => {
-  if (!searchResults.classList.contains('active')) return
+  const active = searchResults.classList.contains('active')
   const items = searchResults.querySelectorAll('.search-item')
-  if (e.key === 'ArrowDown') {
+  if (e.key === 'ArrowDown' && active && items.length) {
     e.preventDefault()
     setSearchFocus(searchFocusIdx + 1)
-  } else if (e.key === 'ArrowUp') {
+  } else if (e.key === 'ArrowUp' && active && searchFocusIdx >= 0) {
     e.preventDefault()
     setSearchFocus(searchFocusIdx - 1)
   } else if (e.key === 'Enter') {
     e.preventDefault()
-    if (searchFocusIdx >= 0 && items[searchFocusIdx]) {
-      items[searchFocusIdx].click()
-    }
+    if (active && searchFocusIdx >= 0 && items[searchFocusIdx]) items[searchFocusIdx].click()
+    else if (searchInput.value.trim().length >= 2) showAllResults(searchInput.value.trim())
   }
 })
 
-async function performSearch(query) {
-  try {
-    const res  = await fetch(`/tmdb/search?q=${encodeURIComponent(query)}`)
-    const data = await res.json()
-    if (!data.results) return
-
-    const filtered = data.results.filter(item => item.poster_path)
-    searchResults.innerHTML = ''
-    searchFocusIdx = -1
-
-    if (!filtered.length) {
-      searchResults.innerHTML = '<div class="search-empty">Nic nebylo nalezeno.</div>'
-      searchResults.classList.add('active')
-      return
-    }
-
-    searchResults.innerHTML = filtered.slice(0, 8).map(movie => {
-      const title = escapeHtml(movie.title || movie.name)
-      searchDataMap[movie.id] = movie
-      return `
-        <div class="search-item" onclick="selectSearchItem(${movie.id})">
-          <img src="https://image.tmdb.org/t/p/w500${movie.poster_path}" alt="${title}"/>
-          <div class="search-item-info">
-            <h4>${title}</h4>
-            <p>${(movie.release_date || movie.first_air_date || '').slice(0, 4)}</p>
-          </div>
-        </div>
-      `
-    }).join('')
-    searchResults.classList.add('active')
-  } catch {}
-}
-
-window.addEventListener('click', e => {
-  if (!e.target.closest('.search-wrapper') && !e.target.closest('#search-mobile-btn'))
-    searchResults.classList.remove('active')
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-wrapper') && !e.target.closest('#search-mobile-btn')) closeDropdown()
 })
+
+// Called by tv.js on Back/Esc. Returns true if something was closed.
+window.closeSearchUI = function () {
+  let closed = false
+  if (searchResults.classList.contains('active')) { closeDropdown(); closed = true }
+  if (searchWrapper.classList.contains('mobile-open')) { searchWrapper.classList.remove('mobile-open'); closed = true }
+  if (document.activeElement === searchInput) { searchInput.blur(); closed = true }
+  return closed
+}
 
 // ── Mobile search overlay ──
 
-const searchWrapper    = document.querySelector('.search-wrapper')
-const searchMobileBtn  = document.getElementById('search-mobile-btn')
-const searchCloseBtn   = document.getElementById('search-close-mobile')
-
-searchMobileBtn?.addEventListener('click', () => {
+searchMobileBtn.addEventListener('click', () => {
   searchWrapper.classList.add('mobile-open')
   searchInput.focus()
 })
-
-searchCloseBtn?.addEventListener('click', () => {
-  searchWrapper.classList.remove('mobile-open')
-  searchResults.classList.remove('active')
+searchCloseBtn.addEventListener('click', () => {
+  window.closeSearchUI()
   searchInput.value = ''
 })
 
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && searchWrapper.classList.contains('mobile-open')) {
-    searchWrapper.classList.remove('mobile-open')
-    searchResults.classList.remove('active')
-    searchInput.value = ''
-  }
+document.getElementById('clear-search-movies').addEventListener('click', () => {
+  searchMoviesGrid.innerHTML = ''
+  searchMoviesSection.style.display = 'none'
 })
 
 // ── "/" focuses search from anywhere (unless already typing in a field) ──
 document.addEventListener('keydown', e => {
   if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
   const t = e.target
-  const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
-  if (typing) return
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+  if (topModal()) return
   e.preventDefault()
-  if (searchMobileBtn && getComputedStyle(searchMobileBtn).display !== 'none') {
-    searchWrapper.classList.add('mobile-open')
-  }
+  if (getComputedStyle(searchMobileBtn).display !== 'none') searchWrapper.classList.add('mobile-open')
   searchInput.focus()
-  if (!searchInput.value.trim()) showHistory()
 })
-
-// ── Theme toggle ──
-
-const themeToggle = document.getElementById('theme-toggle')
-themeToggle.addEventListener('click', () => {
-  document.body.classList.toggle('dark')
-  const newTheme = document.body.classList.contains('dark') ? 'dark' : 'light'
-  localStorage.setItem('filmbox_theme', newTheme)
-
-  const raw = sessionStorage.getItem('filmbox_active_profile')
-  if (raw) {
-    const profile = JSON.parse(raw)
-    profile.theme = newTheme
-    sessionStorage.setItem('filmbox_active_profile', JSON.stringify(profile))
-    fetch(`/api/profiles/${profile.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ theme: newTheme })
-    }).catch(() => {})
-  }
-})
-if (localStorage.getItem('filmbox_theme') === 'dark') document.body.classList.add('dark')
-
-// ── Select search result ──
-
-function selectSearchItem(id) {
-  const movie = searchDataMap[id]
-  if (!movie) return
-  const title = movie.title || movie.name
-  searchInput.value = title
-  searchResults.classList.remove('active')
-  addToHistory(title)
-
-  if (!addedMovieIds.has(id)) {
-    addedMovieIds.add(id)
-    searchMoviesContainer.innerHTML += buildCard(movie)
-    searchMoviesSection.style.display = 'block'
-  }
-
-  openDetailModal(movie.id, movie.media_type || 'movie', title)
-}

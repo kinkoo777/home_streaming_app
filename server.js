@@ -17,9 +17,10 @@ function getSystemChromium() {
   }
   return undefined
 }
+const { fetchVideoPage, getMp4Info, handleStream, isAllowedCdnUrl, cleanTrackLabel } = require('./stream');
 const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB, sanitizeProfile } = require('./db');
 const app = express();
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT, 10) || 3000;
 
 let browser;
 let page;
@@ -237,11 +238,29 @@ async function searchPrehrajto(q) {
     const dom = new JSDOM(html);
     const doc = dom.window.document;
 
-    doc.querySelectorAll('.video__tag, .video__tag--others, .video__header').forEach(el => el.remove());
-
     const wrappers = [...doc.querySelectorAll('.video-wrapper')];
     makeAbsolute(wrappers, 'https://prehrajto.cz');
-    return wrappers.map(v => v.outerHTML);
+    const text = (root, sel) => { const el = root.querySelector(sel); return el ? el.textContent.replace(/\s+/g, ' ').trim() : null; };
+
+    // Structured results — the client renders its own cards (never raw site HTML).
+    return wrappers.map(w => {
+        const a = w.querySelector('a.video--link[href], a[href]');
+        if (!a) return null;
+        const title = text(w, '.video__title') || a.getAttribute('title') || '';
+        const thumb = w.querySelector('img.thumb1, img.thumb');
+        const res = (title.match(/(2160|1080|720|480)p/i) || [])[1];
+        return {
+            title: title.trim(),
+            url: a.getAttribute('href'),
+            thumb: thumb ? thumb.getAttribute('src') : null,
+            duration: text(w, '.video__tag--time'),
+            size: text(w, '.video__tag--size'),
+            format: text(w, '.video__tag--format'),
+            res: res ? parseInt(res, 10) : null,
+            dub: /cz\s*dab|dabing|czdab/i.test(title),
+            subs: /titulky|cz\s*tit|\btit\b/i.test(title)
+        };
+    }).filter(r => r && r.url && isAllowedVideoUrl(r.url));
 }
 
 app.get('/search', async (req, res) => {
@@ -249,7 +268,7 @@ app.get('/search', async (req, res) => {
     if (!q) return res.status(400).json({ error: 'Chybí query parameter "q"' });
     if (typeof q !== 'string' || q.length > 200) return res.status(400).json({ error: 'Neplatný dotaz' });
 
-    const cacheKey = 'search:' + q.toLowerCase().trim();
+    const cacheKey = 'search2:' + q.toLowerCase().trim();   // v2 = structured results
     const cached = getCache(cacheKey);
     if (cached) return res.json(cached);
 
@@ -368,9 +387,10 @@ function srtToVtt(srt) {
 app.get('/get_subtitle', async (req, res) => {
     const url = req.query.url;
     if (!url) return res.status(400).json({ error: 'Chybí query parameter "url"' });
-    if (!isAllowedVideoUrl(url)) return res.status(400).json({ error: 'Nepovolená URL' });
+    // Subtitle files live on prehraj.to's CDN (premiumcdn.net), not prehrajto.cz itself.
+    if (!isAllowedCdnUrl(url)) return res.status(400).json({ error: 'Nepovolená URL' });
     try {
-        const r = await fetch(url);
+        const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
         if (!r.ok) return res.status(502).json({ error: 'Titulky se nepodařilo načíst' });
         const text = await r.text();
         const vtt = /\.srt(\?|$)/i.test(url) || !/^\s*WEBVTT/.test(text) ? srtToVtt(text) : text;
@@ -381,20 +401,56 @@ app.get('/get_subtitle', async (req, res) => {
     }
 });
 
+// Legacy headless-browser extraction → same shape as fetchVideoPage().
+async function getVideoViaBrowser(url) {
+    const vids = await getVideoPrehrajto(url);
+    const first = vids[0] || {};
+    const subs = new Map();
+    vids.forEach(v => (v.subtitles || []).forEach(s => subs.set(s.src, { ...s, label: cleanTrackLabel(s.label, s.lang) })));
+    return {
+        name: first.name, duration: first.duration, thumbnail: first.thumbnail,
+        qualities: vids.map((v, i) => ({ src: v.videoSrc, label: vids.length > 1 ? 'Zdroj ' + (i + 1) : 'Auto', res: null })),
+        subtitles: [...subs.values()]
+    };
+}
+
+// Returns { name, duration, thumbnail, width, height, pageUrl,
+//           qualities: [{ src, label, res, hdr, transfer }], subtitles: [{ src, label, lang, default }] }
 app.get('/get_video', async (req, res) => {
     const url = req.query.url;
     if (!url) return res.status(400).json({ error: 'Chybí query parameter "url"' });
     if (!isAllowedVideoUrl(url)) return res.status(400).json({ error: 'Nepovolená URL' });
-    if (!browser) return res.status(503).json({ error: 'Browser není připraven, zkuste znovu' });
 
     try {
         console.log(`Fetching video from: ${url}`);
-        const videos = await getVideoPrehrajto(url);
-        console.log(`Successfully fetched ${videos.length} video(s)`);
-        res.json(videos);
+        let video = null;
+        // Fast path: sources are listed in the page's inline script.
+        try {
+            video = await fetchVideoPage(url);
+            if (!video.qualities.length) video = null;
+        } catch (err) {
+            console.error('Page extraction failed, falling back to browser:', err.message);
+        }
+        if (!video) {
+            if (!browser) return res.status(503).json({ error: 'Browser není připraven, zkuste znovu' });
+            video = await getVideoViaBrowser(url);
+        }
+        if (!video.qualities.length) throw new Error('Nepodařilo se získat odkaz na video');
+
+        // Flag HDR-tagged files so the player can route them through /stream.
+        await Promise.all(video.qualities.map(async q => {
+            const info = await Promise.race([
+                getMp4Info(q.src),
+                new Promise(r => setTimeout(() => r(null), 6000))
+            ]);
+            q.transfer = info ? info.transfer : 'unknown';
+            q.hdr = !!(info && info.hdr);
+        }));
+
+        console.log(`Found ${video.qualities.length} quality variant(s): ${video.qualities.map(q => q.label + (q.hdr ? ' HDR' : '')).join(', ')}`);
+        res.json({ ...video, pageUrl: url });
     } catch (err) {
         console.error('VIDEO ERROR:', err);
-        // Provide more specific error messages
         if (err.name === 'TimeoutError') {
             res.status(504).json({
                 error: 'Časový limit vypršel při načítání stránky. Zkuste to prosím znovu.'
@@ -404,6 +460,12 @@ app.get('/get_video', async (req, res) => {
         }
     }
 });
+
+// Range-aware proxy that rewrites HDR colour tags to BT.709 (see stream.js).
+app.get('/stream', (req, res) => handleStream(req, res).catch(err => {
+    console.error('STREAM ERROR:', err.message);
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+}));
 
 
 
@@ -621,7 +683,10 @@ app.get('/api/profiles/:id/progress', (req, res) => {
     res.json(progressDB.getAll(req.params.id));
 });
 
-app.put('/api/profiles/:id/progress/:key', (req, res) => {
+// PUT from fetch(); POST from navigator.sendBeacon() on page close (beacons can only POST).
+app.put('/api/profiles/:id/progress/:key', saveProgress);
+app.post('/api/profiles/:id/progress/:key', saveProgress);
+function saveProgress(req, res) {
     const seconds = Number(req.body.seconds);
     if (isNaN(seconds)) return res.status(400).json({ error: 'seconds must be a number' });
     const b = req.body;
@@ -637,7 +702,7 @@ app.put('/api/profiles/:id/progress/:key', (req, res) => {
     };
     progressDB.set(req.params.id, req.params.key, data);
     res.json({ ok: true });
-});
+}
 
 app.delete('/api/profiles/:id/progress/:key', (req, res) => {
     const ok = progressDB.remove(req.params.id, req.params.key);

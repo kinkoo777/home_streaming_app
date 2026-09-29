@@ -4,6 +4,8 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 
 ## Features
 
+- **Streaming-style UI** — full-bleed hero with cross-fading Ken Burns backdrops, progress dots and an ambient glow tinted from each backdrop; horizontal rows of poster cards with lift/glow/light-sweep on hover or focus; animated modals; dark and light themes
+- **TV remote / LG webOS** — D-pad spatial navigation across the whole app (rows, modals, menus), OK/Back keys, Magic Remote pointer support, cheaper effects in TV mode; the code targets webOS 5+ (Chromium 68)
 - **Intro animation** — logo entrance with Web Audio sound
 - **Multi-profile support** — create, switch and delete profiles; each profile has its own theme and favorites
 - **Per-profile favorites** — heart any movie or series; favorites are isolated per profile and saved to JSON
@@ -12,12 +14,17 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 - **Continue Watching** — a dedicated row of titles you started but haven't finished (under 90%), each card showing a **green progress line** at the exact point where you stopped, the **episode label** (TV) and the **remaining minutes**. Progress is written to the JSON store **every minute while playing** (and on pause/close), so it survives crashes. Each TV episode is tracked **separately** under a composite `tmdbId:S01E05` key instead of colliding on the show id, and each entry carries its own title/poster so the row renders on **any device** without relying on browser storage. Reopening a title shows a **Resume / Start over** prompt, every card has a **✕ remove** button, and finishing a title drops it from the row automatically
 - **Theme persistence** — dark/light toggle saved to the profile in the JSON store
 - **Hero banner** — rotating trending movies with backdrop, title and description
-- **3 browsable grids** — Most Visited, Trending, Top Rated; genre filters, sort tabs, load-more
-- **Search** — live TMDB search with dropdown and search history
-- **Detail modal** — poster, genres, cast, overview, trailer, season/episode browser for TV, similar titles
+- **3 browsable rows** — Popular, Trending, Top Rated; genre filters, sort tabs, infinite sideways loading
+- **Search** — live TMDB search with dropdown and search history; <kbd>Enter</kbd> shows a full results grid
+- **Detail modal** — backdrop header, poster, genres, cast (with characters), overview, trailer, season/episode browser with episode stills and per-episode progress, similar titles
+- **Source picker (prehraj.to)** — only real films/episodes are shown: results must match the title (search text, Czech or original TMDB name), be long enough (films ≥ 40 min, episodes ≥ 8 min), not be clips/trailers/gameplay/music videos, and for episodes carry the right SxxEyy/2x03 code; film searches drop series episodes. "Zobrazit vše" reveals the hidden rest. Results as cards with thumbnail, duration, size, quality and CZ-dub/subtitle tags, filters and a recommended pick; plays in the FilmBox player (quality, HDR fix, subtitles, resume)
 - **Trailer modal** — embedded YouTube player
 - **Actor modal** — photo, biography and top works
-- **Player** — searches prehraj.to for the title; supports custom query if nothing is found; keyboard shortcuts, buffering spinner, **resume prompt**, **subtitle (CC) support**, and **auto-play next episode** for TV; press <kbd>/</kbd> anywhere to jump to search
+- **Player** — searches prehraj.to for the title; supports custom query if nothing is found; keyboard shortcuts, buffering spinner, **resume prompt**, **subtitles** and **auto-play next episode** for TV; press <kbd>/</kbd> anywhere to jump to search
+  - **Settings menu** (gear / <kbd>S</kbd>) — quality (Auto / 1080p / 720p…), subtitle track and size, HDR colour mode and brightness, reload video
+  - **HDR fix for TVs** — many "4K" uploads are HDR masters re-encoded to 8-bit H.264 with their HDR colour tags left in, which smart-TV browsers render **purple/green**. The server's `/stream` proxy rewrites those tags to BT.709 in place (same byte length, so seeking works), and the player tone-maps HDR → SDR with WebGL. Modes: *Automaticky* (tone-mapped), *Jednoduché* (tags fixed only — for weak TVs), *Originál* (untouched)
+  - **Reliability** — Auto quality follows screen size and steps down on repeated buffering; expired CDN links are refreshed automatically; a broken quality falls back to the next one; stuck streams are reloaded at the same position
+  - **TV remote friendly** — arrow/OK navigation in menus and prompts, Samsung/LG back keys, media keys, Media Session
 - **Export / wipe my data** — from a profile's settings, download everything (favorites, watched, watchlists, progress) as one JSON file, or wipe the library while keeping the profile
 - **Fully responsive** — 360 px phone → tablet → laptop → large TV
 
@@ -38,6 +45,7 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 ```
 home_streaming_app/
 ├── server.js           # Express server — TMDB proxy, profiles/favorites/watched/watchlists/progress API, prehraj.to scraping
+├── stream.js           # prehraj.to page parsing, MP4 colour-tag probing, /stream proxy
 ├── db.js               # JSON file store (profiles, favorites, watched, watchlists, progress)
 ├── package.json
 ├── data/               # Created automatically on first run
@@ -48,30 +56,35 @@ home_streaming_app/
 │   └── progress.json     # Per-profile playback position, keyed by tmdbId or "tmdbId:S01E05" → { seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }
 └── src/
     ├── index.html
+    ├── player.html       # Video player (quality, subtitles, HDR fix, remote controls)
     ├── css/
-    │   ├── base.css
+    │   ├── base.css      # Design tokens, buttons, fields, chips, focus rings
     │   ├── navbar.css
     │   ├── hero.css
-    │   ├── cards.css
-    │   ├── grid.css
-    │   ├── modals.css
-    │   ├── responsive.css
+    │   ├── rows.css      # Content rows + movie cards
+    │   ├── modals.css    # Detail sheet, source picker, overlays
+    │   ├── profiles.css  # Intro + profile chooser + PIN
+    │   ├── settings.css
+    │   ├── watchlist.css
     │   ├── footer.css
-    │   └── intro.css
+    │   └── responsive.css # Breakpoints + TV mode
     └── js/
+        ├── utils.js      # Helpers, modal stack, confirm dialog, profile helpers
+        ├── tv.js         # D-pad spatial navigation, Back key, TV detection
         ├── intro.js      # Intro animation + profile chooser (API-driven)
         ├── favorites.js  # Per-profile favorites with isolated state
-        ├── utils.js      # Toast, skeletons, genre map, shared data map
-        ├── cards.js      # Movie cards, grid state, filters, fetch
+        ├── cards.js      # Card builder, rows, catalog filters/sort, infinite loading
         ├── trailer.js    # Trailer modal
         ├── actor.js      # Actor modal
-        ├── player.js     # prehraj.to search + video modal
+        ├── player.js     # Source picker (prehraj.to search → player)
+        ├── hdr-renderer.js # WebGL HDR → SDR tone mapping for the player
         ├── detail.js     # Detail modal + season browser
-        ├── search.js     # Live search + theme toggle
-        ├── hero.js       # Hero banner rotation
+        ├── search.js     # Live search, history, results grid
+        ├── hero.js       # Hero carousel
         ├── watched.js    # Per-profile watched history + badges
         ├── watchlist.js  # Continue Watching + multi-list management
-        └── main.js       # Navbar scroll links
+        ├── settings.js   # Profile settings + PIN prompt
+        └── main.js       # Navbar, section links, theme toggle
 ```
 
 ## Getting Started
@@ -110,7 +123,28 @@ TMDB_READ_TOKEN=your_tmdb_v4_read_access_token_here
 node server.js
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The `data/` folder is created automatically on first run.
+Open [http://localhost:3000](http://localhost:3000). The `data/` folder is created automatically on first run. Set `PORT` to use a different port.
+
+On an LG TV, open the same address in the webOS browser.
+
+| Remote | Browsing | Player |
+|---|---|---|
+| Arrows | Move between titles; ▲▼ jump row to row (remembers your place in each row) | ◀▶ seek — hold to speed up (10 s → 30 s → 60 s); ▲▼ open the control bar |
+| OK | Open | Play / pause |
+| Back | Close window / back to top | Leave player |
+| 🔴 Red | Search | Subtitles on/off |
+| 🟢 Green | My list | Settings (quality, subtitles, colours) |
+| 🟡 Yellow | Profile settings | — |
+| 🔵 Blue | Switch profile | — |
+
+### Test
+
+End-to-end tests (Playwright) run against a running server with a valid TMDB token:
+
+```bash
+npx playwright install chromium   # once
+npm test                          # or BASE=http://localhost:3100 npm test
+```
 
 To access from other devices on the same network use your machine's local IP — e.g. `http://192.168.1.x:3000`.
 
@@ -187,12 +221,11 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 | Endpoint | Description |
 |---|---|
 | `GET /search?q=<query>` | Title search |
-| `GET /get_video?url=<url>` | Extract video stream URL(s) + any subtitle tracks |
-| `GET /get_subtitle?url=<url>` | Proxy + normalize a subtitle file to WebVTT (SRT auto-converted) |
-| `GET /autocomplete_data?q=<query>` | Autocomplete suggestions |
+| `GET /get_video?url=<url>` | Read the video page → `{ name, duration, pageUrl, qualities: [{ src, label, res, hdr, transfer }], subtitles: [{ src, label, lang, default }] }` (Puppeteer fallback) |
+| `GET /stream?url=<cdn url>` | Range-aware video proxy that rewrites HDR colour tags to BT.709 (used for HDR-tagged files) |
 
 TMDB responses are cached in memory for 5 minutes.
 
 ## Browser Support
 
-Any modern browser with ES6+ support (Chrome, Edge, Firefox, Safari).
+Any modern browser (Chrome, Edge, Firefox, Safari) and TV browsers from LG webOS 5 (Chromium 68) up. Front-end code is plain ES2018 without optional chaining, and the CSS avoids features newer than Chromium 68 (flexbox `gap`, `inset`, `clamp()`, `:focus-visible`).

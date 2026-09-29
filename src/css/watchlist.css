@@ -1,167 +1,46 @@
-/* ================= SEARCH HISTORY ================= */
+/* ═════════════ WATCHLIST (section tabs + inline new-list) ═════════════ */
 
-.search-history-label {
-  padding: 14px 14px 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #71717a;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-/* ================= TOAST ================= */
-
-.toast {
-  position: fixed;
-  bottom: 32px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #18181b;
-  color: #fafafa;
-  padding: 13px 24px;
-  border-radius: 16px;
-  font-size: 14px;
-  font-weight: 500;
-  z-index: 9999;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
-  border: 1px solid rgba(255,255,255,0.08);
-  white-space: nowrap;
-  pointer-events: none;
-  transition: opacity 0.3s ease;
-}
-
-.toast.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* ================= WATCHLIST TABS ================= */
-
-.watchlist-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 24px;
-}
+.watchlist-tabs { margin-bottom: 2px; }
 
 .wl-tab {
-  padding: 8px 18px;
-  border-radius: 14px;
-  border: 1px solid rgba(0,0,0,0.1);
-  background: transparent;
-  color: gray;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-body.dark .wl-tab {
-  border-color: rgba(255,255,255,0.1);
-}
-
-.wl-tab:hover { color: inherit; border-color: #52525b; }
-
-.wl-tab.active {
-  background: #18181b;
-  color: white;
-  border-color: #18181b;
-}
-
-body.dark .wl-tab.active {
-  background: white;
-  color: #18181b;
-  border-color: white;
-}
-
-.wl-tab-count {
-  background: rgba(255,255,255,0.15);
-  border-radius: 999px;
-  padding: 1px 7px;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.wl-tab.active .wl-tab-count {
-  background: rgba(0,0,0,0.12);
-}
-
-.wl-tab-rename {
+  display: -webkit-inline-flex;
   display: inline-flex;
+  -webkit-align-items: center;
   align-items: center;
-  font-size: 12px;
-  opacity: 0.55;
-  margin-left: 2px;
-}
-
-.wl-tab-rename:hover { opacity: 1; }
-
-/* ── New-list / rename controls ── */
-
-.wl-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.wl-inline-new {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.wl-inline-new.hidden { display: none; }
-
-.wl-inline-input {
   height: 36px;
-  border-radius: 12px;
-  border: 1px solid rgba(0,0,0,0.12);
-  background: transparent;
-  color: inherit;
-  padding: 0 12px;
+  padding: 0 8px 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  color: var(--muted);
   font-size: 13px;
-  outline: none;
-  transition: 0.2s;
+  font-weight: 600;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  -webkit-animation: fb-card-in 0.35s var(--ease) both;
+  animation: fb-card-in 0.35s var(--ease) both;
 }
-
-body.dark .wl-inline-input { border-color: rgba(255,255,255,0.15); }
-.wl-inline-input:focus { border-color: #52525b; }
-
-.wl-list-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.wl-list-rename {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  border: none;
-  background: transparent;
-  color: #71717a;
-  cursor: pointer;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: 0.15s;
-  opacity: 0;
-}
-
-.wl-list-item:hover .wl-list-rename { opacity: 1; }
-.wl-list-rename:hover { color: #fafafa; background: rgba(255,255,255,0.08); }
-
-/* ── Watched section ── */
-
-.watched-time {
+.wl-tab:hover { color: var(--text); border-color: var(--dim); }
+.wl-tab.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+.wl-tab-count {
+  margin-left: 8px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--glass-2);
   font-size: 11px;
-  color: #4ade80;
+  display: -webkit-inline-flex;
+  display: inline-flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
 }
+.wl-tab.active .wl-tab-count { background: rgba(127,127,127,0.25); }
+.wl-tab-rename { margin-left: 4px; width: 24px; height: 24px; border-radius: 50%; display: -webkit-inline-flex; display: inline-flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; font-size: 11px; opacity: 0.7; }
+.wl-tab-rename:hover { opacity: 1; background: rgba(127,127,127,0.25); }
+.wl-tab:not(.has-rename) { padding-right: 8px; }
+
+.wl-inline-new { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; }
+.wl-inline-new > * + * { margin-left: 6px; }
+.wl-inline-input { width: 200px; }
+.watchlist-tabs .wl-inline-input { width: 240px; height: 36px; }
