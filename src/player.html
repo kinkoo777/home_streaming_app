@@ -927,6 +927,24 @@
       const _failed    = new Set() // quality+route combos that errored
 
       // ── Load data from sessionStorage ──
+      // PIN-protected profiles: send the session token (see utils.js in the main app).
+      function _profileToken(id) {
+        try { return (JSON.parse(sessionStorage.getItem('filmbox_tokens') || '{}'))[id] || null } catch (e) { return null }
+      }
+      ;(function () {
+        const nativeFetch = window.fetch.bind(window)
+        window.fetch = function (input, init) {
+          const url = typeof input === 'string' ? input : (input && input.url) || ''
+          const m = /^\/api\/profiles\/([^/?#]+)/.exec(url)
+          const token = m && _profileToken(decodeURIComponent(m[1]))
+          if (token) {
+            init = Object.assign({}, init)
+            init.headers = Object.assign({}, init.headers || {}, { 'X-Profile-Token': token })
+          }
+          return nativeFetch(input, init)
+        }
+      })()
+
       function _profileId() {
         try {
           const r = sessionStorage.getItem('filmbox_active_profile')
@@ -2172,7 +2190,9 @@
       window.addEventListener('pagehide', () => {
         const pid = _profileId()
         if (_playerKey && pid !== 'default' && video.currentTime > 5) {
-          const url  = `/api/profiles/${pid}/progress/${encodeURIComponent(_playerKey)}`
+          const token = _profileToken(pid)
+          // Beacons can't set headers — the server also accepts the token as ?t=
+          const url  = `/api/profiles/${pid}/progress/${encodeURIComponent(_playerKey)}` + (token ? '?t=' + encodeURIComponent(token) : '')
           const body = JSON.stringify(_progressBody())
           // sendBeacon always POSTs — the server accepts POST as well as PUT here.
           navigator.sendBeacon

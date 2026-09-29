@@ -106,7 +106,7 @@
         if (!pin) { input.focus(); return }
         try {
           const res = await apiFetch(`/api/profiles/${profile.id}/pin/verify`, jsonBody('POST', { pin }))
-          if (res.ok) { cleanup(true) }
+          if (res.ok) { setProfileToken(profile.id, res.token); cleanup(true) }
           else {
             input.classList.add('shake')
             input.value = ''
@@ -176,6 +176,7 @@
     const active = getActiveProfile()
     try {
       const res = await apiFetch(`/api/profiles/${active.id}/pin`, jsonBody('POST', { pin }))
+      setProfileToken(active.id, res.token)
       active.hasPin = res.hasPin
       setActive(active)
       syncPinStatus(res.hasPin)
@@ -187,6 +188,7 @@
     const active = getActiveProfile()
     try {
       const res = await apiFetch(`/api/profiles/${active.id}/pin`, jsonBody('POST', { pin: null }))
+      setProfileToken(active.id, null)
       active.hasPin = res.hasPin
       setActive(active)
       syncPinStatus(res.hasPin)

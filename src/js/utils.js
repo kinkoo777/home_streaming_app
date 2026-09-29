@@ -192,6 +192,48 @@ function confirmDialog(text, okLabel) {
   })
 }
 
+// ================= PIN SESSIONS =================
+// PIN-protected profiles need a session token (from /pin/verify) on every
+// /api/profiles/<id>/… call. The wrapper below adds it; a 401 "PIN required"
+// (e.g. after a server restart) sends the viewer back to the profile chooser.
+
+function getProfileToken(id) {
+  try { return (JSON.parse(sessionStorage.getItem('filmbox_tokens') || '{}'))[id] || null } catch (e) { return null }
+}
+function setProfileToken(id, token) {
+  try {
+    const all = JSON.parse(sessionStorage.getItem('filmbox_tokens') || '{}')
+    if (token) all[id] = token; else delete all[id]
+    sessionStorage.setItem('filmbox_tokens', JSON.stringify(all))
+  } catch (e) {}
+}
+
+;(function () {
+  const nativeFetch = window.fetch.bind(window)
+  let prompting = false
+  window.fetch = function (input, init) {
+    const url = typeof input === 'string' ? input : (input && input.url) || ''
+    const m = /^\/api\/profiles\/([^/?#]+)/.exec(url)
+    if (m) {
+      const token = getProfileToken(decodeURIComponent(m[1]))
+      if (token) {
+        init = Object.assign({}, init)
+        init.headers = Object.assign({}, init.headers || {}, { 'X-Profile-Token': token })
+      }
+    }
+    return nativeFetch(input, init).then(res => {
+      if (res.status === 401 && m && !prompting && decodeURIComponent(m[1]) === getActiveProfileId()) {
+        prompting = true
+        setProfileToken(decodeURIComponent(m[1]), null)
+        sessionStorage.removeItem('filmbox_active_profile')
+        showToast('Relace profilu vypršela — zadejte PIN znovu')
+        setTimeout(() => { prompting = false; if (window.showProfileChooser) window.showProfileChooser() }, 600)
+      }
+      return res
+    })
+  }
+})()
+
 // ================= PROFILE HELPERS =================
 
 function getActiveProfile() {

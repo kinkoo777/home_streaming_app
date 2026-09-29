@@ -108,6 +108,9 @@
       btn.addEventListener('click', async e => {
         e.stopPropagation()
         const p = profiles.find(x => x.id === btn.dataset.id)
+        if (p && p.hasPin && !getProfileToken(p.id)) {
+          if (!(await window.openPinPrompt(p))) return
+        }
         const ok = await confirmDialog(`Smazat profil „${p ? p.name : ''}“ včetně oblíbených, seznamů a historie? Tuto akci nelze vrátit.`, 'Smazat')
         if (!ok) return
         try {

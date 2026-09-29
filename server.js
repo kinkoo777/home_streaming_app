@@ -18,6 +18,7 @@ function getSystemChromium() {
   return undefined
 }
 const { fetchVideoPage, getMp4Info, handleStream, isAllowedCdnUrl, cleanTrackLabel } = require('./stream');
+const sec = require('./security');
 const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB, sanitizeProfile } = require('./db');
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 3000;
@@ -107,8 +108,9 @@ app.get('/tmdb/hero', async (req, res) => {
 });
 
 app.get('/tmdb/details', async (req, res) => {
-    const { id, type } = req.query;
-    if (!id || !type) return res.status(400).json({ error: 'Chybí id nebo type' });
+    const id = sec.toId(req.query.id);
+    const type = sec.tmdbType(req.query.type);
+    if (!id || !type) return res.status(400).json({ error: 'Neplatné id nebo type (movie|tv)' });
     try {
         const [details, credits] = await Promise.all([
             tmdbFetch(`/${type}/${id}?language=cs-CZ`),
@@ -119,22 +121,24 @@ app.get('/tmdb/details', async (req, res) => {
 });
 
 app.get('/tmdb/videos', async (req, res) => {
-    const { id, type } = req.query;
-    if (!id || !type) return res.status(400).json({ error: 'Chybí id nebo type' });
+    const id = sec.toId(req.query.id);
+    const type = sec.tmdbType(req.query.type);
+    if (!id || !type) return res.status(400).json({ error: 'Neplatné id nebo type (movie|tv)' });
     try { res.json(await tmdbFetch(`/${type}/${id}/videos?language=cs-CZ`)); }
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/tmdb/similar', async (req, res) => {
-    const { id, type } = req.query;
-    if (!id || !type) return res.status(400).json({ error: 'Chybí id nebo type' });
+    const id = sec.toId(req.query.id);
+    const type = sec.tmdbType(req.query.type);
+    if (!id || !type) return res.status(400).json({ error: 'Neplatné id nebo type (movie|tv)' });
     try { res.json(await tmdbFetch(`/${type}/${id}/similar?language=cs-CZ`)); }
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.get('/tmdb/actor', async (req, res) => {
-    const { id } = req.query;
-    if (!id) return res.status(400).json({ error: 'Chybí id' });
+    const id = sec.toId(req.query.id);
+    if (!id) return res.status(400).json({ error: 'Neplatné id' });
     try {
         const [person, credits] = await Promise.all([
             tmdbFetch(`/person/${id}?language=cs-CZ`),
@@ -155,8 +159,9 @@ app.get('/tmdb/actor', async (req, res) => {
 });
 
 app.get('/tmdb/season', async (req, res) => {
-    const { id, season } = req.query;
-    if (!id || !season) return res.status(400).json({ error: 'Chybí id nebo season' });
+    const id = sec.toId(req.query.id);
+    const season = sec.season(req.query.season);
+    if (!id || season == null) return res.status(400).json({ error: 'Neplatné id nebo season' });
     try { res.json(await tmdbFetch(`/tv/${id}/season/${season}?language=cs-CZ`)); }
     catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -169,7 +174,7 @@ app.get('/tmdb/movies', async (req, res) => {
     };
     const p = paths[req.query.type];
     if (!p) return res.status(400).json({ error: 'Neznámý type' });
-    const page = parseInt(req.query.page) || 1;
+    const page = Math.min(500, Math.max(1, parseInt(req.query.page, 10) || 1));   // TMDB caps at 500
     try { res.json(await tmdbFetch(p + `&page=${page}`)); }
     catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -540,188 +545,153 @@ app.get('/autocomplete_data', async (req, res) => {
 // ====================
 // PROFILES API
 // ====================
+// All input goes through security.js validators. Profiles with a PIN require a
+// session token (X-Profile-Token / ?t=) for everything below except listing.
+
+function libraryDelete(db) {
+    return (req, res) => {
+        const tmdbId = sec.toId(req.params.tmdbId);
+        const mediaType = sec.mediaType(req.params.mediaType);
+        if (!tmdbId || !mediaType) return res.status(400).json({ error: 'Neplatné parametry' });
+        if (!db.remove(req.params.id, tmdbId, mediaType)) return res.status(404).json({ error: 'Položka nenalezena' });
+        res.json({ ok: true });
+    };
+}
+
+function libraryAdd(db) {
+    return (req, res) => {
+        const entry = sec.libraryEntry(req.body);
+        if (!entry) return res.status(400).json({ error: 'tmdbId, mediaType (movie|tv) a title jsou povinné' });
+        try {
+            res.status(201).json(db.add(Object.assign({ profileId: req.params.id }, entry)));
+        } catch (err) {
+            res.status(err.code === 409 ? 409 : 400).json({ error: err.message });
+        }
+    };
+}
 
 app.get('/api/profiles', (req, res) => {
-    try {
-        res.json(profilesDB.list().map(sanitizeProfile));
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    res.json(profilesDB.list().map(sanitizeProfile));
 });
 
 app.post('/api/profiles', (req, res) => {
+    const { changes, error } = sec.profileChanges(req.body, true);
+    if (error) return res.status(400).json({ error });
     try {
-        const { name, picture, theme } = req.body;
-        if (!name) return res.status(400).json({ error: 'name is required' });
-        const profile = profilesDB.create({ name, picture: picture || null, theme: theme || 'dark' });
+        const profile = profilesDB.create({ name: changes.name, picture: changes.picture || null, theme: changes.theme || 'dark' });
         res.status(201).json(sanitizeProfile(profile));
     } catch (err) {
         res.status(err.code === 409 ? 409 : 400).json({ error: err.message });
     }
 });
 
-app.get('/api/profiles/:id', (req, res) => {
+// Verify a PIN attempt → { ok, token }. Rate-limited; doesn't need a session.
+app.post('/api/profiles/:id/pin/verify', (req, res) => {
+    const id = req.params.id;
+    const profile = profilesDB.get(id);
+    if (!profile) return res.status(404).json({ error: 'Profil nenalezen' });
+    if (!profile.pinHash) return res.json({ ok: true, token: null });
+    const wait = sec.retryAfter(req, id);
+    if (wait) {
+        res.set('Retry-After', String(wait));
+        return res.status(429).json({ error: `Příliš mnoho pokusů — zkuste to za ${Math.ceil(wait / 60)} min` });
+    }
+    if (!profilesDB.verifyPin(id, String(req.body && req.body.pin != null ? req.body.pin : ''))) {
+        sec.recordFailure(req, id);
+        return res.json({ ok: false });
+    }
+    sec.clearFailures(req, id);
+    res.json({ ok: true, token: sec.issueToken(id) });
+});
+
+// Gate: every other /api/profiles/:id… route of a PIN-protected profile needs a session.
+app.use('/api/profiles/:id', (req, res, next) => {
     const profile = profilesDB.get(req.params.id);
-    if (!profile) return res.status(404).json({ error: 'Profile not found' });
-    res.json(sanitizeProfile(profile));
+    if (!profile) return res.status(404).json({ error: 'Profil nenalezen' });
+    if (profile.pinHash && !sec.hasSession(req, profile.id)) {
+        return res.status(401).json({ error: 'Vyžadován PIN', pinRequired: true });
+    }
+    req.profile = profile;
+    next();
+});
+
+app.get('/api/profiles/:id', (req, res) => {
+    res.json(sanitizeProfile(req.profile));
 });
 
 app.put('/api/profiles/:id', (req, res) => {
+    const { changes, error } = sec.profileChanges(req.body, false);
+    if (error) return res.status(400).json({ error });
     try {
-        const { name, picture, theme, settings } = req.body;
-        const changes = {};
-        if (name !== undefined) changes.name = name;
-        if (picture !== undefined) changes.picture = picture;
-        if (theme !== undefined) changes.theme = theme;
-        if (settings !== undefined) changes.settings = settings;
-        const profile = profilesDB.update(req.params.id, changes);
-        if (!profile) return res.status(404).json({ error: 'Profile not found' });
-        res.json(sanitizeProfile(profile));
+        res.json(sanitizeProfile(profilesDB.update(req.params.id, changes)));
     } catch (err) {
         res.status(err.code === 409 ? 409 : 400).json({ error: err.message });
     }
 });
 
-// Set (4 digits) or clear (null) the profile PIN. Never returns the hash.
+// Set (4 digits) or clear (null) the PIN. Setting one returns a fresh token so
+// the current session stays unlocked; any change revokes older sessions.
 app.post('/api/profiles/:id/pin', (req, res) => {
+    const pin = req.body ? req.body.pin : undefined;
     try {
-        const { pin } = req.body;
-        const profile = profilesDB.setPin(req.params.id, pin == null || pin === '' ? null : pin);
-        if (!profile) return res.status(404).json({ error: 'Profile not found' });
-        res.json({ hasPin: !!profile.pinHash });
+        const profile = profilesDB.setPin(req.params.id, pin == null || pin === '' ? null : String(pin));
+        sec.revokeProfile(profile.id);
+        res.json({ hasPin: !!profile.pinHash, token: profile.pinHash ? sec.issueToken(profile.id) : null });
     } catch (err) {
         res.status(err.code === 400 ? 400 : 500).json({ error: err.message });
     }
 });
 
-// Verify a PIN attempt. Returns { ok: bool }.
-app.post('/api/profiles/:id/pin/verify', (req, res) => {
-    if (!profilesDB.get(req.params.id)) return res.status(404).json({ error: 'Profile not found' });
-    res.json({ ok: profilesDB.verifyPin(req.params.id, req.body.pin) });
-});
-
 app.delete('/api/profiles/:id', (req, res) => {
-    const deleted = profilesDB.delete(req.params.id);
-    if (!deleted) return res.status(404).json({ error: 'Profile not found' });
-    favoritesDB.deleteByProfile(req.params.id);
-    watchedDB.deleteByProfile(req.params.id);
-    watchlistsDB.deleteByProfile(req.params.id);
-    progressDB.deleteByProfile(req.params.id);
-    res.json({ message: 'Profile deleted' });
+    const id = req.params.id;
+    profilesDB.delete(id);
+    favoritesDB.deleteByProfile(id);
+    watchedDB.deleteByProfile(id);
+    watchlistsDB.deleteByProfile(id);
+    progressDB.deleteByProfile(id);
+    sec.revokeProfile(id);
+    res.json({ ok: true });
 });
 
-// ====================
-// FAVORITES API
-// ====================
+// ── Favorites ──
+app.get('/api/profiles/:id/favorites', (req, res) => res.json(favoritesDB.list(req.params.id)));
+app.post('/api/profiles/:id/favorites', libraryAdd(favoritesDB));
+app.delete('/api/profiles/:id/favorites/:tmdbId/:mediaType', libraryDelete(favoritesDB));
 
-app.get('/api/profiles/:id/favorites', (req, res) => {
-    res.json(favoritesDB.list(req.params.id));
-});
+// ── Watched ──
+app.get('/api/profiles/:id/watched', (req, res) => res.json(watchedDB.list(req.params.id)));
+app.post('/api/profiles/:id/watched', libraryAdd(watchedDB));
+app.delete('/api/profiles/:id/watched/:tmdbId/:mediaType', libraryDelete(watchedDB));
 
-app.post('/api/profiles/:id/favorites', (req, res) => {
-    try {
-        const { tmdbId, mediaType, title, posterPath } = req.body;
-        if (!tmdbId || !mediaType || !title) return res.status(400).json({ error: 'tmdbId, mediaType and title are required' });
-        const fav = favoritesDB.add({ profileId: req.params.id, tmdbId, mediaType, title, posterPath: posterPath || null });
-        res.status(201).json(fav);
-    } catch (err) {
-        res.status(err.code === 409 ? 409 : 400).json({ error: err.message });
-    }
-});
-
-app.delete('/api/profiles/:id/favorites/:tmdbId/:mediaType', (req, res) => {
-    const { id, tmdbId, mediaType } = req.params;
-    const removed = favoritesDB.remove(id, Number(tmdbId), mediaType);
-    if (!removed) return res.status(404).json({ error: 'Favorite not found' });
-    res.json({ message: 'Removed from favorites' });
-});
-
-// ====================
-// WATCHED API
-// ====================
-
-app.get('/api/profiles/:id/watched', (req, res) => {
-    res.json(watchedDB.list(req.params.id));
-});
-
-app.post('/api/profiles/:id/watched', (req, res) => {
-    try {
-        const { tmdbId, mediaType, title, posterPath } = req.body;
-        if (!tmdbId || !mediaType || !title) return res.status(400).json({ error: 'tmdbId, mediaType and title are required' });
-        const entry = watchedDB.add({ profileId: req.params.id, tmdbId, mediaType, title, posterPath: posterPath || null });
-        res.status(201).json(entry);
-    } catch (err) {
-        res.status(err.code === 409 ? 409 : 400).json({ error: err.message });
-    }
-});
-
-app.delete('/api/profiles/:id/watched/:tmdbId/:mediaType', (req, res) => {
-    const { id, tmdbId, mediaType } = req.params;
-    const removed = watchedDB.remove(id, Number(tmdbId), mediaType);
-    if (!removed) return res.status(404).json({ error: 'Watched entry not found' });
-    res.json({ message: 'Removed from watched' });
-});
-
-// ====================
-// WATCHLISTS API
-// ====================
-
-app.get('/api/profiles/:id/watchlists', (req, res) => {
-    res.json(watchlistsDB.getByProfile(req.params.id));
-});
-
+// ── Watchlists ──
+app.get('/api/profiles/:id/watchlists', (req, res) => res.json(watchlistsDB.getByProfile(req.params.id)));
 app.put('/api/profiles/:id/watchlists', (req, res) => {
-    const lists = req.body;
-    if (!Array.isArray(lists)) return res.status(400).json({ error: 'Body must be an array of lists' });
+    const lists = sec.watchlists(req.body);
+    if (!lists) return res.status(400).json({ error: 'Neplatný formát seznamů' });
     watchlistsDB.saveByProfile(req.params.id, lists);
     res.json({ ok: true });
 });
 
-// ====================
-// PROGRESS API
-// ====================
-
-app.get('/api/profiles/:id/progress', (req, res) => {
-    res.json(progressDB.getAll(req.params.id));
-});
-
-// PUT from fetch(); POST from navigator.sendBeacon() on page close (beacons can only POST).
-app.put('/api/profiles/:id/progress/:key', saveProgress);
-app.post('/api/profiles/:id/progress/:key', saveProgress);
+// ── Progress ── PUT from fetch(); POST from navigator.sendBeacon() on page close.
 function saveProgress(req, res) {
-    const seconds = Number(req.body.seconds);
-    if (isNaN(seconds)) return res.status(400).json({ error: 'seconds must be a number' });
-    const b = req.body;
-    const data = {
-        seconds,
-        duration:     b.duration != null ? Number(b.duration) : null,
-        title:        b.title || null,
-        posterPath:   b.posterPath || null,
-        mediaType:    b.mediaType || 'movie',
-        tmdbId:       b.tmdbId != null ? Number(b.tmdbId) : null,
-        episodeLabel: b.episodeLabel || null,
-        updatedAt:    new Date().toISOString()
-    };
+    const data = sec.progress(req.params.key, req.body);
+    if (!data) return res.status(400).json({ error: 'Neplatná data průběhu' });
     progressDB.set(req.params.id, req.params.key, data);
     res.json({ ok: true });
 }
-
+app.get('/api/profiles/:id/progress', (req, res) => res.json(progressDB.getAll(req.params.id)));
+app.put('/api/profiles/:id/progress/:key', saveProgress);
+app.post('/api/profiles/:id/progress/:key', saveProgress);
 app.delete('/api/profiles/:id/progress/:key', (req, res) => {
-    const ok = progressDB.remove(req.params.id, req.params.key);
-    res.json({ ok });
+    res.json({ ok: progressDB.remove(req.params.id, req.params.key) });
 });
 
-// ====================
-// DATA EXPORT / WIPE
-// ====================
-
-// Download everything stored for one profile as a single JSON document.
+// ── Export / wipe ──
 app.get('/api/profiles/:id/export', (req, res) => {
     const id = req.params.id;
-    const profile = profilesDB.get(id);
-    if (!profile) return res.status(404).json({ error: 'Profil nenalezen' });
-    const safe = typeof sanitizeProfile === 'function' ? sanitizeProfile(profile) : profile;
     res.json({
         exportedAt: new Date().toISOString(),
-        profile:    safe,
+        profile:    sanitizeProfile(req.profile),
         favorites:  favoritesDB.list(id),
         watched:    watchedDB.list(id),
         watchlists: watchlistsDB.getByProfile(id),
@@ -729,10 +699,8 @@ app.get('/api/profiles/:id/export', (req, res) => {
     });
 });
 
-// Wipe a profile's library (favorites, watched, watchlists, progress) but keep the profile.
 app.delete('/api/profiles/:id/data', (req, res) => {
     const id = req.params.id;
-    if (!profilesDB.get(id)) return res.status(404).json({ error: 'Profil nenalezen' });
     favoritesDB.deleteByProfile(id);
     watchedDB.deleteByProfile(id);
     watchlistsDB.deleteByProfile(id);

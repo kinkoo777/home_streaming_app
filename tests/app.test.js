@@ -195,3 +195,22 @@ test.describe('FilmBox – TV remote (webOS)', () => {
     await expect(page.locator('#detail-modal')).toHaveClass(/hidden/);
   });
 });
+
+test.describe('FilmBox – PIN lock', () => {
+  test('locked profile is refused by the API, asks for the PIN, then loads its data', async ({ page, request }) => {
+    const p = await (await request.post(`${BASE}/api/profiles`, { data: { name: 'PIN ' + Date.now() } })).json();
+    const set = await (await request.post(`${BASE}/api/profiles/${p.id}/pin`, { data: { pin: '4321' } })).json();
+    const auth = { 'X-Profile-Token': set.token };
+    await request.post(`${BASE}/api/profiles/${p.id}/favorites`, { data: { tmdbId: 157336, mediaType: 'movie', title: 'Interstellar' }, headers: auth });
+    expect((await request.get(`${BASE}/api/profiles/${p.id}/favorites`)).status()).toBe(401);
+
+    await page.goto(BASE);
+    await page.evaluate(() => window.showProfileChooser());
+    await page.locator(`.profile-card[data-id="${p.id}"]`).click();
+    await page.fill('#pin-prompt-input', '4321');
+    await page.click('#pin-prompt-confirm');
+    await expect(page.locator('#favorites-section')).toBeVisible({ timeout: 10000 });
+
+    await request.delete(`${BASE}/api/profiles/${p.id}`, { headers: auth });
+  });
+});
