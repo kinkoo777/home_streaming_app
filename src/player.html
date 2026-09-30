@@ -930,6 +930,17 @@
     <script src="js/hdr-renderer.js"></script>
     <script>
       const video        = document.getElementById('video')
+      // Diagnostics (temporary): playback milestones → server log, to debug slow TVs.
+      ;['loadstart', 'loadedmetadata', 'canplay', 'playing', 'waiting', 'stalled', 'error'].forEach(function (type) {
+        let n = 0
+        video.addEventListener(type, function () {
+          if (n++ >= (type === 'waiting' ? 5 : 2) || typeof clientLog !== 'function') return
+          const src = String(video.currentSrc || '')
+          clientLog('player.' + type, { t: +video.currentTime.toFixed(1), ready: video.readyState, net: video.networkState,
+            w: video.videoWidth, h: video.videoHeight, err: video.error && video.error.code,
+            via: src.indexOf('/stream?') >= 0 ? 'proxy' : (src ? 'direct' : 'none') })
+        })
+      })
       const playerWrap   = document.getElementById('player-wrap')
       const loadingScreen = document.getElementById('loading-screen')
       const errorScreen  = document.getElementById('error-screen')
@@ -963,8 +974,8 @@
       const settingsPanel = document.getElementById('settings-panel')
       const qualityBadge = document.getElementById('quality-badge')
 
-      function lsGet(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v } catch { return d } }
-      function lsSet(k, v) { try { localStorage.setItem(k, v) } catch {} }
+      function lsGet(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v } catch (e) { return d } }
+      function lsSet(k, v) { try { localStorage.setItem(k, v) } catch (e) {} }
 
       let showRemaining  = lsGet('filmbox_show_remaining', '0') === '1'
 
@@ -1015,7 +1026,7 @@
         try {
           const r = sessionStorage.getItem('filmbox_active_profile')
           return r ? (JSON.parse(r).id || 'default') : 'default'
-        } catch { return 'default' }
+        } catch (e) { return 'default' }
       }
 
       const raw = sessionStorage.getItem('filmbox_player')
@@ -1168,7 +1179,7 @@
         try {
           const exp = parseInt(new URL(source.qualities[0].src).searchParams.get('expires'), 10)
           return exp && exp * 1000 < Date.now() + 120000
-        } catch { return false }
+        } catch (e) { return false }
       }
 
       // Re-scrape the source page (prehraj.to / fastshare / sledujteto) for fresh links (same file, new signature).
@@ -1185,11 +1196,11 @@
           currentQ = keep ? (source.qualities.find(q => qKey(q) === keep) || null) : null
           if (_playerData) {
             _playerData.source = source
-            try { sessionStorage.setItem('filmbox_player', JSON.stringify(_playerData)) } catch {}
+            try { sessionStorage.setItem('filmbox_player', JSON.stringify(_playerData)) } catch (e) {}
           }
           buildSubtitleTracks()
           return true
-        } catch { return false }
+        } catch (e) { return false }
       }
 
       // ── Switch to a backup upload (another site / file) at the same position ──
@@ -1223,13 +1234,13 @@
                 _playerData.source = source
                 _playerData.sourceSite = _sourceSite
                 _playerData.alternatives = _alternatives
-                try { sessionStorage.setItem('filmbox_player', JSON.stringify(_playerData)) } catch {}
+                try { sessionStorage.setItem('filmbox_player', JSON.stringify(_playerData)) } catch (e) {}
               }
               buildSubtitleTracks()
               playQuality(pickQuality(), t, wasPlaying)
               toast(`Přepnuto na ${site}${alt.title ? ': ' + alt.title : ''}`, 5000)
               return true
-            } catch {}
+            } catch (e) {}
           }
           return false
         } finally {
@@ -1858,7 +1869,7 @@
                 _showResumePrompt(saved)
               }
             }
-          } catch {}
+          } catch (e) {}
         }
       })
 
@@ -2019,7 +2030,7 @@
           }))
           window.location.reload()
           return true
-        } catch { return false }
+        } catch (e) { return false }
       }
 
       // Offer the next episode during the last 45 s (end credits).
@@ -2406,7 +2417,7 @@
           navigator.mediaSession.setActionHandler('pause', () => video.pause())
           navigator.mediaSession.setActionHandler('seekbackward', () => skip(-10))
           navigator.mediaSession.setActionHandler('seekforward', () => skip(10))
-        } catch {}
+        } catch (e) {}
       }
 
       // ── Auto-hide controls ──

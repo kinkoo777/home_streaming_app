@@ -15,34 +15,7 @@ function escapeHtml(str) {
 }
 window.escapeHtml = escapeHtml
 
-// ── Client diagnostics → server log (journalctl -u filmbox) ──
-// Temporary aid for TV-only problems that can't be reproduced on a PC.
-// At most 150 small events per page, sent in batches.
-const _clientLogQ = []
-let _clientLogN = 0, _clientLogTimer = null
-function clientLog(event, data) {
-  if (_clientLogN++ >= 150) return
-  _clientLogQ.push({ t: Math.round(performance.now()), event: event, data: data || null })
-  if (!_clientLogTimer) _clientLogTimer = setTimeout(_flushClientLog, 1500)
-}
-function _flushClientLog() {
-  _clientLogTimer = null
-  if (!_clientLogQ.length) return
-  const batch = _clientLogQ.splice(0)
-  try {
-    fetch('/api/client-log', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ page: location.pathname, events: batch }) }).catch(() => {})
-  } catch (e) {}
-}
-window.clientLog = clientLog
-// Script errors on the TV (older engines choke on newer syntax) → log them too.
-window.addEventListener('error', function (e) {
-  clientLog('js-error', { msg: String(e.message).slice(0, 200), src: String(e.filename || '').split('/').pop(), line: e.lineno, col: e.colno })
-})
-window.addEventListener('unhandledrejection', function (e) {
-  const r = e.reason
-  clientLog('promise-error', { msg: String(r && (r.message || r)).slice(0, 200) })
-})
+// Client diagnostics (clientLog) live in compat.js, which loads first on every page.
 
 function lsGet(key, fallback) {
   try { const v = localStorage.getItem(key); return v === null ? fallback : v } catch (e) { return fallback }

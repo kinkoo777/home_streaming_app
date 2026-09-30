@@ -110,7 +110,7 @@
       try {
         const c = document.createElement('canvas')
         return !!(c.getContext('webgl') || c.getContext('experimental-webgl'))
-      } catch { return false }
+      } catch (e) { return false }
     }
 
     constructor(video, canvas, { onFail } = {}) {
@@ -265,7 +265,7 @@
         ctx.drawImage(this.video, 0, 0, 16, 9)
         const d = ctx.getImageData(0, 0, 16, 9).data
         for (let i = 0; i < d.length; i += 4) refLit += d[i] + d[i + 1] + d[i + 2]
-      } catch { return }
+      } catch (e) { return }
       if (refLit > 16 * 9 * 12) {
         if (++this._blankHits >= 3) this._fail('WebGL vrací černý obraz')
       } else {
