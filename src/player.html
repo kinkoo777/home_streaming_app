@@ -838,6 +838,7 @@
           <span><i class="key green"></i>Nastavení</span>
           <span><b>OK</b>Pauza</span>
           <span><b>◀ ▶</b>Přetáčení</span>
+          <span><b>0–9</b>Přejít na čas</span>
         </div>
       </div>
 
@@ -866,7 +867,8 @@
           <h3><i class="bi bi-keyboard"></i> Klávesové zkratky</h3>
           <dl>
             <dt><kbd>Mezerník</kbd> / <kbd>K</kbd></dt><dd>Přehrát / pozastavit</dd>
-            <dt><kbd>←</kbd> / <kbd>→</kbd></dt><dd>Přetočit o 10 s</dd>
+            <dt><kbd>←</kbd> / <kbd>→</kbd></dt><dd>Přetočit (opakovaně rychleji: 10 s → 5 min)</dd>
+            <dt><kbd>0</kbd>–<kbd>9</kbd></dt><dd>Přejít na čas (4 5 0 0 = 45:00)</dd>
             <dt><kbd>↑</kbd> / <kbd>↓</kbd></dt><dd>Hlasitost</dd>
             <dt><kbd>M</kbd></dt><dd>Ztlumit</dd>
             <dt><kbd>F</kbd></dt><dd>Celá obrazovka</dd>
@@ -930,6 +932,13 @@
     <script src="js/hdr-renderer.js"></script>
     <script>
       const video        = document.getElementById('video')
+      // Same TV detection as the main page (tv.js): user agent, or remembered once a
+      // TV-only remote key was pressed there.
+      let storedTv = null
+      try { storedTv = localStorage.getItem('filmbox_tv') } catch (e) {}
+      const IS_TV = storedTv === '1' || (storedTv !== '0' &&
+        (/Web0S|webOS|NetCast|SmartTV|SMART-TV|LG Browser|LGE|WebAppManager|Tizen|HbbTV/i.test(navigator.userAgent) || !!window.PalmSystem))
+      if (IS_TV) document.body.classList.add('tv', 'kbd')
       // Diagnostics (temporary): playback milestones → server log, to debug slow TVs.
       ;['loadstart', 'loadedmetadata', 'canplay', 'playing', 'waiting', 'stalled', 'error'].forEach(function (type) {
         let n = 0
@@ -1377,7 +1386,11 @@
 
       // ================= HDR → SDR =================
 
-      const hdr = window.HdrRenderer && HdrRenderer.supported()
+      // Not on TVs: they show HDR themselves, and on webOS the video is drawn on a
+      // hardware plane WebGL can't read — the canvas came out black over the picture
+      // (and 4K frames are far too heavy for a TV GPU anyway). "Automaticky" then
+      // behaves like "Jednoduché" (colour tags fixed by the /stream proxy).
+      const hdr = !IS_TV && window.HdrRenderer && HdrRenderer.supported()
         ? new HdrRenderer(video, hdrCanvas, { onFail: () => onHdrFail('Tone mapping není na tomto zařízení podporován') })
         : null
       let _hdrBroken = !hdr
@@ -2257,29 +2270,34 @@
       shortcutsHelp.addEventListener('click', e => { if (e.target === shortcutsHelp) toggleHelp(false) })
 
       // ── Remote-friendly seeking ──
-      // Each ◀/▶ press moves a preview target (10 s; holding speeds up to 30 s,
-      // then 60 s). The video only seeks once, shortly after the last press —
-      // far smoother on a TV than seeking the stream on every key repeat.
+      // Each ◀/▶ press moves a preview target; presses in quick succession (or a
+      // held button) speed up: 10 s → 30 s → 1 min → 2 min → 5 min. TV remotes often
+      // don't flag held keys as repeats, so the presses of one burst are counted.
+      // The video only seeks once, shortly after the last press.
       let _seekTarget = null
       let _seekTimer = null
       let _seekHold = 0
+      let _seekDir = 0
       const seekOsd = document.getElementById('seek-osd')
+      const SEEK_STEP_LABEL = { 10: '10 s', 30: '30 s', 60: '1 min', 120: '2 min', 300: '5 min' }
       function queueSeek(dir, repeat) {
         if (!isFinite(video.duration)) return
-        _seekHold = repeat ? _seekHold + 1 : 0
-        const step = _seekHold > 24 ? 60 : _seekHold > 8 ? 30 : 10
+        if (_timeDigits) cancelTimeEntry()
+        _seekHold = _seekTarget != null && dir === _seekDir ? _seekHold + 1 : 0   // reversing starts small again
+        _seekDir = dir
+        const step = _seekHold >= 20 ? 300 : _seekHold >= 13 ? 120 : _seekHold >= 7 ? 60 : _seekHold >= 3 ? 30 : 10
         const base = _seekTarget != null ? _seekTarget : video.currentTime
         _seekTarget = Math.max(0, Math.min(video.duration - 1, base + dir * step))
         const delta = _seekTarget - video.currentTime
         document.getElementById('seek-osd-icon').className = 'bi ' + (delta < 0 ? 'bi-rewind-fill' : 'bi-fast-forward-fill')
         document.getElementById('seek-osd-delta').textContent = (delta < 0 ? '−' : '+') + fmt(Math.abs(delta))
-        document.getElementById('seek-osd-time').textContent = fmt(_seekTarget) + ' / ' + fmt(video.duration)
+        document.getElementById('seek-osd-time').textContent = fmt(_seekTarget) + ' / ' + fmt(video.duration) + ' · krok ' + SEEK_STEP_LABEL[step]
         seekFilled.style.width = (_seekTarget / video.duration) * 100 + '%'
         timeCurrent.textContent = fmt(_seekTarget)
         seekOsd.classList.add('show')
         playerWrap.classList.add('seek-preview')
         clearTimeout(_seekTimer)
-        _seekTimer = setTimeout(commitSeek, repeat ? 450 : 600)
+        _seekTimer = setTimeout(commitSeek, 900)
       }
       function commitSeek() {
         if (_seekTarget != null) video.currentTime = _seekTarget
@@ -2289,16 +2307,52 @@
         playerWrap.classList.remove('seek-preview')
       }
 
+      // ── Jump to a time with the number buttons, microwave style ──
+      // Digits fill from the right: 4 5 0 0 → 45:00, 1 3 0 0 0 → 1:30:00.
+      // OK jumps now, Back cancels, otherwise it jumps 2.5 s after the last digit.
+      let _timeDigits = ''
+      let _timeTimer = null
+      function timeEntrySeconds() {
+        const d = _timeDigits.padStart(6, '0')
+        return (+d.slice(0, 2)) * 3600 + (+d.slice(2, 4)) * 60 + (+d.slice(4, 6))
+      }
+      function typeTimeDigit(digit) {
+        if (!isFinite(video.duration) || _timeDigits.length >= 6) return
+        if (_seekTarget != null) { clearTimeout(_seekTimer); _seekTarget = null }
+        _timeDigits += digit
+        const t = timeEntrySeconds()
+        const tooLong = t >= video.duration
+        document.getElementById('seek-osd-icon').className = 'bi bi-clock-history'
+        document.getElementById('seek-osd-delta').textContent = fmt(t)
+        document.getElementById('seek-osd-time').textContent = tooLong
+          ? 'Delší než video (' + fmt(video.duration) + ')'
+          : 'OK = přejít · Zpět = zrušit'
+        if (!tooLong) { seekFilled.style.width = (t / video.duration) * 100 + '%'; timeCurrent.textContent = fmt(t) }
+        seekOsd.classList.add('show')
+        playerWrap.classList.add('seek-preview')
+        clearTimeout(_timeTimer)
+        _timeTimer = setTimeout(commitTimeEntry, 2500)
+      }
+      function commitTimeEntry() {
+        clearTimeout(_timeTimer)
+        if (!_timeDigits) return
+        const t = timeEntrySeconds()
+        _timeDigits = ''
+        seekOsd.classList.remove('show')
+        playerWrap.classList.remove('seek-preview')
+        if (t < video.duration) video.currentTime = t
+        else toast('Video má jen ' + fmt(video.duration))
+      }
+      function cancelTimeEntry() {
+        clearTimeout(_timeTimer)
+        _timeDigits = ''
+        seekOsd.classList.remove('show')
+        playerWrap.classList.remove('seek-preview')
+      }
+
       // ── Keyboard + TV remote ──
       // Tizen (Samsung) back = 10009, webOS (LG) back = 461.
       const isBackKey = e => e.key === 'GoBack' || e.key === 'BrowserBack' || e.keyCode === 10009 || e.keyCode === 461
-      // Same TV detection as the main page (tv.js): user agent, or remembered once a
-      // TV-only remote key was pressed there.
-      let storedTv = null
-      try { storedTv = localStorage.getItem('filmbox_tv') } catch (e) {}
-      const IS_TV = storedTv === '1' || (storedTv !== '0' &&
-        (/Web0S|webOS|NetCast|SmartTV|SMART-TV|LG Browser|LGE|WebAppManager|Tizen|HbbTV/i.test(navigator.userAgent) || !!window.PalmSystem))
-      if (IS_TV) document.body.classList.add('tv', 'kbd')
       // Remote media buttons often arrive as key "Unidentified" with these codes (webOS / Tizen).
       const MEDIA_CODES = { 415: 'MediaPlay', 19: 'MediaPause', 413: 'MediaStop', 417: 'MediaFastForward', 412: 'MediaRewind', 10252: 'MediaPlayPause', 179: 'MediaPlayPause', 176: 'MediaTrackNext' }
       // A Magic Remote reports small movements constantly; only a deliberate pointer
@@ -2346,6 +2400,14 @@
             btns[(i + (key === 'ArrowLeft' || key === 'ArrowUp' ? -1 : 1) + btns.length) % btns.length].focus()
           }
           return
+        }
+
+        // Number buttons → type a time to jump to (keyboard row or numpad).
+        const digit = e.keyCode >= 48 && e.keyCode <= 57 ? e.keyCode - 48 : e.keyCode >= 96 && e.keyCode <= 105 ? e.keyCode - 96 : -1
+        if (digit >= 0 && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); typeTimeDigit(String(digit)); return }
+        if (_timeDigits) {
+          if (key === 'Enter') { e.preventDefault(); commitTimeEntry(); return }
+          if (isBackKey(e) || key === 'Escape' || key === 'Backspace') { e.preventDefault(); cancelTimeEntry(); return }
         }
 
         // OK/Enter on a focused control activates that control natively.
