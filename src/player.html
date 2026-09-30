@@ -345,6 +345,32 @@
 
       .seek-bar-wrap:hover { height: 6px; }
 
+      /* Remote timeline scrubbing: a marker with a time bubble, OK jumps there. */
+      #seek-scrub {
+        display: none;
+        position: absolute; top: 50%; left: 0;
+        width: 18px; height: 18px; margin: -9px 0 0 -9px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 0 0 5px rgba(244,63,94,0.55), 0 4px 14px rgba(0,0,0,0.5);
+        pointer-events: none;
+        z-index: 2;
+      }
+      #seek-scrub-time {
+        position: absolute; bottom: 26px; left: 50%;
+        -webkit-transform: translateX(-50%); transform: translateX(-50%);
+        padding: 6px 12px;
+        border-radius: 10px;
+        background: #fff; color: #000;
+        font-weight: 800; font-size: 18px; white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      #seek-scrub-time small { font-weight: 600; color: #555; margin-left: 8px; font-size: 14px; }
+      #player-wrap.scrubbing #seek-scrub { display: block; }
+      #player-wrap.scrubbing .seek-bar-wrap { height: 8px; background: rgba(255,255,255,0.35); }
+      body.kbd #seek-bar:focus { box-shadow: 0 0 0 3px rgba(255,255,255,0.9); outline: none; }
+      body.tv #seek-scrub-time { font-size: 24px; bottom: 30px; }
+
       #seek-buffered {
         position: absolute;
         left: 0;
@@ -838,6 +864,7 @@
           <span><i class="key green"></i>Nastavení</span>
           <span><b>OK</b>Pauza</span>
           <span><b>◀ ▶</b>Přetáčení</span>
+          <span><b>▲</b>Časová osa</span>
           <span><b>0–9</b>Přejít na čas</span>
         </div>
       </div>
@@ -869,6 +896,7 @@
             <dt><kbd>Mezerník</kbd> / <kbd>K</kbd></dt><dd>Přehrát / pozastavit</dd>
             <dt><kbd>←</kbd> / <kbd>→</kbd></dt><dd>Přetočit (opakovaně rychleji: 10 s → 5 min)</dd>
             <dt><kbd>0</kbd>–<kbd>9</kbd></dt><dd>Přejít na čas (4 5 0 0 = 45:00)</dd>
+            <dt><kbd>↑</kbd> na TV</dt><dd>Časová osa: ← → vybrat místo, OK přeskočit</dd>
             <dt><kbd>↑</kbd> / <kbd>↓</kbd></dt><dd>Hlasitost</dd>
             <dt><kbd>M</kbd></dt><dd>Ztlumit</dd>
             <dt><kbd>F</kbd></dt><dd>Celá obrazovka</dd>
@@ -885,9 +913,10 @@
       <div class="player-controls">
         <div class="seek-row">
           <span class="time-label" id="time-current">0:00</span>
-          <div class="seek-bar-wrap" id="seek-bar">
+          <div class="seek-bar-wrap" id="seek-bar" tabindex="0" role="slider" aria-label="Časová osa — šipkami vyberte místo, OK přeskočí">
             <div id="seek-buffered" style="width:0%"></div>
             <div id="seek-filled" style="width:0%"></div>
+            <div id="seek-scrub"><span id="seek-scrub-time">0:00</span></div>
           </div>
           <span class="time-label" id="time-total" style="cursor:pointer" title="Přepnout na zbývající čas">0:00</span>
         </div>
@@ -2350,6 +2379,59 @@
         playerWrap.classList.remove('seek-preview')
       }
 
+      // ── Timeline scrubbing (remote) ──
+      // With the seek bar focused, ◀/▶ slide a marker along the film (1 % steps,
+      // speeding up to 2 % and 5 % when pressed repeatedly); OK jumps there,
+      // ▼ / Back leave the bar without seeking.
+      let _scrubT = null
+      let _scrubHold = 0, _scrubDir = 0, _scrubLast = 0
+      const scrubTime = document.getElementById('seek-scrub-time')
+      const scrubMark = document.getElementById('seek-scrub')
+      function drawScrub() {
+        const pct = (_scrubT / video.duration) * 100
+        scrubMark.style.left = pct + '%'
+        const d = _scrubT - video.currentTime
+        scrubTime.innerHTML = fmt(_scrubT) + '<small>' + (Math.abs(d) < 1 ? 'teď' : (d < 0 ? '−' : '+') + fmt(Math.abs(d))) + '</small>'
+      }
+      function startScrub() {
+        if (!isFinite(video.duration) || _scrubT != null) return
+        _scrubT = video.currentTime
+        _scrubHold = 0
+        playerWrap.classList.add('scrubbing')
+        drawScrub()
+      }
+      function endScrub() {
+        _scrubT = null
+        playerWrap.classList.remove('scrubbing')
+      }
+      function moveScrub(dir) {
+        if (_scrubT == null) startScrub()
+        if (_scrubT == null) return
+        const now = Date.now()
+        _scrubHold = now - _scrubLast < 700 && dir === _scrubDir ? _scrubHold + 1 : 0
+        _scrubDir = dir; _scrubLast = now
+        const pct = _scrubHold >= 10 ? 0.05 : _scrubHold >= 4 ? 0.02 : 0.01
+        const step = Math.max(10, video.duration * pct)
+        _scrubT = Math.max(0, Math.min(video.duration - 1, _scrubT + dir * step))
+        drawScrub()
+      }
+      function commitScrub() {
+        if (_scrubT == null) return
+        video.currentTime = _scrubT
+        _scrubT = video.currentTime
+        drawScrub()
+      }
+      seekBar.addEventListener('focus', () => { if (document.body.classList.contains('kbd')) startScrub() })
+      seekBar.addEventListener('blur', endScrub)
+      function handleScrubKey(e, key) {
+        if (key === 'ArrowLeft' || key === 'ArrowRight') { e.preventDefault(); moveScrub(key === 'ArrowRight' ? 1 : -1); return true }
+        if (key === 'Enter') { e.preventDefault(); commitScrub(); return true }
+        if (key === 'ArrowDown') { e.preventDefault(); endScrub(); playPauseBtn.focus(); return true }
+        if (key === 'ArrowUp') { e.preventDefault(); return true }
+        if (isBackKey(e) || key === 'Escape') { e.preventDefault(); endScrub(); seekBar.blur(); return true }
+        return false
+      }
+
       // ── Keyboard + TV remote ──
       // Tizen (Samsung) back = 10009, webOS (LG) back = 461.
       const isBackKey = e => e.key === 'GoBack' || e.key === 'BrowserBack' || e.keyCode === 10009 || e.keyCode === 461
@@ -2385,6 +2467,7 @@
         const key = MEDIA_CODES[e.keyCode] || e.key
 
         if (settingsOpen()) { handleSettingsKey(e, key === 'Escape' || key === 'Backspace' || isBackKey(e)); return }
+        if (document.activeElement === seekBar && handleScrubKey(e, key)) return
 
         if (shortcutsHelp.classList.contains('show') && (key === '?' || key === 'Escape' || isBackKey(e))) {
           e.preventDefault(); toggleHelp(false); return
@@ -2426,14 +2509,15 @@
           }
           if (key === 'ArrowUp' || key === 'ArrowDown') {
             e.preventDefault()
-            if (key === 'ArrowUp' && !e.target.closest('.player-topbar')) e.target.blur()
+            if (key === 'ArrowUp' && e.target.closest('.player-controls')) seekBar.focus()   // buttons → timeline
             return
           }
         }
         // TV: Up/Down bring focus into the control bar (volume is the TV's own buttons).
         if (IS_TV && (key === 'ArrowUp' || key === 'ArrowDown')) {
           e.preventDefault()
-          playPauseBtn.focus()
+          if (key === 'ArrowUp') seekBar.focus()      // straight onto the timeline
+          else playPauseBtn.focus()
           return
         }
 
@@ -2488,7 +2572,7 @@
         playerWrap.classList.add('controls-visible')
         clearTimeout(hideTimeout)
         hideTimeout = setTimeout(() => {
-          if (!video.paused && !settingsOpen()) {
+          if (!video.paused && !settingsOpen() && _scrubT == null) {
             playerWrap.classList.remove('controls-visible')
             // Hidden controls shouldn't keep remote focus — arrows go back to seeking.
             const a = document.activeElement
