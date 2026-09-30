@@ -1,0 +1,955 @@
+{
+ "generated": "2026-09-30T08:25:51.450Z",
+ "guides": [
+  {
+   "id": "mcu",
+   "title": "Marvel Cinematic Universe",
+   "subtitle": "Filmy MCU podle vydání nebo podle děje",
+   "note": "Chronologické pořadí podle oficiální časové osy do Avengers: Endgame; novější filmy navazují v pořadí vydání.",
+   "backdrop": "/9BBTo63ANSmhC4e6r62OJFuK2GL.jpg",
+   "poster": "/jEQswViXNu2PvUvWzQoxhKjQc3p.jpg",
+   "items": {
+    "1724": {
+     "title": "Neuvěřitelný Hulk",
+     "year": 2008,
+     "poster": "/zqPlsNuX4gHTgKr4WfZsigEdAas.jpg"
+    },
+    "1726": {
+     "title": "Iron Man",
+     "year": 2008,
+     "poster": "/78lPtwv72eTNqFW9COBYI0dWDJa.jpg"
+    },
+    "1771": {
+     "title": "Captain America: První Avenger",
+     "year": 2011,
+     "poster": "/ym0xcdKmMKDJZrQxpDjPJMs5dKV.jpg"
+    },
+    "10138": {
+     "title": "Iron Man 2",
+     "year": 2010,
+     "poster": "/dPomoMZZcxSxLIgckRENDIX8JOq.jpg"
+    },
+    "10195": {
+     "title": "Thor",
+     "year": 2011,
+     "poster": "/hPnOaE0kp0ww2BJHeDOo9sPcDOM.jpg"
+    },
+    "24428": {
+     "title": "Avengers",
+     "year": 2012,
+     "poster": "/jEQswViXNu2PvUvWzQoxhKjQc3p.jpg"
+    },
+    "68721": {
+     "title": "Iron Man 3",
+     "year": 2013,
+     "poster": "/ayskPI1s7bQ0IxJUZMjb6I5DRI9.jpg"
+    },
+    "76338": {
+     "title": "Thor: Temný svět",
+     "year": 2013,
+     "poster": "/b3Gwq0FhQRmxIigUG8XUM19PAfG.jpg"
+    },
+    "99861": {
+     "title": "Avengers: Age of Ultron",
+     "year": 2015,
+     "poster": "/nfE8K3rAqMZ5Eujl9DHCaZhjlNa.jpg"
+    },
+    "100402": {
+     "title": "Captain America: Návrat prvního Avengera",
+     "year": 2014,
+     "poster": "/zyitP6cdBWP8EzaZQFnQv5AO9Et.jpg"
+    },
+    "102899": {
+     "title": "Ant-Man",
+     "year": 2015,
+     "poster": "/cj2gWN7TdH1iUG6pUQyqv9N2AXc.jpg"
+    },
+    "118340": {
+     "title": "Strážci Galaxie",
+     "year": 2014,
+     "poster": "/uput7dPu1lt3559k8baHnZWD32i.jpg"
+    },
+    "271110": {
+     "title": "Captain America: Občanská válka",
+     "year": 2016,
+     "poster": "/bnf2ez1ShyuUasXjsWoRkdwdYLB.jpg"
+    },
+    "283995": {
+     "title": "Strážci Galaxie Vol. 2",
+     "year": 2017,
+     "poster": "/1VemhheUdIaOJd6HSiVVtUSDaZ6.jpg"
+    },
+    "284052": {
+     "title": "Doctor Strange",
+     "year": 2016,
+     "poster": "/rTzWr2wBFTnz6oLjzMzrBrrSvE9.jpg"
+    },
+    "284053": {
+     "title": "Thor: Ragnarok",
+     "year": 2017,
+     "poster": "/rzRwTcFvttcN1ZpX2xv4j3tSdJu.jpg"
+    },
+    "284054": {
+     "title": "Black Panther",
+     "year": 2018,
+     "poster": "/oAjPcjYdrF9TZV3J8vVXLFVyQ5E.jpg"
+    },
+    "299534": {
+     "title": "Avengers: Endgame",
+     "year": 2019,
+     "poster": "/4dDYD0Ukpc7Y8MdBhIIPBgC2ynS.jpg"
+    },
+    "299536": {
+     "title": "Avengers: Infinity War",
+     "year": 2018,
+     "poster": "/8W2UzeV7pOamtuj8MV5lU2gArpm.jpg"
+    },
+    "299537": {
+     "title": "Captain Marvel",
+     "year": 2019,
+     "poster": "/AtsgWhDnHTq68L0lLsUrCnM7TjG.jpg"
+    },
+    "315635": {
+     "title": "Spider-Man: Homecoming",
+     "year": 2017,
+     "poster": "/kqOZ1iauOytwtFlBlAKmBTCqtr9.jpg"
+    },
+    "363088": {
+     "title": "Ant-Man a Wasp",
+     "year": 2018,
+     "poster": "/e4SKx67K5FDYFU5PNmHbwaCuRwD.jpg"
+    },
+    "429617": {
+     "title": "Spider-Man: Daleko od domova",
+     "year": 2019,
+     "poster": "/soXpzI5aFdIxYbWdmB07BgSqLIZ.jpg"
+    },
+    "447365": {
+     "title": "Strážci Galaxie: Volume 3",
+     "year": 2023,
+     "poster": "/nRES3Hful5IoGniTDPmQLFPv4rz.jpg"
+    },
+    "453395": {
+     "title": "Doctor Strange v mnohovesmíru šílenství",
+     "year": 2022,
+     "poster": "/ad3ZJcfmjIL3wonQlnbrf1LiDAv.jpg"
+    },
+    "497698": {
+     "title": "Black Widow",
+     "year": 2021,
+     "poster": "/zL4dwM9UpYQMIpdqmxvsnlHmkgm.jpg"
+    },
+    "505642": {
+     "title": "Black Panther: Wakanda nechť žije",
+     "year": 2022,
+     "poster": "/ctfG7NmFtbqCnqJ06T9kqsgfDM3.jpg"
+    },
+    "524434": {
+     "title": "Eternals",
+     "year": 2021,
+     "poster": "/717dLRtbYosVlZzAiHGsn5duN1p.jpg"
+    },
+    "533535": {
+     "title": "Deadpool & Wolverine",
+     "year": 2024,
+     "poster": "/eeGHt1RUYu2kg8IELOXKRo5RTvg.jpg"
+    },
+    "566525": {
+     "title": "Shang-Chi a legenda o deseti prstenech",
+     "year": 2021,
+     "poster": "/5lCXWd0lWaz515ceDGDiQZmioKI.jpg"
+    },
+    "609681": {
+     "title": "Marvels",
+     "year": 2023,
+     "poster": "/79b7XshL9sgNPw37pzymEvbUouM.jpg"
+    },
+    "616037": {
+     "title": "Thor: Láska jako hrom",
+     "year": 2022,
+     "poster": "/jKyPJcPHjNcYlH5eAw4KQ1lzkTl.jpg"
+    },
+    "617126": {
+     "title": "Fantastická 4: První kroky",
+     "year": 2025,
+     "poster": "/5K4GuuC8zZol5UI23KbovF6v47L.jpg"
+    },
+    "634649": {
+     "title": "Spider-Man: Bez domova",
+     "year": 2021,
+     "poster": "/mihcIs99AsiKH5s9mxQgTFDdvu7.jpg"
+    },
+    "640146": {
+     "title": "Ant-Man a Wasp: Quantumania",
+     "year": 2023,
+     "poster": "/jgyhDWuiqD9HNwteJ7TRaOHK3u.jpg"
+    },
+    "822119": {
+     "title": "Captain America: Nový svět",
+     "year": 2025,
+     "poster": "/f2sntmnhqlnR5SGvR1l9vZxySGl.jpg"
+    },
+    "969681": {
+     "title": "Spider-Man: Zbrusu nový den",
+     "year": 2026,
+     "poster": "/4yIR61TftQu9Rk5EVJaHbhO5Dqc.jpg"
+    },
+    "986056": {
+     "title": "Thunderbolts*",
+     "year": 2025,
+     "poster": "/stSXsgnWLpy0PKleovcw2bHLsMb.jpg"
+    }
+   },
+   "orders": {
+    "release": [
+     1726,
+     1724,
+     10138,
+     10195,
+     1771,
+     24428,
+     68721,
+     76338,
+     100402,
+     118340,
+     99861,
+     102899,
+     271110,
+     284052,
+     283995,
+     315635,
+     284053,
+     284054,
+     299536,
+     363088,
+     299537,
+     299534,
+     429617,
+     497698,
+     566525,
+     524434,
+     634649,
+     453395,
+     616037,
+     505642,
+     640146,
+     447365,
+     609681,
+     533535,
+     822119,
+     986056,
+     617126,
+     969681
+    ],
+    "chrono": [
+     1771,
+     299537,
+     1726,
+     10138,
+     1724,
+     10195,
+     24428,
+     68721,
+     76338,
+     100402,
+     118340,
+     283995,
+     99861,
+     102899,
+     271110,
+     497698,
+     284054,
+     315635,
+     284052,
+     284053,
+     363088,
+     299536,
+     299534,
+     429617,
+     566525,
+     524434,
+     634649,
+     453395,
+     616037,
+     505642,
+     640146,
+     447365,
+     609681,
+     533535,
+     822119,
+     986056,
+     617126,
+     969681
+    ]
+   }
+  },
+  {
+   "id": "star-wars",
+   "title": "Star Wars",
+   "subtitle": "Sága Skywalkerů a samostatné příběhy",
+   "note": "",
+   "backdrop": "/zqkmTXzjkAgXmEWLRsY4UpTWCeo.jpg",
+   "poster": "/qqrBr0uQ6oa5K23WZgySBgFbj8l.jpg",
+   "items": {
+    "11": {
+     "title": "Hvězdné války",
+     "year": 1977,
+     "poster": "/qqrBr0uQ6oa5K23WZgySBgFbj8l.jpg"
+    },
+    "1891": {
+     "title": "Impérium vrací úder",
+     "year": 1980,
+     "poster": "/pegDkQhNxLIBC6osR278Yrn156e.jpg"
+    },
+    "1892": {
+     "title": "Návrat Jediho",
+     "year": 1983,
+     "poster": "/bTFPgJa1N6vG0c7eyUukFvNu2UR.jpg"
+    },
+    "1893": {
+     "title": "Star Wars: Epizoda I – Skrytá hrozba",
+     "year": 1999,
+     "poster": "/g0fFRDE3yrgm44dBY1n4PvnNlhh.jpg"
+    },
+    "1894": {
+     "title": "Star Wars: Epizoda II – Klony útočí",
+     "year": 2002,
+     "poster": "/gYd0eu0Byv1P6D2dsWwL5oDhfp4.jpg"
+    },
+    "1895": {
+     "title": "Star Wars: Epizoda III - Pomsta Sithů",
+     "year": 2005,
+     "poster": "/oBNZxFAn3hgqD4mgiIsZZKhtVj5.jpg"
+    },
+    "140607": {
+     "title": "Star Wars: Síla se probouzí",
+     "year": 2015,
+     "poster": "/pIwsdMY0oBFvpyTIxznh0rhyUQ4.jpg"
+    },
+    "181808": {
+     "title": "Star Wars: Poslední z Jediů",
+     "year": 2017,
+     "poster": "/zVCnE1hte1sxQUfPCq63tqMYewG.jpg"
+    },
+    "181812": {
+     "title": "Star Wars: Vzestup Skywalkera",
+     "year": 2019,
+     "poster": "/7rQyEH4QpHMVY5ZWtEVD9EfLrbW.jpg"
+    },
+    "330459": {
+     "title": "Rogue One: Star Wars Story",
+     "year": 2016,
+     "poster": "/nrr8jZliDyh7nJJb9KMWVQ2E8gt.jpg"
+    },
+    "348350": {
+     "title": "Solo: Star Wars Story",
+     "year": 2018,
+     "poster": "/2d1FPnt9B1XMLCNDmkvzmbyHzHI.jpg"
+    },
+    "1228710": {
+     "title": "Star Wars: Mandalorian a Grogu",
+     "year": 2026,
+     "poster": "/1Yz7Ga4hHa2xORhigSd4tnFzXy.jpg"
+    }
+   },
+   "orders": {
+    "release": [
+     11,
+     1891,
+     1892,
+     1893,
+     1894,
+     1895,
+     140607,
+     330459,
+     181808,
+     348350,
+     181812,
+     1228710
+    ],
+    "chrono": [
+     1893,
+     1894,
+     1895,
+     348350,
+     330459,
+     11,
+     1891,
+     1892,
+     1228710,
+     140607,
+     181808,
+     181812
+    ]
+   }
+  },
+  {
+   "id": "wizarding-world",
+   "title": "Kouzelnický svět",
+   "subtitle": "Harry Potter a Fantastická zvířata",
+   "note": "",
+   "backdrop": "/lvOLivVeX3DVVcwfVkxKf0R22D8.jpg",
+   "poster": "/2EpqAuG2ES1GCSx6Ggbi9RL5c53.jpg",
+   "items": {
+    "671": {
+     "title": "Harry Potter a Kámen mudrců",
+     "year": 2001,
+     "poster": "/2EpqAuG2ES1GCSx6Ggbi9RL5c53.jpg"
+    },
+    "672": {
+     "title": "Harry Potter a Tajemná komnata",
+     "year": 2002,
+     "poster": "/676E2pDMxqFOPAV9RWjFrRNa5n0.jpg"
+    },
+    "673": {
+     "title": "Harry Potter a vězeň z Azkabanu",
+     "year": 2004,
+     "poster": "/j276OJFlNlAI5hhsxg1HKj5fqKw.jpg"
+    },
+    "674": {
+     "title": "Harry Potter a Ohnivý pohár",
+     "year": 2005,
+     "poster": "/eMiMOEdZ6M3fEkXCwCnQQa1Pxkh.jpg"
+    },
+    "675": {
+     "title": "Harry Potter a Fénixův řád",
+     "year": 2007,
+     "poster": "/cn4IQntBgtx6AXjxBi3PspsIeV3.jpg"
+    },
+    "767": {
+     "title": "Harry Potter a Princ dvojí krve",
+     "year": 2009,
+     "poster": "/2TbTfI93E77GT0gF6AkRAqICTrr.jpg"
+    },
+    "12444": {
+     "title": "Harry Potter a Relikvie smrti – část 1",
+     "year": 2010,
+     "poster": "/silXNP7hsvRKkqbaIYvUySuyWhQ.jpg"
+    },
+    "12445": {
+     "title": "Harry Potter a Relikvie smrti – část 2",
+     "year": 2011,
+     "poster": "/2yVY5FYruQpYIGinDMV7cyi1YLM.jpg"
+    },
+    "259316": {
+     "title": "Fantastická zvířata a kde je najít",
+     "year": 2016,
+     "poster": "/7Fs5SzYIxMogv4IAobsVzRBcV5j.jpg"
+    },
+    "338952": {
+     "title": "Fantastická zvířata: Grindelwaldovy zločiny",
+     "year": 2018,
+     "poster": "/2K20Pez6FZ2pv4TdVUP5bDy2yOp.jpg"
+    },
+    "338953": {
+     "title": "Fantastická zvířata: Brumbálova tajemství",
+     "year": 2022,
+     "poster": "/d7sq9SJbU1yGnvnDLljczowiWkK.jpg"
+    }
+   },
+   "orders": {
+    "release": [
+     671,
+     672,
+     673,
+     674,
+     675,
+     767,
+     12444,
+     12445,
+     259316,
+     338952,
+     338953
+    ],
+    "chrono": [
+     259316,
+     338952,
+     338953,
+     671,
+     672,
+     673,
+     674,
+     675,
+     767,
+     12444,
+     12445
+    ]
+   }
+  },
+  {
+   "id": "fast-furious",
+   "title": "Rychle a zběsile",
+   "subtitle": "Včetně správného místa pro Tokijskou jízdu",
+   "note": "",
+   "backdrop": "/ehzI1mVcnHqB58NqPyQwpMqcVoz.jpg",
+   "poster": "/oEbSnHT8fUXVU9P3qtAGZZML42h.jpg",
+   "items": {
+    "584": {
+     "title": "Rychle a zběsile 2",
+     "year": 2003,
+     "poster": "/nuPEUP1ySyOKRluTtcr2zDBr1KV.jpg"
+    },
+    "9615": {
+     "title": "Rychle a zběsile: Tokijská jízda",
+     "year": 2006,
+     "poster": "/mAyl5gHTX4lGEjmeQT0F6rteXZf.jpg"
+    },
+    "9799": {
+     "title": "Rychle a zběsile",
+     "year": 2001,
+     "poster": "/sCKhY7MEdRP4KCxQjcWfI9Dj4hr.jpg"
+    },
+    "13804": {
+     "title": "Rychlí a zběsilí",
+     "year": 2009,
+     "poster": "/ocU8dQTIG6oOTc7gtxvVzSUwzVd.jpg"
+    },
+    "51497": {
+     "title": "Rychle a zběsile 5",
+     "year": 2011,
+     "poster": "/ogOkE2YewdPEoq6sr1ZrEQViRCq.jpg"
+    },
+    "82992": {
+     "title": "Rychle a zběsile 6",
+     "year": 2013,
+     "poster": "/dzogrojv2keuf2gIa2skyt6tTk2.jpg"
+    },
+    "168259": {
+     "title": "Rychle a zběsile 7",
+     "year": 2015,
+     "poster": "/oEbSnHT8fUXVU9P3qtAGZZML42h.jpg"
+    },
+    "337339": {
+     "title": "Rychle a zběsile 8",
+     "year": 2017,
+     "poster": "/9bEsiDhP4LYAqZscQPHyKzgSSEs.jpg"
+    },
+    "384018": {
+     "title": "Rychle a zběsile: Hobbs a Shaw",
+     "year": 2019,
+     "poster": "/2RZnXVKTPg0mWDv6cC9rGXe1irf.jpg"
+    },
+    "385128": {
+     "title": "Rychle a zběsile 9",
+     "year": 2021,
+     "poster": "/k9jreqkMgqoRtRyObdIPhupDvho.jpg"
+    },
+    "385687": {
+     "title": "Rychle a zběsile 10",
+     "year": 2023,
+     "poster": "/yldJm2GI7kcfoSmtRJBQ9oRZKJy.jpg"
+    }
+   },
+   "orders": {
+    "release": [
+     9799,
+     584,
+     9615,
+     13804,
+     51497,
+     82992,
+     168259,
+     337339,
+     384018,
+     385128,
+     385687
+    ],
+    "chrono": [
+     9799,
+     584,
+     13804,
+     51497,
+     82992,
+     9615,
+     168259,
+     337339,
+     384018,
+     385128,
+     385687
+    ]
+   }
+  },
+  {
+   "id": "alien",
+   "title": "Vetřelec",
+   "subtitle": "Od Promethea po Romulus",
+   "note": "",
+   "backdrop": "/AmR3JG1VQVxU8TfAvljUhfSFUOx.jpg",
+   "poster": "/dKQf80xpD5oURJeEpK9BqVLhF40.jpg",
+   "items": {
+    "348": {
+     "title": "Vetřelec",
+     "year": 1979,
+     "poster": "/dKQf80xpD5oURJeEpK9BqVLhF40.jpg"
+    },
+    "679": {
+     "title": "Vetřelci",
+     "year": 1986,
+     "poster": "/ykxmb0S0RVCWxv7V90jI5W6taIF.jpg"
+    },
+    "8077": {
+     "title": "Vetřelec³",
+     "year": 1992,
+     "poster": "/rOu9DDnT2cgDfxjN1svI2GPAsQJ.jpg"
+    },
+    "8078": {
+     "title": "Vetřelec: Vzkříšení",
+     "year": 1997,
+     "poster": "/tfofVGaLUNOrESs9dWIUpGDoQiW.jpg"
+    },
+    "70981": {
+     "title": "Prometheus",
+     "year": 2012,
+     "poster": "/b4BL2HteQBHBU3x6dKvB1VUTl6Q.jpg"
+    },
+    "126889": {
+     "title": "Vetřelec: Covenant",
+     "year": 2017,
+     "poster": "/epZt5J1JL3c0H5HnEVToJePDYXZ.jpg"
+    },
+    "945961": {
+     "title": "Vetřelec: Romulus",
+     "year": 2024,
+     "poster": "/9bHvsoszDIzkqRA99IteUern5QT.jpg"
+    }
+   },
+   "orders": {
+    "release": [
+     348,
+     679,
+     8077,
+     8078,
+     70981,
+     126889,
+     945961
+    ],
+    "chrono": [
+     70981,
+     126889,
+     348,
+     945961,
+     679,
+     8077,
+     8078
+    ]
+   }
+  }
+ ],
+ "collections": [
+  {
+   "id": 1241,
+   "name": "Harry Potter",
+   "poster": "/7Iv851lSBVyBS5ROeIlII0yb1Tv.jpg",
+   "backdrop": "/4gV0rKUjB1nLUdZB4zIltLvNZZr.jpg",
+   "parts": [
+    671,
+    672,
+    673,
+    674,
+    675,
+    767,
+    12444,
+    12445
+   ]
+  },
+  {
+   "id": 119,
+   "name": "Pán prstenů",
+   "poster": "/gWvzi8QecOXVdZMKSgIVB6xwqxl.jpg",
+   "backdrop": "/bccR2CGTWVVSZAG0yqmy3DIvhTX.jpg",
+   "parts": [
+    120,
+    121,
+    122
+   ]
+  },
+  {
+   "id": 121938,
+   "name": "Hobit",
+   "poster": "/hYYkYUEL9SDM57eJcjsu7V1aNM0.jpg",
+   "backdrop": "/7wO7MSnP5UcwR2cTHdJFF1vP4Ie.jpg",
+   "parts": [
+    49051,
+    57158,
+    122917
+   ]
+  },
+  {
+   "id": 10,
+   "name": "Star Wars",
+   "poster": "/y2SNPwLT9zdZjJQRVX7T5u8mko7.jpg",
+   "backdrop": "/iY2ujEY2m68OTTlPFTiHub9joHS.jpg",
+   "parts": [
+    11,
+    1891,
+    1892,
+    1893,
+    1894,
+    1895,
+    140607,
+    181808,
+    181812
+   ]
+  },
+  {
+   "id": 404609,
+   "name": "John Wick",
+   "poster": "/hvmQrcLAQvBOKCBOcZgsnTasffq.jpg",
+   "backdrop": "/fSwYa5q2xRkBoOOjueLpkLf3N1m.jpg",
+   "parts": [
+    245891,
+    324552,
+    458156,
+    603692
+   ]
+  },
+  {
+   "id": 10194,
+   "name": "Toy Story",
+   "poster": "/3Y7zOHKxPPeccIfhHE6yU7ysn3f.jpg",
+   "backdrop": "/hApclyB9NEZEQujAVajzi5iWE4a.jpg",
+   "parts": [
+    862,
+    863,
+    10193,
+    301528,
+    1084244
+   ]
+  },
+  {
+   "id": 295,
+   "name": "Piráti z Karibiku",
+   "poster": "/2faUpUEMUSf89Yjud4q8kbUXyrP.jpg",
+   "backdrop": "/wxgD3fB5lQ2sGJLog0rvXW049Pf.jpg",
+   "parts": [
+    22,
+    58,
+    285,
+    1865,
+    166426
+   ]
+  },
+  {
+   "id": 328,
+   "name": "Jurský park",
+   "poster": "/npi1KrwN9hsKnxOcaW6gsgcnDzN.jpg",
+   "backdrop": "/njFixYzIxX8jsn6KMSEtAzi4avi.jpg",
+   "parts": [
+    329,
+    330,
+    331,
+    135397,
+    351286,
+    507086,
+    1234821
+   ]
+  },
+  {
+   "id": 87359,
+   "name": "Mission: Impossible",
+   "poster": "/eaVadbMihludeb5ucqIzr20Hyy6.jpg",
+   "backdrop": "/mroWh717g0Ah2c0rrPGW6f3EWMM.jpg",
+   "parts": [
+    954,
+    955,
+    956,
+    56292,
+    177677,
+    353081,
+    575264,
+    575265
+   ]
+  },
+  {
+   "id": 264,
+   "name": "Návrat do budoucnosti",
+   "poster": "/tNQ5a8HedKtEL3LRZg57isRZ6by.jpg",
+   "backdrop": "/c9C9Pg2QctyjZHRmS0P8rZg1OTA.jpg",
+   "parts": [
+    105,
+    165,
+    196
+   ]
+  },
+  {
+   "id": 2344,
+   "name": "Matrix",
+   "poster": "/5OxEfyKPL9vcgthLxkVCQ4JB3xD.jpg",
+   "backdrop": "/bRm2DEgUiYciDw3myHuYFInD7la.jpg",
+   "parts": [
+    603,
+    604,
+    605
+   ]
+  },
+  {
+   "id": 263,
+   "name": "Temný rytíř",
+   "poster": "/raw9zLUbYeGbAq5Ul92tqq47oY2.jpg",
+   "backdrop": "/xyhrCEdB4XRkelfVsqXeUZ6rLHi.jpg",
+   "parts": [
+    272,
+    155,
+    49026
+   ]
+  },
+  {
+   "id": 84,
+   "name": "Indiana Jones",
+   "poster": "/GRh2IAzBebgi6jEJ8s6IX3Kry7.jpg",
+   "backdrop": "/s4xWmz9PEjPERSRcd7H7xMJpYvE.jpg",
+   "parts": [
+    85,
+    87,
+    89,
+    217,
+    335977
+   ]
+  },
+  {
+   "id": 2150,
+   "name": "Shrek",
+   "poster": "/rx1OUkBiYPuItmV9kfMexX1LupL.jpg",
+   "backdrop": "/lhsd1zCsq5UquvcNalmhuddV3tI.jpg",
+   "parts": [
+    808,
+    809,
+    810,
+    10192
+   ]
+  },
+  {
+   "id": 86066,
+   "name": "Já padouch",
+   "poster": "/uVOGU1e778l0gJAJQVWj1DIZF4I.jpg",
+   "backdrop": "/37xamYKRUGCRux532lKcZdVGYuR.jpg",
+   "parts": [
+    20352,
+    93456,
+    324852,
+    519182
+   ]
+  },
+  {
+   "id": 131635,
+   "name": "Hunger Games",
+   "poster": "/nKHhUxWkruhTy8Rphg6v3Y8GWg5.jpg",
+   "backdrop": "/Ipp7cegtub4t0mu7xaKLQkYoGc.jpg",
+   "parts": [
+    70160,
+    101299,
+    131631,
+    131634
+   ]
+  },
+  {
+   "id": 528,
+   "name": "Terminátor",
+   "poster": "/tg24cQ2kpASdRppg8IC2aPMvaxL.jpg",
+   "backdrop": "/sCnBEw2Yu6foEjs4Xb4eMddYHRo.jpg",
+   "parts": [
+    218,
+    280,
+    296,
+    534,
+    87101,
+    290859
+   ]
+  },
+  {
+   "id": 87096,
+   "name": "Avatar",
+   "poster": "/tnS1OlL6VdRwv5Ee2rCbIEMQvJB.jpg",
+   "backdrop": "/4uwX70EzaWVcGUXMtXPoexlNAff.jpg",
+   "parts": [
+    19995,
+    76600,
+    83533
+   ]
+  },
+  {
+   "id": 77816,
+   "name": "Kung Fu Panda",
+   "poster": "/wwMnX4v4P54EerDBBHX5R3DQ7D.jpg",
+   "backdrop": "/2nbtv33hEk2CTnuMhTGZgsFdi3K.jpg",
+   "parts": [
+    9502,
+    49444,
+    140300,
+    1011985
+   ]
+  },
+  {
+   "id": 31562,
+   "name": "Bourne",
+   "poster": "/gzjXgXr5IWDV9xg8ah8PL8V8h9f.jpg",
+   "backdrop": "/vA5xMglyZv7yzDTj1qUTU4OvelV.jpg",
+   "parts": [
+    2501,
+    2502,
+    2503,
+    49040,
+    324668
+   ]
+  },
+  {
+   "id": 230,
+   "name": "Kmotr",
+   "poster": "/kKjIYmvpBUIxcYJ0LL9YZwv4nrZ.jpg",
+   "backdrop": "/28eqCQ51SuLfkbzhQE7jCmTfYfy.jpg",
+   "parts": [
+    238,
+    240,
+    242
+   ]
+  },
+  {
+   "id": 726871,
+   "name": "Duna",
+   "poster": "/ijUdQL4MdIXmkdu8h962IS5uXIH.jpg",
+   "backdrop": "/fahk0Fu7VUUfK6IkTt1R3waOD9F.jpg",
+   "parts": [
+    438631,
+    693134
+   ]
+  },
+  {
+   "id": 89137,
+   "name": "Jak vycvičit draka",
+   "poster": "/ghCAVksDRhvVT61khDwfdMcyfwi.jpg",
+   "backdrop": "/mvcfPkOvgDJG2lEAxTz0NKqoQLo.jpg",
+   "parts": [
+    10191,
+    82702,
+    166428
+   ]
+  },
+  {
+   "id": 1575,
+   "name": "Rocky",
+   "poster": "/fKe9y1AJHEzoiHwSrjfwyinuCE8.jpg",
+   "backdrop": "/yaXXemxz3ePNSrqNtc4ZAbuxJRv.jpg",
+   "parts": [
+    1366,
+    1367,
+    1371,
+    1374,
+    1375,
+    1246
+   ]
+  },
+  {
+   "id": 1570,
+   "name": "Smrtonosná past",
+   "poster": "/xdZdeHMF7wU7ZJNaCbj1nxJpj66.jpg",
+   "backdrop": "/nKShbIW0wJnSbl3t8uPje0QhTb7.jpg",
+   "parts": [
+    562,
+    1573,
+    1572,
+    1571,
+    47964
+   ]
+  }
+ ]
+}

@@ -19,6 +19,7 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 - **Procházet** — browse films or series by genre, decade (last 5 years … older) and sort (popular / rating / newest), with "load more"
 - **Online subtitles** — optional OpenSubtitles search inside the player (see *Configure*)
 - **Per-episode watch state** — each episode in the detail view shows *Zhlédnuto* (watched), a progress bar with minutes left, or *Další na řadě* (next up); a season summary ("Zhlédnuto 3 z 10" + Pokračovat) and ✓ on fully watched seasons; episodes can be marked watched/unwatched by hand. Finished episodes stay in the progress store flagged `finished` (Continue Watching skips them)
+- **Film series & watch guides** — a *Filmové série* row with hand-made guides (MCU, Star Wars, Wizarding World, Fast & Furious, Alien) and popular TMDB collections, each card showing "Viděno X z N". A guide opens a sheet with a **Podle vydání / Chronologicky** order toggle (remembered per guide), numbered films, ✓ marks, *Další na řadě* and a *Pokračovat* button. A film's detail shows **Součást série** with the whole collection in order, your progress and links to the full series/guide
 - **Next episode during the credits** — a "Další epizoda" card with a countdown in the last 45 s of an episode
 - **Search** — live TMDB search with dropdown and search history; <kbd>Enter</kbd> shows a full results grid
 - **Detail modal** — backdrop header, poster, genres, cast (with characters), overview, trailer, season/episode browser with episode stills and per-episode progress, similar titles
@@ -53,6 +54,9 @@ home_streaming_app/
 ├── stream.js           # prehraj.to page parsing, MP4 colour-tag probing, /stream proxy
 ├── security.js         # API input validation, PIN sessions, wrong-PIN rate limit
 ├── subtitles.js        # SRT→WebVTT + OpenSubtitles search/download
+├── tools/
+│   ├── guides.spec.js  # Hand-written watch guides (film lists, chronological order) + TMDB collection ids
+│   └── build-guides.js # Resolves them on TMDB → src/guides/guides.json
 ├── test-unit/          # node:test unit tests (npm run test:unit)
 ├── db.js               # JSON file store (profiles, favorites, watched, watchlists, progress)
 ├── package.json
@@ -64,6 +68,7 @@ home_streaming_app/
 │   └── progress.json     # Per-profile playback position, keyed by tmdbId or "tmdbId:S01E05" → { seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }
 └── src/
     ├── index.html
+    ├── guides/guides.json # Generated watch guides + collections (node tools/build-guides.js)
     ├── player.html       # Video player (quality, subtitles, HDR fix, remote controls)
     ├── css/
     │   ├── base.css      # Design tokens, buttons, fields, chips, focus rings
@@ -92,6 +97,7 @@ home_streaming_app/
         ├── hero.js       # Hero carousel
         ├── recommend.js  # "Doporučeno pro vás" row
         ├── browse.js     # "Procházet" genre / decade browser
+        ├── series.js     # "Filmové série" row, watch-guide sheet, "Součást série" in the detail
         ├── watched.js    # Per-profile watched history + badges
         ├── watchlist.js  # Continue Watching + multi-list management
         ├── settings.js   # Profile settings + PIN prompt
@@ -158,6 +164,14 @@ On an LG TV, open the same address in the webOS browser.
 | 🟢 Green | My list | Settings (quality, subtitles, colours) |
 | 🟡 Yellow | Profile settings | — |
 | 🔵 Blue | Switch profile | — |
+
+### Watch guides
+
+The guides and the collection list live in `tools/guides.spec.js`. After editing it (a new film came out, another franchise), regenerate the data file — it needs `TMDB_READ_TOKEN` in `.env`; unreleased films are skipped automatically:
+
+```bash
+node tools/build-guides.js
+```
 
 ### Test
 
@@ -250,6 +264,7 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 | `GET /tmdb/recommendations?id=&type=` | Recommendations for one title |
 | `GET /tmdb/discover?type=movie\|tv&genre=&from=&to=&sort=popular\|rating\|newest&page=` | Browse by genre / year range |
 | `GET /tmdb/genres?type=movie\|tv` | Genre list |
+| `GET /tmdb/collection?id=` | Film series (TMDB collection) with its parts |
 
 ### Subtitles (OpenSubtitles, optional)
 

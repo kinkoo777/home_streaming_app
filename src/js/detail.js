@@ -49,6 +49,8 @@ window.openDetailModal = async function (id, type, title) {
   $d('detail-cast-wrap').style.display = 'none'
   $d('detail-seasons').style.display  = 'none'
   $d('detail-similar').style.display  = 'none'
+  $d('detail-series').style.display   = 'none'
+  $d('detail-series').innerHTML       = ''
   $d('detail-seasons').innerHTML      = ''
   $d('detail-similar-grid').innerHTML = ''
   const backdrop = $d('detail-backdrop')
@@ -158,6 +160,9 @@ window.openDetailModal = async function (id, type, title) {
       setSeriesPlayButton(id, nums, movieTitle, d.poster_path || null)
       loadSeason(id, startSeason, movieTitle, d.poster_path || null)
     }
+
+    // ── Film series / watch guide this film belongs to (series.js) ──
+    if (type === 'movie' && window.renderDetailSeries) window.renderDetailSeries(d)
 
     // ── Similar titles ──
     const simMovies = (sim.results || []).filter(m => m.poster_path).slice(0, 14)

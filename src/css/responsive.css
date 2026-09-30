@@ -223,3 +223,13 @@ body.tv .cast-item:focus img { border-color: #fff; box-shadow: 0 0 0 5px rgba(24
   .fav-btn:not(.active) { opacity: 0.85; }
   .row-arrow { display: none; }
 }
+
+/* Film series sheet on phones */
+@media (max-width: 600px) {
+  .guide-hero { height: 200px; }
+  .guide-body { padding: 0 16px 28px; margin-top: -70px; }
+  #guide-title { font-size: 26px; }
+  .guide-progress .season-summary-bar { width: 110px; }
+  .guide-num { width: 24px; font-size: 15px; }
+  .series-buttons > .btn { margin-left: 0; margin-right: 8px; }
+}

@@ -248,6 +248,17 @@
       <div class="row" data-row><div class="row-track" id="top-rated" data-type="top_rated" data-page="1"></div></div>
     </section>
 
+    <!-- ── Film series + watch guides (series.js) ── -->
+    <section class="row-section" id="series-section" style="display:none">
+      <div class="row-header">
+        <div>
+          <h3>Filmové série</h3>
+          <p>Průvodci pořadím sledování a známé série — s vaším postupem</p>
+        </div>
+      </div>
+      <div class="row" data-row><div class="row-track" id="series-movies"></div></div>
+    </section>
+
     <!-- ── Browse by genre / decade ── -->
     <section class="row-section" id="browse-section" data-nav-controls>
       <div class="row-header">
@@ -351,6 +362,8 @@
           <div id="detail-cast" class="detail-cast"></div>
         </div>
         <div id="detail-seasons" class="detail-block detail-seasons" style="display:none"></div>
+        <!-- "Součást série" — filled by series.js when the film belongs to a series / guide -->
+        <div id="detail-series" class="detail-block" style="display:none"></div>
         <div id="detail-similar" class="detail-block" style="display:none">
           <h4 class="block-title">Podobné tituly</h4>
           <div class="row row-compact" data-row><div class="row-track" id="detail-similar-grid"></div></div>
@@ -390,6 +403,36 @@
       </div>
       <div class="chip-row source-filters" id="prehraj-filters"></div>
       <div id="prehraj-modal-content" class="source-list"></div>
+    </div>
+  </div>
+
+  <!-- ── Watch guide / film series ── -->
+  <div id="guide-modal" class="sheet-modal hidden" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet guide-sheet">
+      <button class="sheet-close" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
+      <div class="detail-hero guide-hero">
+        <img id="guide-backdrop" class="detail-backdrop-img" alt="" />
+        <div class="detail-hero-shade"></div>
+      </div>
+      <div class="guide-body">
+        <span class="eyebrow" id="guide-eyebrow">Průvodce sledováním</span>
+        <h2 id="guide-title"></h2>
+        <p id="guide-subtitle" class="detail-meta"></p>
+        <div class="guide-progress">
+          <div class="season-summary-bar"><span id="guide-progress-bar"></span></div>
+          <span id="guide-progress-text"></span>
+        </div>
+        <div class="guide-actions">
+          <button id="guide-continue" class="btn btn-primary" style="display:none"></button>
+          <div class="segmented" id="guide-order" style="display:none">
+            <button data-order="release"><i class="bi bi-calendar3"></i> Podle vydání</button>
+            <button data-order="chrono"><i class="bi bi-hourglass-split"></i> Chronologicky</button>
+          </div>
+        </div>
+        <p id="guide-note" class="guide-note"></p>
+        <div id="guide-list" class="guide-list"></div>
+      </div>
     </div>
   </div>
 
@@ -551,6 +594,7 @@
   <script src="js/hero.js"></script>
   <script src="js/recommend.js"></script>
   <script src="js/browse.js"></script>
+  <script src="js/series.js"></script>
   <script src="js/main.js"></script>
   <script src="js/settings.js"></script>
 </body>

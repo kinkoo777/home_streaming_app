@@ -55,6 +55,8 @@ function _timeAgo(isoStr) {
 }
 
 function renderWatched() {
+  // Runs after every change to the watched list — let other views (film series) update.
+  document.dispatchEvent(new CustomEvent('filmbox:watched'))
   const section   = document.getElementById('watched-section')
   const container = document.getElementById('watched-movies')
   if (!section || !container) return

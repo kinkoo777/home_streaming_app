@@ -257,6 +257,14 @@ app.get('/tmdb/discover', async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// A film series (TMDB collection) with its parts.
+app.get('/tmdb/collection', async (req, res) => {
+    const id = sec.toId(req.query.id);
+    if (!id) return res.status(400).json({ error: 'Neplatné id' });
+    try { res.json(await tmdbFetch(`/collection/${id}?language=cs-CZ`)); }
+    catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/tmdb/genres', async (req, res) => {
     const type = sec.tmdbType(req.query.type);
     if (!type) return res.status(400).json({ error: 'type musí být movie nebo tv' });

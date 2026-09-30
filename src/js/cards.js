@@ -4,7 +4,7 @@
 // titles with quotes/apostrophes ("Ocean's Eleven") can't break anything.
 //
 // opts: { index, variant: 'continue', remove: 'continue'|'list'|'watched',
-//         removeTitle, note, hideWatchedBadge }
+//         removeTitle, note, hideWatchedBadge, order (position in a film series), current }
 
 function buildCard(movie, opts) {
   opts = opts || {}
@@ -45,7 +45,7 @@ function buildCard(movie, opts) {
     : ''
 
   return `
-    <div class="movie-card${isContinue ? ' continue-card' : ''}" tabindex="0" role="button"
+    <div class="movie-card${isContinue ? ' continue-card' : ''}${opts.current ? ' current' : ''}" tabindex="0" role="button"
          data-id="${movie.id}" data-type="${mediaType}" data-title="${safeTitle}"
          ${isContinue ? `data-play="1" data-key="${escapeHtml(movie._key)}" data-poster="${escapeHtml(movie.poster_path || '')}" data-ep="${escapeHtml(movie._episodeLabel || '')}"` : ''}
          aria-label="${safeTitle}"${delay}>
@@ -53,7 +53,8 @@ function buildCard(movie, opts) {
         <div class="poster-fallback">${safeTitle}</div>
         ${poster}
         <div class="card-overlay"><span class="card-play"><i class="bi bi-play-fill"></i></span></div>
-        ${rating ? `<div class="rating${rating >= 8 ? ' high' : ''}"><i class="bi bi-star-fill"></i>${rating.toFixed(1)}</div>` : ''}
+        ${opts.order ? `<div class="order-badge">${opts.order}</div>` : ''}
+        ${rating && !opts.order ? `<div class="rating${rating >= 8 ? ' high' : ''}"><i class="bi bi-star-fill"></i>${rating.toFixed(1)}</div>` : ''}
         ${watched ? '<div class="watched-badge" title="Zhlédnuto"><i class="bi bi-check-lg"></i></div>' : ''}
         ${badgeText ? `<div class="remaining-badge">${escapeHtml(badgeText)}</div>` : ''}
         ${pct != null ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct.toFixed(1)}%"></div></div>` : ''}
