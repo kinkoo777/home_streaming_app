@@ -4,6 +4,8 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 
 ## Features
 
+- **Streaming-style UI** — full-bleed hero with cross-fading Ken Burns backdrops, progress dots and an ambient glow tinted from each backdrop; horizontal rows of poster cards with lift/glow/light-sweep on hover or focus; animated modals; dark and light themes
+- **TV remote / LG webOS** — D-pad spatial navigation across the whole app (rows, modals, menus), OK/Back keys, Magic Remote pointer support, cheaper effects in TV mode; the code targets webOS 5+ (Chromium 68)
 - **Intro animation** — logo entrance with Web Audio sound
 - **Multi-profile support** — create, switch and delete profiles; each profile has its own theme and favorites
 - **Per-profile favorites** — heart any movie or series; favorites are isolated per profile and saved to JSON
@@ -12,12 +14,24 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 - **Continue Watching** — a dedicated row of titles you started but haven't finished (under 90%), each card showing a **green progress line** at the exact point where you stopped, the **episode label** (TV) and the **remaining minutes**. Progress is written to the JSON store **every minute while playing** (and on pause/close), so it survives crashes. Each TV episode is tracked **separately** under a composite `tmdbId:S01E05` key instead of colliding on the show id, and each entry carries its own title/poster so the row renders on **any device** without relying on browser storage. Reopening a title shows a **Resume / Start over** prompt, every card has a **✕ remove** button, and finishing a title drops it from the row automatically
 - **Theme persistence** — dark/light toggle saved to the profile in the JSON store
 - **Hero banner** — rotating trending movies with backdrop, title and description
-- **3 browsable grids** — Most Visited, Trending, Top Rated; genre filters, sort tabs, load-more
-- **Search** — live TMDB search with dropdown and search history
-- **Detail modal** — poster, genres, cast, overview, trailer, season/episode browser for TV, similar titles
+- **3 browsable rows** — Popular, Trending, Top Rated; genre filters, sort tabs, infinite sideways loading
+- **Doporučeno pro vás** — a row built from TMDB recommendations for what the profile recently watched, liked or has in progress (already-seen titles are left out)
+- **Procházet** — browse films or series by genre, decade (last 5 years … older) and sort (popular / rating / newest), with "load more"
+- **Online subtitles** — optional OpenSubtitles search inside the player (see *Configure*)
+- **Per-episode watch state** — each episode in the detail view shows *Zhlédnuto* (watched), a progress bar with minutes left, or *Další na řadě* (next up); a season summary ("Zhlédnuto 3 z 10" + Pokračovat) and ✓ on fully watched seasons; episodes can be marked watched/unwatched by hand. Finished episodes stay in the progress store flagged `finished` (Continue Watching skips them)
+- **What's new video** — the first time each profile is opened after an update, a short full-screen video shows the new features (Skip button, TV Back key; falls back to muted with a *Zapnout zvuk* button if the browser blocks sound). Seen state is stored per profile on the server, so it plays once per profile, not per device
+- **Film series & watch guides** — a *Filmové série* row with hand-made guides (MCU, Star Wars, Wizarding World, Fast & Furious, Alien) and popular TMDB collections, each card showing "Viděno X z N". A guide opens a sheet with a **Podle vydání / Chronologicky** order toggle (remembered per guide), numbered films, ✓ marks, *Další na řadě* and a *Pokračovat* button. A film's detail shows **Součást série** with the whole collection in order, your progress and links to the full series/guide
+- **Next episode during the credits** — a "Další epizoda" card with a countdown in the last 45 s of an episode
+- **Search** — live TMDB search with dropdown and search history; <kbd>Enter</kbd> shows a full results grid
+- **Detail modal** — backdrop header, poster, genres, cast (with characters), overview, trailer, season/episode browser with episode stills and per-episode progress, similar titles
+- **Source picker (prehraj.to)** — only real films/episodes are shown: results must match the title (search text, Czech or original TMDB name), be long enough (films ≥ 40 min, episodes ≥ 8 min), not be clips/trailers/gameplay/music videos, and for episodes carry the right SxxEyy/2x03 code; film searches drop series episodes. "Zobrazit vše" reveals the hidden rest. Results as cards with thumbnail, duration, size, quality and CZ-dub/subtitle tags, filters and a recommended pick; plays in the FilmBox player (quality, HDR fix, subtitles, resume)
 - **Trailer modal** — embedded YouTube player
 - **Actor modal** — photo, biography and top works
-- **Player** — searches prehraj.to for the title; supports custom query if nothing is found; keyboard shortcuts, buffering spinner, **resume prompt**, **subtitle (CC) support**, and **auto-play next episode** for TV; press <kbd>/</kbd> anywhere to jump to search
+- **Player** — searches prehraj.to for the title; supports custom query if nothing is found; keyboard shortcuts, buffering spinner, **resume prompt**, **subtitles** and **auto-play next episode** for TV; press <kbd>/</kbd> anywhere to jump to search
+  - **Settings menu** (gear / <kbd>S</kbd>) — quality (Auto / 1080p / 720p…), subtitle track and size, HDR colour mode and brightness, reload video
+  - **HDR fix for TVs** — many "4K" uploads are HDR masters re-encoded to 8-bit H.264 with their HDR colour tags left in, which smart-TV browsers render **purple/green**. The server's `/stream` proxy rewrites those tags to BT.709 in place (same byte length, so seeking works), and the player tone-maps HDR → SDR with WebGL. Modes: *Automaticky* (tone-mapped), *Jednoduché* (tags fixed only — for weak TVs), *Originál* (untouched)
+  - **Reliability** — Auto quality follows screen size and steps down on repeated buffering; expired CDN links are refreshed automatically; a broken quality falls back to the next one; stuck streams are reloaded at the same position
+  - **TV remote friendly** — arrow/OK navigation in menus and prompts, Samsung/LG back keys, media keys, Media Session
 - **Export / wipe my data** — from a profile's settings, download everything (favorites, watched, watchlists, progress) as one JSON file, or wipe the library while keeping the profile
 - **Fully responsive** — 360 px phone → tablet → laptop → large TV
 
@@ -38,6 +52,13 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 ```
 home_streaming_app/
 ├── server.js           # Express server — TMDB proxy, profiles/favorites/watched/watchlists/progress API, prehraj.to scraping
+├── stream.js           # prehraj.to page parsing, MP4 colour-tag probing, /stream proxy
+├── security.js         # API input validation, PIN sessions, wrong-PIN rate limit
+├── subtitles.js        # SRT→WebVTT + OpenSubtitles search/download
+├── tools/
+│   ├── guides.spec.js  # Hand-written watch guides (film lists, chronological order) + TMDB collection ids
+│   └── build-guides.js # Resolves them on TMDB → src/guides/guides.json
+├── test-unit/          # node:test unit tests (npm run test:unit)
 ├── db.js               # JSON file store (profiles, favorites, watched, watchlists, progress)
 ├── package.json
 ├── data/               # Created automatically on first run
@@ -48,37 +69,49 @@ home_streaming_app/
 │   └── progress.json     # Per-profile playback position, keyed by tmdbId or "tmdbId:S01E05" → { seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }
 └── src/
     ├── index.html
+    ├── media/whats-new.mp4 # "What's new" video (not in git — copy it in manually)
+    ├── guides/guides.json # Generated watch guides + collections (node tools/build-guides.js)
+    ├── player.html       # Video player (quality, subtitles, HDR fix, remote controls)
     ├── css/
-    │   ├── base.css
+    │   ├── base.css      # Design tokens, buttons, fields, chips, focus rings
     │   ├── navbar.css
     │   ├── hero.css
-    │   ├── cards.css
-    │   ├── grid.css
-    │   ├── modals.css
-    │   ├── responsive.css
+    │   ├── rows.css      # Content rows + movie cards
+    │   ├── modals.css    # Detail sheet, source picker, overlays
+    │   ├── profiles.css  # Intro + profile chooser + PIN
+    │   ├── settings.css
+    │   ├── watchlist.css
     │   ├── footer.css
-    │   └── intro.css
+    │   └── responsive.css # Breakpoints + TV mode
     └── js/
+        ├── utils.js      # Helpers, modal stack, confirm dialog, profile helpers
+        ├── tv.js         # D-pad spatial navigation, Back key, TV detection
         ├── intro.js      # Intro animation + profile chooser (API-driven)
         ├── favorites.js  # Per-profile favorites with isolated state
-        ├── utils.js      # Toast, skeletons, genre map, shared data map
-        ├── cards.js      # Movie cards, grid state, filters, fetch
+        ├── cards.js      # Card builder, rows, catalog filters/sort, infinite loading
         ├── trailer.js    # Trailer modal
         ├── actor.js      # Actor modal
-        ├── player.js     # prehraj.to search + video modal
+        ├── player.js     # Source picker (prehraj.to search → player)
+        ├── relevance.js  # Film/series filter for source results (shared with unit tests)
+        ├── hdr-renderer.js # WebGL HDR → SDR tone mapping for the player
         ├── detail.js     # Detail modal + season browser
-        ├── search.js     # Live search + theme toggle
-        ├── hero.js       # Hero banner rotation
+        ├── search.js     # Live search, history, results grid
+        ├── hero.js       # Hero carousel
+        ├── recommend.js  # "Doporučeno pro vás" row
+        ├── browse.js     # "Procházet" genre / decade browser
+        ├── whatsnew.js   # One-time "what's new" video after choosing a profile
+        ├── series.js     # "Filmové série" row, watch-guide sheet, "Součást série" in the detail
         ├── watched.js    # Per-profile watched history + badges
         ├── watchlist.js  # Continue Watching + multi-list management
-        └── main.js       # Navbar scroll links
+        ├── settings.js   # Profile settings + PIN prompt
+        └── main.js       # Navbar, section links, theme toggle
 ```
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20.19+ (22 LTS recommended)
 - A free TMDB API key from [themoviedb.org](https://www.themoviedb.org/settings/api)
 
 ### Install
@@ -87,6 +120,12 @@ home_streaming_app/
 git clone https://github.com/kinkoo777/home_streaming_app.git
 cd home_streaming_app
 npm install
+```
+
+The server uses a headless Chrome for prehraj.to. On Linux it picks up a system `chromium` / `google-chrome` automatically; elsewhere (or without one) download puppeteer's Chrome once — newer npm versions no longer run that step during `npm install`:
+
+```bash
+npx puppeteer browsers install chrome
 ```
 
 ### Configure
@@ -104,13 +143,63 @@ TMDB_READ_TOKEN=your_tmdb_v4_read_access_token_here
 
 `.env` is git-ignored. The server refuses to start if `TMDB_READ_TOKEN` is missing.
 
+**Optional — online subtitles.** When a video has no Czech/Slovak subtitles, the player can search [OpenSubtitles.com](https://www.opensubtitles.com). Create a free account, add an API consumer at *Profile → API consumers*, and add:
+
+```ini
+OPENSUBTITLES_API_KEY=your_api_key
+# optional: log in for a higher daily download quota
+OPENSUBTITLES_USERNAME=your_username
+OPENSUBTITLES_PASSWORD=your_password
+```
+
+Without a key the feature simply stays hidden. Downloaded subtitles are cached in `data/subtitles/`.
+
 ### Run
 
 ```bash
 node server.js
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The `data/` folder is created automatically on first run.
+Open [http://localhost:3000](http://localhost:3000). The `data/` folder is created automatically on first run. Set `PORT` to use a different port.
+
+On an LG TV, open the same address in the webOS browser.
+
+| Remote | Browsing | Player |
+|---|---|---|
+| Arrows | Move between titles; ▲▼ jump row to row (remembers your place in each row) | ◀▶ seek — hold to speed up (10 s → 30 s → 60 s); ▲▼ open the control bar |
+| OK | Open | Play / pause |
+| Back | Close window / back to top | Leave player |
+| 🔴 Red | Search | Subtitles on/off |
+| 🟢 Green | My list | Settings (quality, subtitles, colours) |
+| 🟡 Yellow | Profile settings | — |
+| 🔵 Blue | Switch profile | — |
+
+### What's new video
+
+Put the video at `src/media/whats-new.mp4` (H.264 MP4; it is git-ignored because of its size). Without the file the feature simply stays off. To show a new video to everyone again, replace the file and bump `VERSION` in `src/js/whatsnew.js`.
+
+### Watch guides
+
+The guides and the collection list live in `tools/guides.spec.js`. After editing it (a new film came out, another franchise), regenerate the data file — it needs `TMDB_READ_TOKEN` in `.env`; unreleased films are skipped automatically:
+
+```bash
+node tools/build-guides.js
+```
+
+### Test
+
+Unit tests (no server or network needed) cover the HDR colour-tag patching, prehraj.to page parsing, API input validation / PIN limits and the film/series source filter:
+
+```bash
+npm run test:unit
+```
+
+End-to-end tests (Playwright) run against a running server with a valid TMDB token:
+
+```bash
+npx playwright install chromium   # once
+npm test                          # or BASE=http://localhost:3100 npm test
+```
 
 To access from other devices on the same network use your machine's local IP — e.g. `http://192.168.1.x:3000`.
 
@@ -126,6 +215,8 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 
 ## API Endpoints
 
+**PIN-protected profiles:** every `/api/profiles/:id…` route below (except listing) needs the session token returned by `POST /api/profiles/:id/pin/verify` `{ pin }` → `{ ok, token }`, sent as the `X-Profile-Token` header (or `?t=` for `navigator.sendBeacon`). Tokens live in server memory for 12 h (a restart asks for the PIN again). Wrong PINs are limited to 5 per 5 minutes. All request bodies are validated; unknown fields are dropped.
+
 ### Profiles & Favorites
 
 | Method | Endpoint | Description |
@@ -133,7 +224,9 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 | `GET` | `/api/profiles` | List all profiles |
 | `POST` | `/api/profiles` | Create profile `{ name, theme }` |
 | `GET` | `/api/profiles/:id` | Get profile by id |
-| `PUT` | `/api/profiles/:id` | Update profile (name, theme) |
+| `PUT` | `/api/profiles/:id` | Update profile (name, theme, picture data URL, settings) |
+| `POST` | `/api/profiles/:id/pin` | Set `{ pin: "1234" }` or clear `{ pin: null }` the PIN → `{ hasPin, token }` |
+| `POST` | `/api/profiles/:id/pin/verify` | Check a PIN → `{ ok, token }` (429 after 5 wrong attempts) |
 | `DELETE` | `/api/profiles/:id` | Delete profile — cascades to its favorites, watched, watchlists and progress |
 | `GET` | `/api/profiles/:id/favorites` | List favorites for a profile |
 | `POST` | `/api/profiles/:id/favorites` | Add favorite `{ tmdbId, mediaType, title, posterPath }` |
@@ -159,7 +252,7 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/profiles/:id/progress` | Get playback progress map, keyed by `tmdbId` (or `tmdbId:S01E05` per episode) |
-| `PUT` | `/api/profiles/:id/progress/:key` | Save position + metadata `{ seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }` |
+| `PUT`/`POST` | `/api/profiles/:id/progress/:key` | Save position + metadata `{ seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }` (POST = page-close beacon) |
 | `DELETE` | `/api/profiles/:id/progress/:key` | Remove a single Continue Watching entry |
 
 ### Data export / wipe
@@ -181,18 +274,30 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 | `GET /tmdb/actor?id=` | Actor bio + works |
 | `GET /tmdb/season?id=&season=N` | TV season episodes |
 | `GET /tmdb/hero` | Trending movies for hero banner |
+| `GET /tmdb/recommendations?id=&type=` | Recommendations for one title |
+| `GET /tmdb/discover?type=movie\|tv&genre=&from=&to=&sort=popular\|rating\|newest&page=` | Browse by genre / year range |
+| `GET /tmdb/genres?type=movie\|tv` | Genre list |
+| `GET /tmdb/collection?id=` | Film series (TMDB collection) with its parts |
+
+### Subtitles (OpenSubtitles, optional)
+
+| Endpoint | Description |
+|---|---|
+| `GET /subs/status` | `{ enabled }` — whether an API key is configured |
+| `GET /subs/search?tmdbId=&type=movie\|tv&season=&episode=` | Czech/Slovak subtitles → `[{ fileId, lang, release, downloads, hearingImpaired }]` |
+| `GET /subs/file/:fileId` | The subtitle as WebVTT (cached on disk) |
 
 ### Playback (prehraj.to)
 
 | Endpoint | Description |
 |---|---|
 | `GET /search?q=<query>` | Title search |
-| `GET /get_video?url=<url>` | Extract video stream URL(s) + any subtitle tracks |
+| `GET /get_video?url=<url>` | Read the video page → `{ name, duration, pageUrl, qualities: [{ src, label, res, hdr, transfer }], subtitles: [{ src, label, lang, default }] }` (Puppeteer fallback) |
+| `GET /stream?url=<cdn url>` | Range-aware video proxy that rewrites HDR colour tags to BT.709 (used for HDR-tagged files) |
 | `GET /get_subtitle?url=<url>` | Proxy + normalize a subtitle file to WebVTT (SRT auto-converted) |
-| `GET /autocomplete_data?q=<query>` | Autocomplete suggestions |
 
-TMDB responses are cached in memory for 5 minutes.
+TMDB and search responses are cached for 5 minutes (in memory and in `data/tmdb-cache.json`, so they survive restarts). The headless browser used as a fallback for `/get_video` starts on first use, restarts if it crashes, runs at most 2 tabs and closes after 10 minutes idle.
 
 ## Browser Support
 
-Any modern browser with ES6+ support (Chrome, Edge, Firefox, Safari).
+Any modern browser (Chrome, Edge, Firefox, Safari) and TV browsers from LG webOS 5 (Chromium 68) up. Front-end code is plain ES2018 without optional chaining, and the CSS avoids features newer than Chromium 68 (flexbox `gap`, `inset`, `clamp()`, `:focus-visible`).

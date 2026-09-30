@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FilmBox Player</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <link rel="manifest" href="manifest.webmanifest">
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
@@ -25,7 +29,7 @@
       /* ── LOADING / ERROR SCREENS ── */
       #loading-screen, #error-screen {
         position: fixed;
-        inset: 0;
+        top: 0; right: 0; bottom: 0; left: 0;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -126,48 +130,155 @@
         text-overflow: ellipsis;
       }
 
-      /* ── QUALITY SELECTOR ── */
-      #quality-selector {
+      /* ── HDR CANVAS ── */
+      #hdr-canvas {
         position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: rgba(18,18,20,0.95);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 24px;
-        padding: 32px;
-        min-width: 340px;
-        z-index: 20;
+        top: 0; right: 0; bottom: 0; left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        pointer-events: none;   /* clicks go through to the <video> underneath */
         display: none;
+        z-index: 1;
+      }
+      #hdr-canvas.active { display: block; }
+      video.under-canvas { opacity: 0; }
+
+      /* ── SUBTITLES ── */
+      #subtitle-overlay {
+        position: absolute;
+        left: 5%;
+        right: 5%;
+        bottom: 7%;
+        text-align: center;
+        pointer-events: none;
+        z-index: 4;
+        transition: bottom 0.3s ease;
+        font-size: var(--sub-size, 3.2vh);
+        line-height: 1.3;
+      }
+      #player-wrap.controls-visible #subtitle-overlay { bottom: 150px; }
+      #subtitle-overlay .cue {
+        display: inline-block;
+        padding: 0.1em 0.45em;
+        border-radius: 6px;
+        background: rgba(0,0,0,0.72);
+        color: #fff;
+        font-weight: 500;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+        white-space: pre-line;
+        margin-top: 0.15em;
       }
 
-      #quality-selector h3 {
-        font-size: 18px;
-        margin-bottom: 20px;
+      /* ── TOAST ── */
+      #player-toast {
+        position: absolute;
+        top: 90px;
+        left: 50%;
+        transform: translateX(-50%) translateY(-8px);
+        padding: 10px 18px;
+        border-radius: 12px;
+        background: rgba(18,18,20,0.92);
+        border: 1px solid rgba(255,255,255,0.1);
+        font-size: 14px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s ease, transform 0.25s ease;
+        z-index: 25;
+        max-width: 90%;
         text-align: center;
       }
+      #player-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-      .quality-list {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
+      /* ── SETTINGS PANEL ── */
+      .settings-wrap { position: relative; }
+      #settings-btn { position: relative; }
+      #settings-btn .bi-gear-fill { transition: transform 0.3s ease; }
+      #settings-btn.open .bi-gear-fill { transform: rotate(60deg); }
+      .quality-badge {
+        position: absolute;
+        top: 3px;
+        right: -2px;
+        padding: 1px 4px;
+        border-radius: 5px;
+        background: #e11d48;
+        color: #fff;
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        line-height: 1.3;
       }
-
-      .quality-item {
+      .quality-badge:empty { display: none; }
+      .settings-panel {
+        position: absolute;
+        bottom: 52px;
+        right: 0;
+        min-width: 280px;
+        max-height: 70vh;
+        overflow-y: auto;
+        background: rgba(18,18,20,0.97);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 16px;
+        padding: 6px;
+        display: none;
+        flex-direction: column;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        z-index: 30;
+      }
+      .settings-panel.open { display: flex; }
+      .settings-panel h4 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        color: rgba(255,255,255,0.6);
+        padding: 8px 10px 6px;
+      }
+      .settings-item {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 14px 18px;
-        border-radius: 14px;
-        background: rgba(255,255,255,0.05);
-        border: 1px solid rgba(255,255,255,0.07);
-        cursor: pointer;
-        transition: 0.2s;
+        gap: 16px;
+        width: 100%;
+        padding: 11px 12px;
+        border: none;
+        border-radius: 10px;
+        background: transparent;
+        color: rgba(255,255,255,0.85);
+        font: inherit;
         font-size: 14px;
+        text-align: left;
+        cursor: pointer;
       }
-      .quality-item:hover { background: rgba(255,255,255,0.1); }
-      .quality-item span:last-child { color: #71717a; font-size: 12px; }
+      .settings-item:hover, .settings-item:focus { background: rgba(255,255,255,0.1); outline: none; }
+      .settings-item .val { color: rgba(255,255,255,0.55); font-size: 13px; display: flex; align-items: center; gap: 4px; }
+      .settings-item .check { width: 18px; color: #fff; }
+      .settings-item.active { color: #fff; font-weight: 600; }
+      .settings-item .tag {
+        margin-left: 6px;
+        padding: 1px 6px;
+        border-radius: 5px;
+        background: rgba(255,255,255,0.12);
+        font-size: 11px;
+        font-weight: 700;
+        color: rgba(255,255,255,0.8);
+      }
+      .settings-item .hint { display: block; font-size: 12px; font-weight: 400; color: rgba(255,255,255,0.5); margin-top: 2px; }
+      .settings-back { color: rgba(255,255,255,0.7); }
+
+      /* TV remotes / keyboard: make focus obvious */
+      /* body.kbd is set on key/remote input (see script) — :focus-visible is unknown to webOS 5 */
+      :focus { outline: none; }
+      body.kbd .ctrl-btn:focus, body.kbd #player-back:focus,
+      body.kbd .resume-yes:focus, body.kbd .resume-no:focus,
+      body.kbd .next-ep-yes:focus, body.kbd .next-ep-no:focus,
+      body.kbd #error-screen button:focus {
+        /* box-shadow, not outline: outlines ignore border-radius before Chromium 94 */
+        box-shadow: 0 0 0 3px #fff;
+      }
+
+      .error-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 
       /* ── CENTER PLAY INDICATOR ── */
       #center-indicator {
@@ -234,6 +345,32 @@
 
       .seek-bar-wrap:hover { height: 6px; }
 
+      /* Remote timeline scrubbing: a marker with a time bubble, OK jumps there. */
+      #seek-scrub {
+        display: none;
+        position: absolute; top: 50%; left: 0;
+        width: 18px; height: 18px; margin: -9px 0 0 -9px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 0 0 5px rgba(244,63,94,0.55), 0 4px 14px rgba(0,0,0,0.5);
+        pointer-events: none;
+        z-index: 2;
+      }
+      #seek-scrub-time {
+        position: absolute; bottom: 26px; left: 50%;
+        -webkit-transform: translateX(-50%); transform: translateX(-50%);
+        padding: 6px 12px;
+        border-radius: 10px;
+        background: #fff; color: #000;
+        font-weight: 800; font-size: 18px; white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      #seek-scrub-time small { font-weight: 600; color: #555; margin-left: 8px; font-size: 14px; }
+      #player-wrap.scrubbing #seek-scrub { display: block; }
+      #player-wrap.scrubbing .seek-bar-wrap { height: 8px; background: rgba(255,255,255,0.35); }
+      body.kbd #seek-bar:focus { box-shadow: 0 0 0 3px rgba(255,255,255,0.9); outline: none; }
+      body.tv #seek-scrub-time { font-size: 24px; bottom: 30px; }
+
       #seek-buffered {
         position: absolute;
         left: 0;
@@ -279,7 +416,7 @@
       /* keyboard-shortcut help overlay */
       #shortcuts-help {
         position: absolute;
-        inset: 0;
+        top: 0; right: 0; bottom: 0; left: 0;
         z-index: 20;
         display: none;
         align-items: center;
@@ -473,6 +610,19 @@
         #volume-slider { width: 56px; }
 
         #speed-btn { min-width: 46px; font-size: 12px; }
+        .settings-panel { right: -40px; min-width: 250px; }
+        #player-wrap.controls-visible #subtitle-overlay { bottom: 120px; }
+      }
+
+      /* Big screens / TVs: larger hit targets and text */
+      @media (min-width: 1600px) {
+        .ctrl-btn { width: 52px; height: 52px; font-size: 22px; }
+        #play-pause-btn { font-size: 28px; }
+        .settings-panel { min-width: 340px; bottom: 62px; }
+        .settings-item { font-size: 17px; padding: 14px 16px; }
+        .time-label { font-size: 16px; }
+        #player-title { font-size: 21px; }
+        #player-wrap.controls-visible #subtitle-overlay { bottom: 180px; }
       }
 
       @media (max-width: 380px) {
@@ -492,7 +642,7 @@
       @media (hover: none) and (pointer: coarse) {
         .ctrl-btn,
         #player-back,
-        .quality-item,
+        .settings-item,
         .speed-option {
           -webkit-tap-highlight-color: transparent;
           touch-action: manipulation;
@@ -516,9 +666,36 @@
       @keyframes buffer-spin { to { transform: rotate(360deg); } }
 
       /* ── RESUME / NEXT-EPISODE PROMPTS ── */
+      /* Next-episode card during the credits */
+      .next-ep-mini {
+        position: absolute;
+        right: 32px;
+        bottom: 130px;
+        z-index: 12;
+        display: none;
+        align-items: center;
+        padding: 10px 10px 10px 18px;
+        border-radius: 16px;
+        background: rgba(18,18,22,0.92);
+        border: 1px solid rgba(255,255,255,0.14);
+        box-shadow: 0 16px 40px rgba(0,0,0,0.55);
+        animation: prompt-fade 0.3s ease;
+      }
+      .next-ep-mini.show { display: flex; }
+      .next-ep-mini .label { font-size: 13px; color: rgba(255,255,255,0.7); margin-right: 14px; line-height: 1.35; }
+      .next-ep-mini .label b { display: block; color: #fff; font-size: 15px; }
+      .next-ep-mini .go { background: #fff; color: #111; border: none; border-radius: 10px; padding: 10px 16px; font-weight: 700; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; }
+      .next-ep-mini .go i { margin-right: 6px; }
+      .next-ep-mini .x { margin-left: 8px; width: 34px; height: 34px; border-radius: 10px; border: none; background: rgba(255,255,255,0.1); color: #fff; cursor: pointer; }
+      body.kbd .next-ep-mini .go:focus, body.kbd .next-ep-mini .x:focus { box-shadow: 0 0 0 3px #f43f5e; }
+      body.tv .next-ep-mini { right: 56px; bottom: 170px; padding: 14px 14px 14px 22px; }
+      body.tv .next-ep-mini .label { font-size: 16px; }
+      body.tv .next-ep-mini .label b { font-size: 19px; }
+      body.tv .next-ep-mini .go { font-size: 18px; padding: 14px 22px; }
+
       .resume-prompt, .next-ep-prompt {
         position: absolute;
-        inset: 0;
+        top: 0; right: 0; bottom: 0; left: 0;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -552,7 +729,104 @@
       }
       .resume-yes:hover, .next-ep-yes:hover { transform: translateY(-1px); }
       .resume-no:hover, .next-ep-no:hover { background: rgba(255,255,255,0.08); }
+
+      /* ── Seek preview OSD ── */
+      #seek-osd {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%) scale(0.9);
+        display: flex; flex-direction: column; align-items: center;
+        padding: 18px 30px;
+        border-radius: 22px;
+        background: rgba(0,0,0,0.65);
+        color: #fff;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease, transform 0.15s ease;
+        z-index: 7;
+      }
+      #seek-osd.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      #seek-osd i { font-size: 34px; }
+      #seek-osd span { font-size: 30px; font-weight: 800; margin-top: 6px; font-variant-numeric: tabular-nums; }
+      #seek-osd small { font-size: 15px; color: rgba(255,255,255,0.7); margin-top: 4px; font-variant-numeric: tabular-nums; }
+      #player-wrap.seek-preview .player-topbar, #player-wrap.seek-preview .player-controls { opacity: 1; }
+      #player-wrap.seek-preview #seek-filled { background: #f43f5e; }
+
+      .tv-remote-hints { display: none; margin-left: auto; align-items: center; font-size: 15px; color: rgba(255,255,255,0.75); }
+      .tv-remote-hints span { display: inline-flex; align-items: center; margin-left: 22px; white-space: nowrap; }
+      .tv-remote-hints .key { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 8px; }
+      .tv-remote-hints .key.red { background: #ef4444; }
+      .tv-remote-hints .key.green { background: #22c55e; }
+      .tv-remote-hints b { padding: 2px 7px; margin-right: 8px; border-radius: 6px; background: rgba(255,255,255,0.16); font-size: 12px; color: #fff; }
+
+      /* ── TV: big, simple controls ── */
+      body.tv .tv-remote-hints { display: flex; }
+      body.tv .volume-wrap, body.tv #pip-btn, body.tv #help-btn, body.tv #fullscreen-btn { display: none !important; }
+      body.tv .player-topbar { padding: 36px 56px; }
+      body.tv #player-back { font-size: 18px; padding: 12px 22px; }
+      body.tv #player-title { font-size: 24px; }
+      body.tv .player-controls { padding: 90px 56px 44px; }
+      body.tv .seek-bar-wrap, body.tv .seek-bar-wrap:hover { height: 8px; }
+      body.tv .time-label { font-size: 20px; }
+      body.tv .ctrl-btn { width: 66px; height: 66px; font-size: 27px; border-radius: 20px; margin: 0 4px; transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease; }
+      body.tv #play-pause-btn { font-size: 36px; }
+      body.tv #speed-btn { min-width: 80px; font-size: 18px; }
+      body.tv.kbd .ctrl-btn:focus, body.tv.kbd #player-back:focus { background: #fff; color: #000; outline: none; transform: scale(1.12); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+      body.tv .settings-panel { bottom: 80px; min-width: 380px; }
+      body.tv .settings-item { font-size: 19px; padding: 16px 18px; }
+      body.tv.kbd .settings-item:focus { background: #fff; color: #000; }
+      body.tv.kbd .settings-item:focus .val, body.tv.kbd .settings-item:focus .hint { color: rgba(0,0,0,0.6); }
+      body.tv #subtitle-overlay { font-size: var(--sub-size, 4.3vh); }
+      /* Paused on TV: keep a big play symbol on screen so the state is obvious */
+      body.tv #player-wrap.is-paused #center-indicator { opacity: 1; transform: translate(-50%, -50%) scale(1.4); }
+
+      /* ── webOS 5 / Chromium < 84: flexbox `gap` is ignored — margin fallbacks (html.no-flexgap) ── */
+      .no-flexgap #loading-screen > * + *, .no-flexgap #error-screen > * + * { margin-top: 18px; }
+      .no-flexgap .player-topbar > * + * { margin-left: 20px; }
+      .no-flexgap #player-back i, .no-flexgap .resume-yes i, .no-flexgap .next-ep-yes i, .no-flexgap #shortcuts-help h3 i { margin-right: 8px; }
+      .no-flexgap #speed-indicator i { margin-left: 8px; }
+      .no-flexgap .settings-item > * + * { margin-left: 16px; }
+      .no-flexgap .settings-item .val > * + * { margin-left: 4px; }
+      .no-flexgap .error-actions > *, .no-flexgap .resume-actions > *, .no-flexgap .next-ep-actions > * { margin: 6px; }
+      .no-flexgap .seek-row > * + * { margin-left: 14px; }
+      .no-flexgap .controls-left > * + *, .no-flexgap .controls-right > * + * { margin-left: 10px; }
+      .no-flexgap .volume-wrap > * + * { margin-left: 6px; }
+    
+      /* Old TV engines (webOS 4–6 = Chromium 53–79) ignore flex `gap`; fall back to margins.
+         `inset` arrived right after flex gap, so it's a good test for "old engine". */
+      @supports not (inset: 0) {
+        #loading-screen > * + * { margin-top: 18px; }
+        #error-screen > * + * { margin-top: 18px; }
+        .player-topbar > * + * { margin-left: 20px; }
+        #player-back > * + * { margin-left: 8px; }
+        .settings-panel h4 > * + * { margin-left: 8px; }
+        .settings-item > * + * { margin-left: 16px; }
+        .settings-item .val > * + * { margin-left: 4px; }
+        .error-actions > * + * { margin-left: 10px; }
+        .seek-row > * + * { margin-left: 14px; }
+        #speed-indicator > * + * { margin-left: 8px; }
+        #shortcuts-help h3 > * + * { margin-left: 8px; }
+        .controls-left > * + * { margin-left: 10px; }
+        .controls-right > * + * { margin-left: 10px; }
+        .volume-wrap > * + * { margin-left: 6px; }
+        .resume-actions > * + * { margin-left: 12px; }
+        .next-ep-actions > * + * { margin-left: 12px; }
+        .resume-yes > * + * { margin-left: 6px; }
+        .next-ep-yes > * + * { margin-left: 6px; }
+      }
     </style>
+    <script src="js/compat.js"></script>
+    <script>
+      // Flex-gap feature test (absent before Chromium 84, e.g. LG webOS 5/6).
+      (function () {
+        var d = document.createElement('div')
+        d.style.cssText = 'display:flex;flex-direction:column;row-gap:1px;position:absolute'
+        d.appendChild(document.createElement('div')); d.appendChild(document.createElement('div'))
+        document.documentElement.appendChild(d)
+        if (d.scrollHeight !== 1) document.documentElement.className += ' no-flexgap'
+        d.parentNode.removeChild(d)
+      })()
+    </script>
   </head>
   <body>
 
@@ -564,12 +838,20 @@
     <div id="error-screen">
       <i class="bi bi-exclamation-circle"></i>
       <p id="error-msg">Něco se pokazilo.</p>
-      <button onclick="history.back()"><i class="bi bi-arrow-left"></i> Zpět</button>
+      <div class="error-actions">
+        <button id="error-retry" style="display:none"><i class="bi bi-arrow-clockwise"></i> Zkusit znovu</button>
+        <button onclick="history.back()"><i class="bi bi-arrow-left"></i> Zpět</button>
+      </div>
     </div>
 
     <div id="player-wrap" style="display:none">
 
-      <video id="video" preload="metadata"></video>
+      <video id="video" preload="auto" playsinline></video>
+      <!-- HDR → SDR tone-mapped picture (see js/hdr-renderer.js) -->
+      <canvas id="hdr-canvas"></canvas>
+      <!-- subtitles are drawn here (not natively) so they also show over the canvas -->
+      <div id="subtitle-overlay" aria-live="off"></div>
+      <div id="player-toast" role="status"></div>
 
       <!-- top bar -->
       <div class="player-topbar">
@@ -577,12 +859,14 @@
           <i class="bi bi-arrow-left"></i> Zpět
         </button>
         <span id="player-title"></span>
-      </div>
-
-      <!-- quality picker (shown when multiple sources) -->
-      <div id="quality-selector">
-        <h3>Vyberte zdroj</h3>
-        <div class="quality-list" id="quality-list"></div>
+        <div class="tv-remote-hints" aria-hidden="true">
+          <span><i class="key red"></i>Titulky</span>
+          <span><i class="key green"></i>Nastavení</span>
+          <span><b>OK</b>Pauza</span>
+          <span><b>◀ ▶</b>Přetáčení</span>
+          <span><b>▲</b>Časová osa</span>
+          <span><b>0–9</b>Přejít na čas</span>
+        </div>
       </div>
 
       <!-- buffering spinner -->
@@ -594,17 +878,31 @@
       <!-- 2× speed hold indicator -->
       <div id="speed-indicator">2× <i class="bi bi-fast-forward-fill"></i></div>
 
+      <!-- next episode, offered during the credits -->
+      <div class="next-ep-mini" id="next-ep-mini">
+        <div class="label">Další epizoda <b id="next-ep-mini-count">za 0:45</b></div>
+        <button class="go" id="next-ep-mini-go"><i class="bi bi-skip-end-fill"></i> Přehrát</button>
+        <button class="x" id="next-ep-mini-x" aria-label="Skrýt"><i class="bi bi-x-lg"></i></button>
+      </div>
+
+      <!-- seek preview while holding ◀ / ▶ -->
+      <div id="seek-osd"><i class="bi bi-fast-forward-fill" id="seek-osd-icon"></i><span id="seek-osd-delta">+0:10</span><small id="seek-osd-time">0:00</small></div>
+
       <!-- keyboard shortcut help -->
       <div id="shortcuts-help">
         <div class="sh-card">
           <h3><i class="bi bi-keyboard"></i> Klávesové zkratky</h3>
           <dl>
             <dt><kbd>Mezerník</kbd> / <kbd>K</kbd></dt><dd>Přehrát / pozastavit</dd>
-            <dt><kbd>←</kbd> / <kbd>→</kbd></dt><dd>Přetočit o 10 s</dd>
+            <dt><kbd>←</kbd> / <kbd>→</kbd></dt><dd>Přetočit (opakovaně rychleji: 10 s → 5 min)</dd>
+            <dt><kbd>0</kbd>–<kbd>9</kbd></dt><dd>Přejít na čas (4 5 0 0 = 45:00)</dd>
+            <dt><kbd>↑</kbd> na TV</dt><dd>Časová osa: ← → vybrat místo, OK přeskočit</dd>
             <dt><kbd>↑</kbd> / <kbd>↓</kbd></dt><dd>Hlasitost</dd>
             <dt><kbd>M</kbd></dt><dd>Ztlumit</dd>
             <dt><kbd>F</kbd></dt><dd>Celá obrazovka</dd>
             <dt><kbd>Podržet</kbd></dt><dd>2× rychlost</dd>
+            <dt><kbd>S</kbd></dt><dd>Nastavení (kvalita, titulky, barvy)</dd>
+            <dt><kbd>C</kbd></dt><dd>Titulky zap / vyp</dd>
             <dt><kbd>?</kbd></dt><dd>Tato nápověda</dd>
           </dl>
           <p class="sh-hint">Stiskněte <kbd>?</kbd> nebo <kbd>Esc</kbd> pro zavření</p>
@@ -615,9 +913,10 @@
       <div class="player-controls">
         <div class="seek-row">
           <span class="time-label" id="time-current">0:00</span>
-          <div class="seek-bar-wrap" id="seek-bar">
+          <div class="seek-bar-wrap" id="seek-bar" tabindex="0" role="slider" aria-label="Časová osa — šipkami vyberte místo, OK přeskočí">
             <div id="seek-buffered" style="width:0%"></div>
             <div id="seek-filled" style="width:0%"></div>
+            <div id="seek-scrub"><span id="seek-scrub-time">0:00</span></div>
           </div>
           <span class="time-label" id="time-total" style="cursor:pointer" title="Přepnout na zbývající čas">0:00</span>
         </div>
@@ -644,6 +943,12 @@
               </div>
             </div>
             <button class="ctrl-btn" id="cc-btn" title="Titulky" aria-label="Titulky" style="display:none"><i class="bi bi-badge-cc"></i></button>
+            <div class="settings-wrap">
+              <button class="ctrl-btn" id="settings-btn" title="Nastavení (S)" aria-label="Nastavení" aria-haspopup="menu">
+                <i class="bi bi-gear-fill"></i><span class="quality-badge" id="quality-badge"></span>
+              </button>
+              <div class="settings-panel" id="settings-panel" role="menu"></div>
+            </div>
             <button class="ctrl-btn" id="pip-btn" title="Picture in Picture" aria-label="Obraz v obraze"><i class="bi bi-pip"></i></button>
             <button class="ctrl-btn" id="help-btn" title="Klávesové zkratky (?)" aria-label="Klávesové zkratky"><i class="bi bi-keyboard"></i></button>
             <button class="ctrl-btn" id="fullscreen-btn" aria-label="Celá obrazovka"><i class="bi bi-fullscreen"></i></button>
@@ -653,12 +958,32 @@
 
     </div>
 
+    <script src="js/hdr-renderer.js"></script>
     <script>
       const video        = document.getElementById('video')
+      // Same TV detection as the main page (tv.js): user agent, or remembered once a
+      // TV-only remote key was pressed there.
+      let storedTv = null
+      try { storedTv = localStorage.getItem('filmbox_tv') } catch (e) {}
+      const IS_TV = storedTv === '1' || (storedTv !== '0' &&
+        (/Web0S|webOS|NetCast|SmartTV|SMART-TV|LG Browser|LGE|WebAppManager|Tizen|HbbTV/i.test(navigator.userAgent) || !!window.PalmSystem))
+      if (IS_TV) document.body.classList.add('tv', 'kbd')
+      // Diagnostics (temporary): playback milestones → server log, to debug slow TVs.
+      ;['loadstart', 'loadedmetadata', 'canplay', 'playing', 'waiting', 'stalled', 'error'].forEach(function (type) {
+        let n = 0
+        video.addEventListener(type, function () {
+          if (n++ >= (type === 'waiting' ? 5 : 2) || typeof clientLog !== 'function') return
+          const src = String(video.currentSrc || '')
+          clientLog('player.' + type, { t: +video.currentTime.toFixed(1), ready: video.readyState, net: video.networkState,
+            w: video.videoWidth, h: video.videoHeight, err: video.error && video.error.code,
+            via: src.indexOf('/stream?') >= 0 ? 'proxy' : (src ? 'direct' : 'none') })
+        })
+      })
       const playerWrap   = document.getElementById('player-wrap')
       const loadingScreen = document.getElementById('loading-screen')
       const errorScreen  = document.getElementById('error-screen')
       const errorMsg     = document.getElementById('error-msg')
+      const errorRetry   = document.getElementById('error-retry')
       const playerTitle  = document.getElementById('player-title')
       const playPauseBtn = document.getElementById('play-pause-btn')
       const muteBtn      = document.getElementById('mute-btn')
@@ -670,8 +995,6 @@
       const timeTotal    = document.getElementById('time-total')
       const centerIndicator = document.getElementById('center-indicator')
       const centerIcon   = document.getElementById('center-icon')
-      const qualitySelector = document.getElementById('quality-selector')
-      const qualityList  = document.getElementById('quality-list')
       const speedBtn     = document.getElementById('speed-btn')
       const speedMenu    = document.getElementById('speed-menu')
       const pipBtn       = document.getElementById('pip-btn')
@@ -681,17 +1004,67 @@
       const shortcutsHelp = document.getElementById('shortcuts-help')
       const seekBuffered = document.getElementById('seek-buffered')
       const speedIndicator = document.getElementById('speed-indicator')
-      // Declared here (not lower) because startVideo() runs during initial load and
-      // calls _renderSubtitles(), which references ccBtn — a lower `const` would TDZ-crash.
       const ccBtn        = document.getElementById('cc-btn')
-      let showRemaining  = localStorage.getItem('filmbox_show_remaining') === '1'
+      const hdrCanvas    = document.getElementById('hdr-canvas')
+      const subtitleOverlay = document.getElementById('subtitle-overlay')
+      const playerToast  = document.getElementById('player-toast')
+      const settingsBtn  = document.getElementById('settings-btn')
+      const settingsPanel = document.getElementById('settings-panel')
+      const qualityBadge = document.getElementById('quality-badge')
+
+      function lsGet(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v } catch (e) { return d } }
+      function lsSet(k, v) { try { localStorage.setItem(k, v) } catch (e) {} }
+
+      let showRemaining  = lsGet('filmbox_show_remaining', '0') === '1'
+
+      // ── Per-device playback preferences ──
+      let qualityPref = lsGet('filmbox_quality', 'auto')        // 'auto' | '1080' | '720' | …
+      let colorMode   = lsGet('filmbox_color_mode', 'auto')     // 'auto' | 'simple' | 'original'
+      let hdrExposure = parseFloat(lsGet('filmbox_hdr_exposure', '1')) || 1
+      let subSize     = lsGet('filmbox_sub_size', window.innerWidth >= 1600 ? 'l' : 'm')
+      let subPref     = lsGet('filmbox_sub_pref', 'off')        // 'off' | language key, e.g. 'cze'
+
+      // ── Playback state ──
+      let source       = null     // { qualities: [{ src, label, res, hdr, transfer }], subtitles, pageUrl }
+      let currentQ     = null
+      let activeSub    = -1
+      let lastSub      = -1
+      let _initialLoad = true     // resume prompt only on the first load, not on quality switches
+      let _pendingSeek = null
+      let _lastGoodTime = 0
+      let _refreshedAt = 0
+      let _decodeRetried = false
+      let _directFallback = false
+      const _failed    = new Set() // quality+route combos that errored
+      // Other uploads of the same title, best first (from the source picker).
+      let _alternatives = []
+      let _sourceSite   = null
+      const SITE_NAMES  = { prehrajto: 'prehraj.to', fastshare: 'FastShare', sledujteto: 'Sledujteto' }
 
       // ── Load data from sessionStorage ──
+      // PIN-protected profiles: send the session token (see utils.js in the main app).
+      function _profileToken(id) {
+        try { return (JSON.parse(sessionStorage.getItem('filmbox_tokens') || '{}'))[id] || null } catch (e) { return null }
+      }
+      ;(function () {
+        const nativeFetch = window.fetch.bind(window)
+        window.fetch = function (input, init) {
+          const url = typeof input === 'string' ? input : (input && input.url) || ''
+          const m = /^\/api\/profiles\/([^/?#]+)/.exec(url)
+          const token = m && _profileToken(decodeURIComponent(m[1]))
+          if (token) {
+            init = Object.assign({}, init)
+            init.headers = Object.assign({}, init.headers || {}, { 'X-Profile-Token': token })
+          }
+          return nativeFetch(input, init)
+        }
+      })()
+
       function _profileId() {
         try {
           const r = sessionStorage.getItem('filmbox_active_profile')
           return r ? (JSON.parse(r).id || 'default') : 'default'
-        } catch { return 'default' }
+        } catch (e) { return 'default' }
       }
 
       const raw = sessionStorage.getItem('filmbox_player')
@@ -700,6 +1073,18 @@
       let _playerData = null
       // Progress key: tmdbId for movies/whole shows, "tmdbId:S01E05" for episodes.
       let _playerKey = null
+
+      // Older sessions stored a flat `videos` array (one entry per captured URL).
+      function normalizeSource(data) {
+        if (data.source && Array.isArray(data.source.qualities)) return data.source
+        const vids = (data.videos || []).filter(v => v && v.videoSrc)
+        return {
+          name: vids[0] && vids[0].name,
+          pageUrl: null,
+          qualities: vids.map((v, i) => ({ src: v.videoSrc, label: vids.length > 1 ? 'Zdroj ' + (i + 1) : 'Auto', res: null, hdr: false })),
+          subtitles: (vids[0] && vids[0].subtitles) || []
+        }
+      }
 
       if (!raw) {
         showError('Žádná data přehrávače. Vraťte se zpět a vyberte video.')
@@ -711,6 +1096,9 @@
         _playerTmdbId    = data.tmdbId || null
         _playerMediaType = data.mediaType || 'movie'
         _playerKey       = data.progressKey || (data.tmdbId != null ? String(data.tmdbId) : null)
+        source           = normalizeSource(data)
+        _alternatives    = Array.isArray(data.alternatives) ? data.alternatives.filter(a => a && a.url) : []
+        _sourceSite      = data.sourceSite || null
 
         if (data.tmdbId) {
           const _baseMeta = {
@@ -720,99 +1108,715 @@
             mediaType:   data.mediaType || 'movie',
             poster_path: data.posterPath || null
           }
-          localStorage.setItem('filmbox_meta_' + (_playerKey || data.tmdbId), JSON.stringify(_baseMeta))
+          lsSet('filmbox_meta_' + (_playerKey || data.tmdbId), JSON.stringify(_baseMeta))
           // Upgrade with full TMDB details (rating, runtime, year) — non-blocking, never delays playback
           fetch(`/tmdb/details?id=${data.tmdbId}&type=${data.mediaType || 'movie'}`)
             .then(r => r.ok ? r.json() : null)
             .then(d => {
               if (!d) return
-              localStorage.setItem('filmbox_meta_' + (_playerKey || data.tmdbId), JSON.stringify({
-                ..._baseMeta,
+              lsSet('filmbox_meta_' + (_playerKey || data.tmdbId), JSON.stringify(Object.assign({}, _baseMeta, {
                 poster_path:    data.posterPath || d.poster_path || null,
                 vote_average:   d.vote_average,
                 runtime:        d.runtime,
                 release_date:   d.release_date,
                 first_air_date: d.first_air_date,
                 genre_ids:      Array.isArray(d.genres) ? d.genres.map(g => g.id) : undefined
-              }))
+              })))
             })
             .catch(() => {})
-        }
-
-        if (data.videos.length === 1) {
-          startVideo(data.videos[0])
-        } else {
-          showQualityPicker(data.videos)
         }
       }
 
       // ── Restore volume from localStorage ──
-      const savedVol = localStorage.getItem('filmbox_volume')
+      const savedVol = lsGet('filmbox_volume', null)
       if (savedVol !== null) {
         video.volume = parseFloat(savedVol)
         volumeSlider.value = video.volume
       }
 
-      function showError(msg) {
+      function showError(msg, canRetry = false) {
         loadingScreen.style.display = 'none'
         errorMsg.textContent = msg
+        errorRetry.style.display = canRetry ? '' : 'none'
         errorScreen.style.display = 'flex'
+        if (canRetry) errorRetry.focus()
       }
 
-      function showQualityPicker(videos) {
+      function toast(msg, ms = 3500) {
+        playerToast.textContent = msg
+        playerToast.classList.add('show')
+        clearTimeout(toast._t)
+        toast._t = setTimeout(() => playerToast.classList.remove('show'), ms)
+      }
+
+      // ================= QUALITY / SOURCE =================
+
+      const qKey = q => String(q.res || q.label)
+      // HDR-tagged files go through the server's /stream proxy, which rewrites
+      // the colour tags so TVs don't render them purple (see stream.js).
+      const useProxy = q => !!(q && q.hdr && colorMode !== 'original' && !_directFallback)
+      const srcFor   = q => useProxy(q) ? `/stream?url=${encodeURIComponent(q.src)}` : q.src
+      const failKey  = q => qKey(q) + '|' + (useProxy(q) ? 'proxy' : 'direct')
+
+      // Highest quality the screen can actually show.
+      function autoCap() {
+        const px = Math.min(screen.width, screen.height) * (window.devicePixelRatio || 1)
+        const conn = navigator.connection
+        if (conn && (conn.saveData || /(^|-)2g|3g/.test(conn.effectiveType || ''))) return 720
+        if (px >= 1800) return 2160
+        if (px >= 1000) return 1080
+        if (px >= 700)  return 720
+        return 480
+      }
+
+      function pickQuality() {
+        const qs = source.qualities
+        if (qualityPref !== 'auto') {
+          const m = qs.find(q => qKey(q) === qualityPref)
+          if (m) return m
+        }
+        const cap = autoCap()
+        return qs.find(q => !q.res || q.res <= cap) || qs[qs.length - 1]
+      }
+
+      function qualityBadgeText(q) {
+        if (!q || !q.res) return ''
+        return q.res >= 2160 ? '4K' : q.res >= 1080 ? 'FHD' : q.res >= 720 ? 'HD' : 'SD'
+      }
+
+      function playQuality(q, atTime = 0, autoplay = true) {
+        currentQ     = q
+        _pendingSeek = atTime > 0 ? atTime : null
+        _decodeRetried = false
+        resetStallWatch()
         loadingScreen.style.display = 'none'
-        playerWrap.style.display = 'block'
-        qualitySelector.style.display = 'block'
-
-        qualityList.innerHTML = ''   // avoid stacking duplicates if reopened
-        videos.forEach((v, i) => {
-          const item = document.createElement('div')
-          item.className = 'quality-item'
-          item.innerHTML = `
-            <span>${v.name || 'Zdroj ' + (i + 1)}</span>
-            <span>${v.duration || ''}</span>
-          `
-          item.addEventListener('click', () => {
-            qualitySelector.style.display = 'none'
-            startVideo(v)
-          })
-          qualityList.appendChild(item)
-        })
+        errorScreen.style.display   = 'none'
+        playerWrap.style.display    = 'block'
+        if (hdr) hdr.stop()
+        video.src = srcFor(q)
+        video.load()
+        updateHdrPipeline()
+        qualityBadge.textContent = qualityBadgeText(q)
+        if (autoplay) video.play().catch(() => {})
+        renderSettings()
       }
 
-      function _renderSubtitles(subs) {
-        // Remove any tracks from a previous source
-        video.querySelectorAll('track').forEach(t => t.remove())
-        const list = Array.isArray(subs) ? subs.filter(s => s && s.src) : []
-        if (!list.length) { ccBtn.style.display = 'none'; return }
-        list.forEach((s, i) => {
-          const tr = document.createElement('track')
-          tr.kind = 'subtitles'
-          tr.label = s.label || ('Titulky ' + (i + 1))
-          if (s.lang) tr.srclang = s.lang
-          // Proxy through the server so cross-origin .vtt/.srt loads (and SRT converts)
-          tr.src = `/get_subtitle?url=${encodeURIComponent(s.src)}`
-          video.appendChild(tr)
-        })
-        ccBtn.style.display = ''
+      function setQuality(pref) {
+        qualityPref = pref
+        lsSet('filmbox_quality', pref)
+        const target = pickQuality()
+        if (target !== currentQ) {
+          playQuality(target, video.currentTime || _lastGoodTime, !video.paused)
+          toast('Kvalita: ' + target.label)
+        }
+        renderSettings()
       }
-      // CC toggles the first text track on/off.
-      let _ccOn = false
-      ccBtn.addEventListener('click', () => {
-        const tracks = video.textTracks
-        if (!tracks.length) return
-        _ccOn = !_ccOn
-        for (let i = 0; i < tracks.length; i++) tracks[i].mode = (i === 0 && _ccOn) ? 'showing' : 'hidden'
-        ccBtn.classList.toggle('active', _ccOn)
+
+      // Signed CDN links expire (≈ 24 h). Detect before playing a stale session.
+      function linksExpired() {
+        try {
+          const exp = parseInt(new URL(source.qualities[0].src).searchParams.get('expires'), 10)
+          return exp && exp * 1000 < Date.now() + 120000
+        } catch (e) { return false }
+      }
+
+      // Re-scrape the source page (prehraj.to / fastshare / sledujteto) for fresh links (same file, new signature).
+      async function refreshSource() {
+        if (!source.pageUrl) return false
+        _refreshedAt = Date.now()
+        try {
+          const r = await fetch(`/get_video?url=${encodeURIComponent(source.pageUrl)}`)
+          if (!r.ok) return false
+          const fresh = await r.json()
+          if (!fresh.qualities || !fresh.qualities.length) return false
+          const keep = currentQ && qKey(currentQ)
+          source = Object.assign({}, source, fresh)
+          currentQ = keep ? (source.qualities.find(q => qKey(q) === keep) || null) : null
+          if (_playerData) {
+            _playerData.source = source
+            try { sessionStorage.setItem('filmbox_player', JSON.stringify(_playerData)) } catch (e) {}
+          }
+          buildSubtitleTracks()
+          return true
+        } catch (e) { return false }
+      }
+
+      // ── Switch to a backup upload (another site / file) at the same position ──
+      let _switching = false
+      async function switchToAlternative(reason) {
+        if (_switching) return true
+        if (!_alternatives.length) return false
+        _switching = true
+        const t = video.currentTime || _lastGoodTime || _pendingSeek || 0
+        const wasPlaying = !video.paused || !!video.error
+        try {
+          while (_alternatives.length) {
+            const alt = _alternatives.shift()
+            const site = SITE_NAMES[alt.source] || 'jiný zdroj'
+            toast(`${reason} — zkouším ${site}…`, 8000)
+            try {
+              const r = await fetch(`/get_video?url=${encodeURIComponent(alt.url)}`)
+              if (!r.ok) continue
+              const fresh = await r.json()
+              if (!fresh.qualities || !fresh.qualities.length) continue
+              activeSub      = -1                  // indexes belong to the old subtitle list
+              source         = fresh
+              _sourceSite    = alt.source || null
+              currentQ       = null
+              _failed.clear()
+              _directFallback = false
+              _refreshedAt   = Date.now()          // links are brand new
+              _reloads       = []
+              _stalls        = []
+              if (_playerData) {
+                _playerData.source = source
+                _playerData.sourceSite = _sourceSite
+                _playerData.alternatives = _alternatives
+                try { sessionStorage.setItem('filmbox_player', JSON.stringify(_playerData)) } catch (e) {}
+              }
+              buildSubtitleTracks()
+              playQuality(pickQuality(), t, wasPlaying)
+              toast(`Přepnuto na ${site}${alt.title ? ': ' + alt.title : ''}`, 5000)
+              return true
+            } catch (e) {}
+          }
+          return false
+        } finally {
+          _switching = false
+        }
+      }
+
+      // Step down to the next lower quality that hasn't failed yet.
+      function stepDown(reason) {
+        const qs  = source.qualities
+        const idx = qs.indexOf(currentQ)
+        const next = qs.slice(idx + 1).find(q => !_failed.has(failKey(q)))
+        if (!next) return false
+        toast(`${reason} — přepínám na ${next.label}`)
+        playQuality(next, video.currentTime || _lastGoodTime, true)
+        renderSettings()
+        return true
+      }
+
+      let _reloads = []
+      function reloadCurrent(msg) {
+        const now = Date.now()
+        _reloads = _reloads.filter(t => now - t < 90000)
+        if (_reloads.length >= 2) return false
+        _reloads.push(now)
+        if (msg) toast(msg)
+        playQuality(currentQ, video.currentTime || _lastGoodTime, true)
+        return true
+      }
+
+      // ── Error recovery: refresh links → reload → other quality → direct → give up ──
+      let _recovering = false
+      async function recoverFromError() {
+        if (_recovering || !currentQ) return
+        _recovering = true
+        const code = video.error ? video.error.code : 0
+        const t    = _lastGoodTime || _pendingSeek || 0
+        try {
+          // A decode hiccup mid-film: one plain reload a second further on usually clears it.
+          if (code === 3 && !_decodeRetried && t > 0) {
+            playQuality(currentQ, t + 1, true)
+            _decodeRetried = true
+            return
+          }
+          _failed.add(failKey(currentQ))
+
+          if (source.pageUrl && Date.now() - _refreshedAt > 60000) {
+            toast('Obnovuji odkaz na video…')
+            if (await refreshSource()) {
+              _failed.clear()
+              playQuality(currentQ || pickQuality(), t, true)
+              return
+            }
+          }
+
+          const qs  = source.qualities
+          const idx = Math.max(0, qs.indexOf(currentQ))
+          // Prefer lower qualities first, then higher.
+          const order = [...qs.slice(idx + 1), ...qs.slice(0, idx).reverse()]
+          const next = order.find(q => !_failed.has(failKey(q)))
+          if (next) {
+            toast(`${currentQ.label} nejde přehrát — zkouším ${next.label}`)
+            playQuality(next, t, true)
+            return
+          }
+
+          // Last resort for HDR files: skip the proxy and play the original stream.
+          if (qs.some(q => q.hdr) && !_directFallback) {
+            _directFallback = true
+            toast('Zkouším přímé přehrání (barvy mohou být zkreslené)')
+            playQuality(pickQuality(), t, true)
+            return
+          }
+
+          // This upload is done for — try the next site / file.
+          if (await switchToAlternative('Zdroj nejde přehrát')) return
+
+          showError('Video se nepodařilo načíst. Zkuste jiný zdroj nebo to zkuste znovu.', true)
+        } finally {
+          _recovering = false
+        }
+      }
+
+      video.addEventListener('error', () => {
+        if (!video.getAttribute('src')) return
+        if (video.error && video.error.code === 1) return   // aborted by us (source switch)
+        recoverFromError()
       })
 
-      function startVideo(v) {
-        loadingScreen.style.display = 'none'
-        playerWrap.style.display = 'block'
-        video.src = v.videoSrc
-        _renderSubtitles(v.subtitles)
-        video.play().catch(() => {})
+      errorRetry.addEventListener('click', async () => {
+        errorScreen.style.display = 'none'
+        loadingScreen.style.display = 'flex'
+        _failed.clear()
+        _directFallback = false
+        _refreshedAt = 0
+        await refreshSource()
+        playQuality(pickQuality(), _lastGoodTime, true)
+      })
+
+      // ── Stall watchdog: slow network → step down (Auto) or reload the stream ──
+      let _waitStart = 0
+      let _stallTimer = null
+      let _stalls = []
+      function resetStallWatch() {
+        _waitStart = 0
+        clearTimeout(_stallTimer)
       }
+      video.addEventListener('waiting', () => {
+        if (video.seeking || _waitStart) return
+        _waitStart = Date.now()
+        clearTimeout(_stallTimer)
+        _stallTimer = setTimeout(onLongStall, 15000)
+      })
+      function onStallEnd() {
+        if (!_waitStart) return
+        const d = Date.now() - _waitStart
+        resetStallWatch()
+        if (d < 4000) return
+        const now = Date.now()
+        _stalls = _stalls.filter(t => now - t < 120000)
+        _stalls.push(now)
+        if (qualityPref === 'auto' && _stalls.length >= 3 && stepDown('Pomalé připojení')) _stalls = []
+        // Still buffering all the time (no lower quality left) → the site itself is slow.
+        else if (_stalls.length >= 4) switchToAlternative('Zdroj se pořád zasekává').then(ok => { if (ok) _stalls = [] })
+      }
+      video.addEventListener('playing', onStallEnd)
+      video.addEventListener('canplay', onStallEnd)
+      function onLongStall() {
+        _waitStart = 0
+        if (video.paused && !video.seeking) return
+        if (qualityPref === 'auto' && stepDown('Video se zaseklo')) return
+        if (!reloadCurrent('Video se zaseklo — načítám znovu')) recoverFromError()
+      }
+
+      // ================= HDR → SDR =================
+
+      // Not on TVs: they show HDR themselves, and on webOS the video is drawn on a
+      // hardware plane WebGL can't read — the canvas came out black over the picture
+      // (and 4K frames are far too heavy for a TV GPU anyway). "Automaticky" then
+      // behaves like "Jednoduché" (colour tags fixed by the /stream proxy).
+      const hdr = !IS_TV && window.HdrRenderer && HdrRenderer.supported()
+        ? new HdrRenderer(video, hdrCanvas, { onFail: () => onHdrFail('Tone mapping není na tomto zařízení podporován') })
+        : null
+      let _hdrBroken = !hdr
+
+      function wantsToneMap(q) {
+        return !!(q && q.hdr && useProxy(q) && colorMode === 'auto' && !_hdrBroken && (q.transfer === 'pq' || q.transfer === 'hlg'))
+      }
+
+      function updateHdrPipeline() {
+        if (!hdr) return
+        if (wantsToneMap(currentQ)) {
+          hdr.setExposure(hdrExposure)
+          if (!hdr.active) hdr.start(currentQ.transfer)
+        } else if (hdr.active) {
+          hdr.stop()
+        }
+      }
+
+      function onHdrFail(msg) {
+        if (_hdrBroken) return
+        _hdrBroken = true
+        if (hdr && hdr.active) hdr.stop()
+        toast(msg + ' — použity jednoduché barvy', 5000)
+        renderSettings()
+      }
+
+      // Weak TV GPUs: if tone mapping makes playback drop frames, turn it off.
+      let _dropPrev = null
+      let _dropStrikes = 0
+      setInterval(() => {
+        if (!hdr || !hdr.active || video.paused || !video.getVideoPlaybackQuality) { _dropPrev = null; return }
+        const q = video.getVideoPlaybackQuality()
+        if (_dropPrev) {
+          const total   = q.totalVideoFrames - _dropPrev.totalVideoFrames
+          const dropped = q.droppedVideoFrames - _dropPrev.droppedVideoFrames
+          _dropStrikes = total > 50 && dropped / total > 0.25 ? _dropStrikes + 1 : 0
+          if (_dropStrikes >= 2) onHdrFail('Zařízení nestíhá přepočet barev')
+        }
+        _dropPrev = { totalVideoFrames: q.totalVideoFrames, droppedVideoFrames: q.droppedVideoFrames }
+      }, 5000)
+
+      function setColorMode(mode) {
+        const wasProxy = useProxy(currentQ)
+        colorMode = mode
+        lsSet('filmbox_color_mode', mode)
+        if (mode === 'auto') _hdrBroken = !hdr
+        if (useProxy(currentQ) !== wasProxy) playQuality(currentQ, video.currentTime || _lastGoodTime, !video.paused)
+        else updateHdrPipeline()
+        renderSettings()
+      }
+
+      function setExposure(x) {
+        hdrExposure = x
+        lsSet('filmbox_hdr_exposure', String(x))
+        if (hdr) hdr.setExposure(x)
+        renderSettings()
+      }
+
+      // ================= SUBTITLES =================
+      // Rendered into #subtitle-overlay (tracks stay "hidden") so they show above
+      // the HDR canvas and can be sized for TVs.
+
+      const SUB_SIZES = { s: '2.6vh', m: '3.4vh', l: '4.3vh', xl: '5.4vh' }
+      const SUB_SIZE_LABELS = { s: 'Malé', m: 'Střední', l: 'Velké', xl: 'Obří' }
+      subtitleOverlay.style.setProperty('--sub-size', SUB_SIZES[subSize] || SUB_SIZES.m)
+
+      // ── Online subtitles (OpenSubtitles via /subs/*, only if the server has a key) ──
+      const _onlineSubs = { enabled: false, results: null, loading: false, error: null }
+      fetch('/subs/status').then(r => r.json()).then(d => {
+        _onlineSubs.enabled = !!(d && d.enabled && _playerData && _playerData.tmdbId)
+        if (_onlineSubs.enabled) ccBtn.style.display = ''
+      }).catch(() => {})
+
+      async function searchOnlineSubs() {
+        if (_onlineSubs.loading || _onlineSubs.results) return
+        _onlineSubs.loading = true
+        _onlineSubs.error = null
+        renderSettings()
+        try {
+          const d = _playerData
+          const q = new URLSearchParams({ tmdbId: String(d.tmdbId), type: d.episode ? 'tv' : (d.mediaType === 'tv' ? 'tv' : 'movie') })
+          if (d.episode) { q.set('season', String(d.episode.season)); q.set('episode', String(d.episode.number)) }
+          const r = await fetch('/subs/search?' + q)
+          const data = await r.json()
+          if (!r.ok) throw new Error(data.error || 'Hledání selhalo')
+          _onlineSubs.results = data
+        } catch (e) {
+          _onlineSubs.error = e.message
+        } finally {
+          _onlineSubs.loading = false
+          renderSettings()
+        }
+      }
+
+      function addOnlineSub(r) {
+        const src = '/subs/file/' + r.fileId
+        let idx = source.subtitles.findIndex(s => s.src === src)
+        if (idx < 0) {
+          source.subtitles.push({ src, lang: r.lang, label: (r.lang || '').toUpperCase() + ' · online', online: true })
+          buildSubtitleTracks()
+          idx = source.subtitles.findIndex(s => s.src === src)
+        }
+        selectSubtitle(idx)
+        closeSettings()
+        toast('Titulky: ' + r.release.slice(0, 60))
+      }
+
+      // Stable language key across files: "cze1" / "CZE1" → "cze".
+      const subKey = s => ((s.lang || s.label || '').toLowerCase().replace(/[^a-z]/g, '') || 'sub')
+
+      function buildSubtitleTracks() {
+        const keep = activeSub >= 0 && source.subtitles[activeSub] ? subKey(source.subtitles[activeSub]) : null
+        video.querySelectorAll('track').forEach(t => t.remove())
+        const list = (source.subtitles || []).filter(s => s && s.src)
+        source.subtitles = list
+        list.forEach((s, i) => {
+          const tr = document.createElement('track')
+          tr.kind  = 'subtitles'
+          tr.label = s.label || ('Titulky ' + (i + 1))
+          // Online subtitles come from our own /subs/ route; the rest is proxied so
+          // cross-origin .vtt/.srt loads (and SRT converts)
+          tr.src   = s.src.indexOf('/subs/') === 0 ? s.src : `/get_subtitle?url=${encodeURIComponent(s.src)}`
+          if (s.online) tr.addEventListener('error', () => toast('Titulky se nepodařilo stáhnout (možná vyčerpán denní limit)', 5000))
+          video.appendChild(tr)
+          tr.track.mode = 'disabled'
+          tr.track.addEventListener('cuechange', renderCues)
+        })
+        ccBtn.style.display = list.length || _onlineSubs.enabled ? '' : 'none'
+        activeSub = -1
+        const want = keep || (subPref !== 'off' ? subPref : null)
+        if (want) {
+          const idx = list.findIndex(s => subKey(s) === want)
+          if (idx >= 0) selectSubtitle(idx, false)
+        }
+        renderCues()
+      }
+
+      function selectSubtitle(i, persist = true) {
+        const tracks = video.textTracks
+        for (let k = 0; k < tracks.length; k++) tracks[k].mode = k === i ? 'hidden' : 'disabled'
+        activeSub = i
+        if (i >= 0) lastSub = i
+        ccBtn.classList.toggle('active', i >= 0)
+        if (persist) {
+          subPref = i >= 0 ? subKey(source.subtitles[i]) : 'off'
+          lsSet('filmbox_sub_pref', subPref)
+        }
+        renderCues()
+        renderSettings()
+      }
+
+      function renderCues() {
+        subtitleOverlay.textContent = ''
+        if (activeSub < 0) return
+        const t = video.textTracks[activeSub]
+        if (!t || !t.activeCues) return
+        for (const cue of t.activeCues) {
+          const line = document.createElement('div')
+          const span = document.createElement('span')
+          span.className = 'cue'
+          if (typeof cue.getCueAsHTML === 'function') span.appendChild(cue.getCueAsHTML())
+          else span.textContent = cue.text
+          line.appendChild(span)
+          subtitleOverlay.appendChild(line)
+        }
+      }
+
+      // CC toggles off ↔ the last used (or preferred / default / first) track.
+      ccBtn.addEventListener('click', toggleSubtitles)
+      function toggleSubtitles() {
+        const subs = source ? source.subtitles : []
+        if (!subs.length) {
+          if (_onlineSubs.enabled) { openSettings(); openSettingsPage('online'); searchOnlineSubs(); return }
+          toast('Toto video nemá titulky'); return
+        }
+        if (activeSub >= 0) { selectSubtitle(-1); toast('Titulky vypnuty'); return }
+        let i = lastSub
+        if (i < 0) i = subs.findIndex(s => subKey(s) === subPref)
+        if (i < 0) i = subs.findIndex(s => s.default)
+        if (i < 0) i = 0
+        selectSubtitle(i)
+        toast('Titulky: ' + subs[i].label)
+      }
+
+      function setSubSize(k) {
+        subSize = k
+        lsSet('filmbox_sub_size', k)
+        subtitleOverlay.style.setProperty('--sub-size', SUB_SIZES[k])
+        renderSettings()
+      }
+
+      // ================= SETTINGS MENU =================
+
+      let _settingsPage = 'main'
+      const COLOR_LABELS = { auto: 'Automaticky', simple: 'Jednoduché', original: 'Originál' }
+      const EXPOSURES = [[0.8, 'Tmavší'], [1, 'Normální'], [1.25, 'Světlejší'], [1.6, 'Nejsvětlejší']]
+
+      function el(tag, cls, text) {
+        const e = document.createElement(tag)
+        if (cls) e.className = cls
+        if (text != null) e.textContent = text
+        return e
+      }
+
+      // A menu row. `sub` = opens a sub-page (shows a chevron); `active` = checkmark.
+      function menuItem({ label, value, hint, tag, active, sub, onClick }) {
+        const b = el('button', 'settings-item' + (active ? ' active' : ''))
+        b.type = 'button'
+        b.setAttribute('role', 'menuitem')
+        if (sub) b.dataset.sub = '1'
+        const left = el('span')
+        if (active !== undefined) left.appendChild(el('i', 'check bi ' + (active ? 'bi-check-lg' : '')))
+        left.appendChild(document.createTextNode(label))
+        if (tag) left.appendChild(el('span', 'tag', tag))
+        if (hint) left.appendChild(el('span', 'hint', hint))
+        b.appendChild(left)
+        if (value != null || sub) {
+          const v = el('span', 'val', value != null ? value : '')
+          if (sub) v.appendChild(el('i', 'bi bi-chevron-right'))
+          b.appendChild(v)
+        }
+        b.addEventListener('click', e => { e.stopPropagation(); onClick() })
+        return b
+      }
+
+      function backItem(title, page) {
+        const b = menuItem({ label: title, onClick: () => openSettingsPage(page || 'main') })
+        b.classList.add('settings-back')
+        b.firstChild.prepend(el('i', 'bi bi-chevron-left'))
+        return b
+      }
+
+      function renderSettings() {
+        if (!settingsPanel.classList.contains('open') || !source) return
+        const focusedIdx = [...settingsPanel.querySelectorAll('.settings-item')].indexOf(document.activeElement)
+        settingsPanel.textContent = ''
+        const add = n => settingsPanel.appendChild(n)
+        const qs  = source.qualities
+        const subs = source.subtitles || []
+        const anyHdr = qs.some(q => q.hdr)
+
+        if (_settingsPage === 'main') {
+          add(menuItem({
+            label: 'Kvalita', sub: true,
+            value: currentQ ? (qualityPref === 'auto' ? `Auto (${currentQ.label})` : currentQ.label) : '',
+            onClick: () => openSettingsPage('quality')
+          }))
+          if (subs.length) {
+            add(menuItem({ label: 'Titulky', sub: true, value: activeSub >= 0 ? subs[activeSub].label : 'Vypnuto', onClick: () => openSettingsPage('subs') }))
+            add(menuItem({ label: 'Velikost titulků', sub: true, value: SUB_SIZE_LABELS[subSize], onClick: () => openSettingsPage('subsize') }))
+          }
+          if (anyHdr) {
+            const v = colorMode === 'auto' && _hdrBroken ? 'Jednoduché (auto)' : COLOR_LABELS[colorMode]
+            add(menuItem({ label: 'Barvy (HDR)', sub: true, value: v, onClick: () => openSettingsPage('color') }))
+          }
+          if (hdr && hdr.active) {
+            const cur = EXPOSURES.find(([x]) => x === hdrExposure)
+            add(menuItem({ label: 'Jas HDR', sub: true, value: cur ? cur[1] : hdrExposure + '×', onClick: () => openSettingsPage('exposure') }))
+          }
+          if (_alternatives.length) {
+            add(menuItem({
+              label: 'Přepnout na jiný zdroj',
+              hint: `Teď ${SITE_NAMES[_sourceSite] || 'zdroj'} · záložních: ${_alternatives.length}`,
+              onClick: () => { closeSettings(); switchToAlternative('Ruční přepnutí') }
+            }))
+          }
+          add(menuItem({
+            label: 'Znovu načíst video', hint: 'Pomůže, když se obraz zasekne',
+            onClick: () => { closeSettings(); _reloads = []; reloadCurrent('Načítám znovu…') }
+          }))
+        }
+
+        if (_settingsPage === 'quality') {
+          add(backItem('Kvalita'))
+          const auto = pickAutoPreview()
+          add(menuItem({
+            label: 'Auto', active: qualityPref === 'auto',
+            hint: `Podle obrazovky a rychlosti připojení${auto ? ' · teď ' + auto.label : ''}`,
+            onClick: () => setQuality('auto')
+          }))
+          qs.forEach(q => add(menuItem({
+            label: q.label,
+            tag: q.hdr ? 'HDR' : null,
+            active: qualityPref !== 'auto' && currentQ === q,
+            hint: _failed.has(failKey(q)) ? 'Nefungovalo — zkusit znovu' : null,
+            onClick: () => { _failed.delete(failKey(q)); setQuality(qKey(q)) }
+          })))
+        }
+
+        if (_settingsPage === 'subs') {
+          add(backItem('Titulky'))
+          add(menuItem({ label: 'Vypnuto', active: activeSub < 0, onClick: () => selectSubtitle(-1) }))
+          subs.forEach((s, i) => add(menuItem({ label: s.label, active: activeSub === i, onClick: () => selectSubtitle(i) })))
+          if (_onlineSubs.enabled) {
+            add(menuItem({ label: 'Hledat titulky online', sub: true, value: 'OpenSubtitles', onClick: () => { openSettingsPage('online'); searchOnlineSubs() } }))
+          }
+        }
+
+        if (_settingsPage === 'online') {
+          add(backItem('Titulky online', 'subs'))
+          if (_onlineSubs.loading) add(menuItem({ label: 'Hledám…', onClick: () => {} }))
+          else if (_onlineSubs.error) add(menuItem({ label: 'Nepodařilo se', hint: _onlineSubs.error, onClick: () => { _onlineSubs.results = null; searchOnlineSubs() } }))
+          else if (_onlineSubs.results && !_onlineSubs.results.length) add(menuItem({ label: 'Žádné české ani slovenské titulky', onClick: () => {} }))
+          else (_onlineSubs.results || []).forEach(r => add(menuItem({
+            label: (r.lang || '?').toUpperCase() + (r.hearingImpaired ? ' · pro neslyšící' : ''),
+            hint: r.release.slice(0, 70) + ' · ' + r.downloads + '× staženo',
+            onClick: () => addOnlineSub(r)
+          })))
+        }
+
+        if (_settingsPage === 'subsize') {
+          add(backItem('Velikost titulků'))
+          Object.keys(SUB_SIZES).forEach(k => add(menuItem({ label: SUB_SIZE_LABELS[k], active: subSize === k, onClick: () => setSubSize(k) })))
+        }
+
+        if (_settingsPage === 'color') {
+          add(backItem('Barvy (HDR)'))
+          add(menuItem({
+            label: 'Automaticky', active: colorMode === 'auto',
+            hint: _hdrBroken && hdr ? 'Na tomto zařízení nedostupné — použito Jednoduché' : 'Přepočet HDR na běžný obraz — nejvěrnější barvy',
+            onClick: () => setColorMode('auto')
+          }))
+          add(menuItem({ label: 'Jednoduché', active: colorMode === 'simple', hint: 'Pro slabší TV — bez fialové, ale bledší', onClick: () => setColorMode('simple') }))
+          add(menuItem({ label: 'Originál', active: colorMode === 'original', hint: 'Bez úprav — na TV může být fialový obraz', onClick: () => setColorMode('original') }))
+        }
+
+        if (_settingsPage === 'exposure') {
+          add(backItem('Jas HDR'))
+          EXPOSURES.forEach(([x, name]) => add(menuItem({ label: name, active: hdrExposure === x, onClick: () => setExposure(x) })))
+        }
+
+        const items = settingsPanel.querySelectorAll('.settings-item')
+        if (focusedIdx >= 0 && items[focusedIdx]) items[focusedIdx].focus()
+      }
+
+      function pickAutoPreview() {
+        const saved = qualityPref
+        qualityPref = 'auto'
+        const q = pickQuality()
+        qualityPref = saved
+        return q
+      }
+
+      function openSettingsPage(page) {
+        _settingsPage = page
+        renderSettings()
+        const items = settingsPanel.querySelectorAll('.settings-item')
+        // Focus the checked option (or the first real row) for remote navigation.
+        const target = settingsPanel.querySelector('.settings-item.active') || items[page === 'main' ? 0 : 1] || items[0]
+        if (target) target.focus()
+      }
+
+      function openSettings() {
+        speedMenu.classList.remove('open')
+        settingsPanel.classList.add('open')
+        settingsBtn.classList.add('open')
+        settingsBtn.setAttribute('aria-expanded', 'true')
+        showControls()
+        openSettingsPage('main')
+      }
+
+      function closeSettings() {
+        settingsPanel.classList.remove('open')
+        settingsBtn.classList.remove('open')
+        settingsBtn.setAttribute('aria-expanded', 'false')
+        _settingsPage = 'main'
+        showControls()
+      }
+
+      const settingsOpen = () => settingsPanel.classList.contains('open')
+      settingsBtn.addEventListener('click', e => {
+        e.stopPropagation()
+        settingsOpen() ? closeSettings() : openSettings()
+      })
+      settingsPanel.addEventListener('click', e => e.stopPropagation())
+
+      function handleSettingsKey(e, isBack) {
+        const items = [...settingsPanel.querySelectorAll('.settings-item')]
+        const i = items.indexOf(document.activeElement)
+        if (e.key === 'ArrowDown') {
+          e.preventDefault(); items[(i + 1) % items.length].focus()
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault(); items[(i - 1 + items.length) % items.length].focus()
+        } else if (e.key === 'ArrowLeft' || isBack) {
+          e.preventDefault()
+          if (_settingsPage !== 'main') openSettingsPage(_settingsPage === 'online' ? 'subs' : 'main')
+          else { closeSettings(); settingsBtn.focus() }
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault()
+          if (i >= 0 && items[i].dataset.sub) items[i].click()
+        } else if (e.key === 's') {
+          closeSettings()
+        }
+        // Enter / Space activate the focused button natively.
+      }
+
+      // ================= PLAYBACK UI =================
 
       // ── Format time ──
       function fmt(s) {
@@ -841,14 +1845,18 @@
       }
       timeTotal.addEventListener('click', () => {
         showRemaining = !showRemaining
-        localStorage.setItem('filmbox_show_remaining', showRemaining ? '1' : '0')
+        lsSet('filmbox_show_remaining', showRemaining ? '1' : '0')
         updateTotalLabel()
       })
 
       // ── Buffered indicator ──
       function updateBuffered() {
         if (!video.duration || !video.buffered.length) return
-        const end = video.buffered.end(video.buffered.length - 1)
+        // The range containing the playhead, not just the last one.
+        let end = 0
+        for (let i = 0; i < video.buffered.length; i++) {
+          if (video.buffered.start(i) <= video.currentTime + 0.5) end = video.buffered.end(i)
+        }
         seekBuffered.style.width = Math.min(100, (end / video.duration) * 100) + '%'
       }
       video.addEventListener('progress', updateBuffered)
@@ -872,6 +1880,7 @@
         const restart = () => { if (_settled) return; _settled = true; ov.remove(); video.play().catch(() => {}) }
         ov.querySelector('.resume-yes').addEventListener('click', resume)
         ov.querySelector('.resume-no').addEventListener('click', restart)
+        ov.querySelector('.resume-yes').focus()
         // Default to resuming if the viewer doesn't choose within 8s.
         setTimeout(resume, 8000)
         video.pause()
@@ -880,6 +1889,15 @@
       // ── Video events ──
       video.addEventListener('loadedmetadata', async () => {
         updateTotalLabel()
+        // Quality switch / recovery: continue where we were.
+        if (_pendingSeek != null) {
+          video.currentTime = _pendingSeek
+          _pendingSeek = null
+        }
+        // Re-assert subtitle selection (some browsers reset modes on src change).
+        if (activeSub >= 0) selectSubtitle(activeSub, false)
+        if (!_initialLoad) return
+        _initialLoad = false
         // Restore saved progress from server
         const pid = _profileId()
         if (_playerKey && pid !== 'default') {
@@ -893,7 +1911,7 @@
                 _showResumePrompt(saved)
               }
             }
-          } catch {}
+          } catch (e) {}
         }
       })
 
@@ -902,13 +1920,14 @@
       function _progressBody() {
         const d = _playerData || {}
         return {
-          seconds:      video.currentTime,
+          seconds:      video.currentTime || _lastGoodTime,
           duration:     isFinite(video.duration) ? video.duration : null,
           title:        d.title || null,
           posterPath:   d.posterPath || null,
           mediaType:    d.mediaType || 'movie',
           tmdbId:       d.tmdbId != null ? d.tmdbId : null,
-          episodeLabel: d.episodeLabel || null
+          episodeLabel: d.episodeLabel || null,
+          finished:     !!(d.episode && _watchedFired)
         }
       }
 
@@ -943,33 +1962,37 @@
       let _watchedFired = false
       video.addEventListener('timeupdate', () => {
         if (!video.duration) return
-        const pct = (video.currentTime / video.duration) * 100
-        seekFilled.style.width = pct + '%'
-        timeCurrent.textContent = fmt(video.currentTime)
+        if (video.currentTime > 0 && _pendingSeek == null) _lastGoodTime = video.currentTime
+        if (_seekTarget == null) {
+          seekFilled.style.width = (video.currentTime / video.duration) * 100 + '%'
+          timeCurrent.textContent = fmt(video.currentTime)
+        }
         if (showRemaining) updateTotalLabel()
+        updateNextEpisodeMini()
         updateBuffered()
         // Auto-mark watched at 90%
         if (!_watchedFired && video.currentTime / video.duration >= 0.9) {
           _watchedFired = true
-          const _raw = sessionStorage.getItem('filmbox_player')
-          if (_raw) {
-            const _d  = JSON.parse(_raw)
-            const pid = _profileId()
-            if (_d.tmdbId && pid !== 'default') {
-              fetch(`/api/profiles/${pid}/watched`, {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({
-                  tmdbId:    _d.tmdbId,
-                  mediaType: _d.mediaType || 'movie',
-                  title:     _d.title,
-                  posterPath: _d.posterPath || null
-                })
-              }).catch(() => {})
-              // Finished → drop the progress entry so it leaves Continue Watching.
-              if (_playerKey) {
-                fetch(`/api/profiles/${pid}/progress/${encodeURIComponent(_playerKey)}`, { method: 'DELETE' }).catch(() => {})
-              }
+          const _d  = _playerData
+          const pid = _profileId()
+          // Episodes: keep the entry, flagged finished, so the episode list can show
+          // what's been watched (Continue Watching skips finished entries).
+          if (_d && _d.episode && pid !== 'default') {
+            _saveProgressToApi()
+          } else if (_d && _d.tmdbId && pid !== 'default') {
+            fetch(`/api/profiles/${pid}/watched`, {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({
+                tmdbId:    _d.tmdbId,
+                mediaType: _d.mediaType || 'movie',
+                title:     _d.title,
+                posterPath: _d.posterPath || null
+              })
+            }).catch(() => {})
+            // Finished → drop the progress entry so it leaves Continue Watching.
+            if (_playerKey) {
+              fetch(`/api/profiles/${pid}/progress/${encodeURIComponent(_playerKey)}`, { method: 'DELETE' }).catch(() => {})
             }
           }
         }
@@ -977,20 +2000,20 @@
 
       video.addEventListener('play', () => {
         playPauseBtn.innerHTML = '<i class="bi bi-pause-fill"></i>'
+        playerWrap.classList.remove('is-paused')
       })
 
       video.addEventListener('pause', () => {
         playPauseBtn.innerHTML = '<i class="bi bi-play-fill"></i>'
+        centerIcon.className = 'bi bi-play-fill'
+        playerWrap.classList.add('is-paused')
       })
 
       video.addEventListener('ended', () => {
         playPauseBtn.innerHTML = '<i class="bi bi-arrow-counterclockwise"></i>'
         _hideSpinner()
+        nextMini.classList.remove('show')
         if (_playerData && _playerData.episode) _showNextEpisodePrompt()
-      })
-
-      video.addEventListener('error', () => {
-        showError('Video se nepodařilo načíst. Zkuste jiný zdroj.')
       })
 
       // ── Buffering spinner ──
@@ -1013,21 +2036,33 @@
         const base = (d.title || '').replace(/\s*S\d{2}E\d{2}.*$/i, '').trim()
         const query = `${base} S${sNum}E${eNum}`
         try {
-          const r = await fetch(`/search?q=${encodeURIComponent(query)}`)
+          // Same sites the source picker is set to search.
+          let sites = ''
+          try { const l = JSON.parse(localStorage.getItem('filmbox_sources')); if (Array.isArray(l) && l.length) sites = '&sources=' + encodeURIComponent(l.join(',')) } catch (e) {}
+          const r = await fetch(`/search?q=${encodeURIComponent(query)}${sites}`)
           if (!r.ok) return false
           const results = await r.json()
           if (!results.length) return false
-          // results are HTML card strings — extract the first playable href.
-          const doc  = new DOMParser().parseFromString(results.join(''), 'text/html')
-          const href = doc.querySelector('a[href]')?.getAttribute('href')
+          // Prefer a Czech-dubbed upload, else the first result.
+          const pick = results.find(r => r && r.dub) || results[0]
+          // Backups: other uploads of the same episode, same dubbing first.
+          const epCode = new RegExp('s0?' + d.episode.season + '\\s*e0?' + nextNum + '(?!\\d)|\\b0?' + d.episode.season + 'x0?' + nextNum + '(?!\\d)', 'i')
+          const alternatives = results
+            .filter(r => r && r.url && r !== pick && epCode.test(r.title || ''))
+            .sort((a, b) => (b.dub === pick.dub) - (a.dub === pick.dub) || (b.source !== pick.source) - (a.source !== pick.source))
+            .slice(0, 6)
+            .map(r => ({ url: r.url, title: r.title, source: r.source || 'prehrajto', dub: !!r.dub, res: r.res || null }))
+          const href = pick && pick.url
           if (!href) return false
           const vr = await fetch(`/get_video?url=${encodeURIComponent(href)}`)
           if (!vr.ok) return false
-          const videos = (await vr.json()).filter(v => v.videoSrc && !v.videoSrc.startsWith('blob:'))
-          if (!videos.length) return false
+          const next = await vr.json()
+          if (!next.qualities || !next.qualities.length) return false
           sessionStorage.setItem('filmbox_player', JSON.stringify({
             title:       query,
-            videos,
+            source:      next,
+            sourceSite:  pick.source || 'prehrajto',
+            alternatives,
             tmdbId:      d.tmdbId,
             mediaType:   'tv',
             posterPath:  d.posterPath || null,
@@ -1037,8 +2072,34 @@
           }))
           window.location.reload()
           return true
-        } catch { return false }
+        } catch (e) { return false }
       }
+
+      // Offer the next episode during the last 45 s (end credits).
+      const nextMini = document.getElementById('next-ep-mini')
+      let _nextMiniDismissed = false
+      function updateNextEpisodeMini() {
+        if (!_playerData || !_playerData.episode || !isFinite(video.duration) || video.duration < 300) return
+        const left = video.duration - video.currentTime
+        const show = !_nextMiniDismissed && left <= 45 && left > 0.5
+        if (show !== nextMini.classList.contains('show')) {
+          nextMini.classList.toggle('show', show)
+          if (show && document.body.classList.contains('kbd')) document.getElementById('next-ep-mini-go').focus()
+        }
+        if (show) document.getElementById('next-ep-mini-count').textContent = 'za ' + fmt(left)
+      }
+      document.getElementById('next-ep-mini-go').addEventListener('click', async () => {
+        document.getElementById('next-ep-mini-count').textContent = 'hledám…'
+        _nextMiniDismissed = true
+        if (!(await _playNextEpisode())) {
+          nextMini.classList.add('show')
+          document.getElementById('next-ep-mini-count').textContent = 'nenalezena'
+        }
+      })
+      document.getElementById('next-ep-mini-x').addEventListener('click', () => {
+        _nextMiniDismissed = true
+        nextMini.classList.remove('show')
+      })
 
       function _showNextEpisodePrompt() {
         const d = _playerData
@@ -1063,6 +2124,7 @@
         }, 1000)
         ov.querySelector('.next-ep-yes').addEventListener('click', go)
         ov.querySelector('.next-ep-no').addEventListener('click', () => { done = true; clearInterval(t); ov.remove() })
+        ov.querySelector('.next-ep-yes').focus()
       }
 
       // ── Play / Pause ──
@@ -1073,7 +2135,7 @@
           return
         }
         if (video.paused) {
-          video.play()
+          video.play().catch(() => {})
           centerIcon.className = 'bi bi-play-fill'
         } else {
           video.pause()
@@ -1090,6 +2152,7 @@
       })
       video.addEventListener('click', () => {
         if (suppressClick) { suppressClick = false; return }
+        if (settingsOpen()) { closeSettings(); return }
         togglePlay()
       })
 
@@ -1136,12 +2199,15 @@
       seekBar.addEventListener('mousedown', e => { seeking = true; applySek(e) })
       document.addEventListener('mousemove', e => { if (seeking) applySek(e) })
       document.addEventListener('mouseup', () => { seeking = false })
+      seekBar.addEventListener('touchstart', e => { seeking = true; applySek(e.touches[0]) }, { passive: true })
+      seekBar.addEventListener('touchmove', e => { if (seeking) applySek(e.touches[0]) }, { passive: true })
+      seekBar.addEventListener('touchend', () => { seeking = false })
 
       // ── Volume ──
       volumeSlider.addEventListener('input', () => {
         video.volume = volumeSlider.value
         video.muted = video.volume === 0
-        localStorage.setItem('filmbox_volume', video.volume)
+        lsSet('filmbox_volume', video.volume)
         updateMuteIcon()
       })
 
@@ -1158,20 +2224,40 @@
           : '<i class="bi bi-volume-up-fill"></i>'
       }
 
+      function changeVolume(delta) {
+        video.volume = Math.max(0, Math.min(1, video.volume + delta))
+        video.muted = false
+        volumeSlider.value = video.volume
+        lsSet('filmbox_volume', video.volume)
+        updateMuteIcon()
+        toast('Hlasitost ' + Math.round(video.volume * 100) + ' %', 1200)
+      }
+
       // ── Fullscreen ──
+      const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement || null
+      function updateFullscreenIcon() {
+        fullscreenBtn.innerHTML = fsElement()
+          ? '<i class="bi bi-fullscreen-exit"></i>'
+          : '<i class="bi bi-fullscreen"></i>'
+      }
       fullscreenBtn.addEventListener('click', () => {
-        if (!document.fullscreenElement) {
-          playerWrap.requestFullscreen()
-          fullscreenBtn.innerHTML = '<i class="bi bi-fullscreen-exit"></i>'
+        if (!fsElement()) {
+          const req = playerWrap.requestFullscreen || playerWrap.webkitRequestFullscreen
+          if (req) { const p = req.call(playerWrap); if (p && p.catch) p.catch(() => {}) }
         } else {
-          document.exitFullscreen()
-          fullscreenBtn.innerHTML = '<i class="bi bi-fullscreen"></i>'
+          const exit = document.exitFullscreen || document.webkitExitFullscreen
+          if (exit) exit.call(document)
         }
       })
+      document.addEventListener('fullscreenchange', updateFullscreenIcon)
+      document.addEventListener('webkitfullscreenchange', updateFullscreenIcon)
+      // TV browsers are effectively fullscreen already.
+      if (!(playerWrap.requestFullscreen || playerWrap.webkitRequestFullscreen) || /Web0S|webOS|Tizen|SmartTV/i.test(navigator.userAgent)) fullscreenBtn.style.display = 'none'
 
       // ── Playback speed ──
       speedBtn.addEventListener('click', e => {
         e.stopPropagation()
+        closeSettings()
         speedMenu.classList.toggle('open')
       })
 
@@ -1188,6 +2274,7 @@
 
       document.addEventListener('click', e => {
         if (!e.target.closest('.speed-wrap')) speedMenu.classList.remove('open')
+        if (!e.target.closest('.settings-wrap') && settingsOpen()) closeSettings()
       })
 
       // ── Picture in Picture ──
@@ -1211,19 +2298,273 @@
       helpBtn.addEventListener('click', () => toggleHelp())
       shortcutsHelp.addEventListener('click', e => { if (e.target === shortcutsHelp) toggleHelp(false) })
 
-      // ── Keyboard shortcuts ──
+      // ── Remote-friendly seeking ──
+      // Each ◀/▶ press moves a preview target; presses in quick succession (or a
+      // held button) speed up: 10 s → 30 s → 1 min → 2 min → 5 min. TV remotes often
+      // don't flag held keys as repeats, so the presses of one burst are counted.
+      // The video only seeks once, shortly after the last press.
+      let _seekTarget = null
+      let _seekTimer = null
+      let _seekHold = 0
+      let _seekDir = 0
+      const seekOsd = document.getElementById('seek-osd')
+      const SEEK_STEP_LABEL = { 10: '10 s', 30: '30 s', 60: '1 min', 120: '2 min', 300: '5 min' }
+      function queueSeek(dir, repeat) {
+        if (!isFinite(video.duration)) return
+        if (_timeDigits) cancelTimeEntry()
+        _seekHold = _seekTarget != null && dir === _seekDir ? _seekHold + 1 : 0   // reversing starts small again
+        _seekDir = dir
+        const step = _seekHold >= 20 ? 300 : _seekHold >= 13 ? 120 : _seekHold >= 7 ? 60 : _seekHold >= 3 ? 30 : 10
+        const base = _seekTarget != null ? _seekTarget : video.currentTime
+        _seekTarget = Math.max(0, Math.min(video.duration - 1, base + dir * step))
+        const delta = _seekTarget - video.currentTime
+        document.getElementById('seek-osd-icon').className = 'bi ' + (delta < 0 ? 'bi-rewind-fill' : 'bi-fast-forward-fill')
+        document.getElementById('seek-osd-delta').textContent = (delta < 0 ? '−' : '+') + fmt(Math.abs(delta))
+        document.getElementById('seek-osd-time').textContent = fmt(_seekTarget) + ' / ' + fmt(video.duration) + ' · krok ' + SEEK_STEP_LABEL[step]
+        seekFilled.style.width = (_seekTarget / video.duration) * 100 + '%'
+        timeCurrent.textContent = fmt(_seekTarget)
+        seekOsd.classList.add('show')
+        playerWrap.classList.add('seek-preview')
+        clearTimeout(_seekTimer)
+        _seekTimer = setTimeout(commitSeek, 900)
+      }
+      function commitSeek() {
+        if (_seekTarget != null) video.currentTime = _seekTarget
+        _seekTarget = null
+        _seekHold = 0
+        seekOsd.classList.remove('show')
+        playerWrap.classList.remove('seek-preview')
+      }
+
+      // ── Jump to a time with the number buttons, microwave style ──
+      // Digits fill from the right: 4 5 0 0 → 45:00, 1 3 0 0 0 → 1:30:00.
+      // OK jumps now, Back cancels, otherwise it jumps 2.5 s after the last digit.
+      let _timeDigits = ''
+      let _timeTimer = null
+      function timeEntrySeconds() {
+        const d = _timeDigits.padStart(6, '0')
+        return (+d.slice(0, 2)) * 3600 + (+d.slice(2, 4)) * 60 + (+d.slice(4, 6))
+      }
+      function typeTimeDigit(digit) {
+        if (!isFinite(video.duration) || _timeDigits.length >= 6) return
+        if (_seekTarget != null) { clearTimeout(_seekTimer); _seekTarget = null }
+        _timeDigits += digit
+        const t = timeEntrySeconds()
+        const tooLong = t >= video.duration
+        document.getElementById('seek-osd-icon').className = 'bi bi-clock-history'
+        document.getElementById('seek-osd-delta').textContent = fmt(t)
+        document.getElementById('seek-osd-time').textContent = tooLong
+          ? 'Delší než video (' + fmt(video.duration) + ')'
+          : 'OK = přejít · Zpět = zrušit'
+        if (!tooLong) { seekFilled.style.width = (t / video.duration) * 100 + '%'; timeCurrent.textContent = fmt(t) }
+        seekOsd.classList.add('show')
+        playerWrap.classList.add('seek-preview')
+        clearTimeout(_timeTimer)
+        _timeTimer = setTimeout(commitTimeEntry, 2500)
+      }
+      function commitTimeEntry() {
+        clearTimeout(_timeTimer)
+        if (!_timeDigits) return
+        const t = timeEntrySeconds()
+        _timeDigits = ''
+        seekOsd.classList.remove('show')
+        playerWrap.classList.remove('seek-preview')
+        if (t < video.duration) video.currentTime = t
+        else toast('Video má jen ' + fmt(video.duration))
+      }
+      function cancelTimeEntry() {
+        clearTimeout(_timeTimer)
+        _timeDigits = ''
+        seekOsd.classList.remove('show')
+        playerWrap.classList.remove('seek-preview')
+      }
+
+      // ── Timeline scrubbing (remote) ──
+      // With the seek bar focused, ◀/▶ slide a marker along the film (1 % steps,
+      // speeding up to 2 % and 5 % when pressed repeatedly); OK jumps there,
+      // ▼ / Back leave the bar without seeking.
+      let _scrubT = null
+      let _scrubHold = 0, _scrubDir = 0, _scrubLast = 0
+      const scrubTime = document.getElementById('seek-scrub-time')
+      const scrubMark = document.getElementById('seek-scrub')
+      function drawScrub() {
+        const pct = (_scrubT / video.duration) * 100
+        scrubMark.style.left = pct + '%'
+        const d = _scrubT - video.currentTime
+        scrubTime.innerHTML = fmt(_scrubT) + '<small>' + (Math.abs(d) < 1 ? 'teď' : (d < 0 ? '−' : '+') + fmt(Math.abs(d))) + '</small>'
+      }
+      function startScrub() {
+        if (!isFinite(video.duration) || _scrubT != null) return
+        _scrubT = video.currentTime
+        _scrubHold = 0
+        playerWrap.classList.add('scrubbing')
+        drawScrub()
+      }
+      function endScrub() {
+        _scrubT = null
+        playerWrap.classList.remove('scrubbing')
+      }
+      function moveScrub(dir) {
+        if (_scrubT == null) startScrub()
+        if (_scrubT == null) return
+        const now = Date.now()
+        _scrubHold = now - _scrubLast < 700 && dir === _scrubDir ? _scrubHold + 1 : 0
+        _scrubDir = dir; _scrubLast = now
+        const pct = _scrubHold >= 10 ? 0.05 : _scrubHold >= 4 ? 0.02 : 0.01
+        const step = Math.max(10, video.duration * pct)
+        _scrubT = Math.max(0, Math.min(video.duration - 1, _scrubT + dir * step))
+        drawScrub()
+      }
+      function commitScrub() {
+        if (_scrubT == null) return
+        video.currentTime = _scrubT
+        _scrubT = video.currentTime
+        drawScrub()
+      }
+      seekBar.addEventListener('focus', () => { if (document.body.classList.contains('kbd')) startScrub() })
+      seekBar.addEventListener('blur', endScrub)
+      function handleScrubKey(e, key) {
+        if (key === 'ArrowLeft' || key === 'ArrowRight') { e.preventDefault(); moveScrub(key === 'ArrowRight' ? 1 : -1); return true }
+        if (key === 'Enter') { e.preventDefault(); commitScrub(); return true }
+        if (key === 'ArrowDown') { e.preventDefault(); endScrub(); playPauseBtn.focus(); return true }
+        if (key === 'ArrowUp') { e.preventDefault(); return true }
+        if (isBackKey(e) || key === 'Escape') { e.preventDefault(); endScrub(); seekBar.blur(); return true }
+        return false
+      }
+
+      // ── Keyboard + TV remote ──
+      // Tizen (Samsung) back = 10009, webOS (LG) back = 461.
+      const isBackKey = e => e.key === 'GoBack' || e.key === 'BrowserBack' || e.keyCode === 10009 || e.keyCode === 461
+      // Remote media buttons often arrive as key "Unidentified" with these codes (webOS / Tizen).
+      const MEDIA_CODES = { 415: 'MediaPlay', 19: 'MediaPause', 413: 'MediaStop', 417: 'MediaFastForward', 412: 'MediaRewind', 10252: 'MediaPlayPause', 179: 'MediaPlayPause', 176: 'MediaTrackNext' }
+      // A Magic Remote reports small movements constantly; only a deliberate pointer
+      // move leaves key mode, and once webOS cursor events arrive we trust those alone.
+      let cursorEvents = false, moveSum = 0, moveStart = 0
+      document.addEventListener('mousemove', e => {
+        if (cursorEvents) return
+        const d = Math.abs(e.movementX || 0) + Math.abs(e.movementY || 0)
+        if (d < 2) return
+        const now = Date.now()
+        if (now - moveStart > 400) { moveStart = now; moveSum = 0 }
+        moveSum += d
+        if (moveSum >= (IS_TV ? 40 : 4)) document.body.classList.remove('kbd')
+      }, { passive: true })
+      document.addEventListener('cursorStateChange', e => {
+        cursorEvents = true
+        if (e.detail && typeof e.detail.visibility === 'boolean') document.body.classList.toggle('kbd', !e.detail.visibility)
+      })
+
+      // Buttons in the top bar + control bar, in visual order, for Left/Right on a remote.
+      function barButtons() {
+        return [...playerWrap.querySelectorAll('#player-back, .player-controls .ctrl-btn')]
+          .filter(b => b.offsetParent !== null && getComputedStyle(b).display !== 'none')
+      }
+
       document.addEventListener('keydown', e => {
         if (e.target.tagName === 'INPUT') return
-        if (e.key === '?') { e.preventDefault(); toggleHelp(); return }
-        if (e.key === 'Escape' && shortcutsHelp.classList.contains('show')) { toggleHelp(false); return }
-        if (e.key === ' ' || e.key === 'k') { e.preventDefault(); togglePlay() }
-        if (e.key === 'ArrowRight') skip(10)
-        if (e.key === 'ArrowLeft')  skip(-10)
-        if (e.key === 'ArrowUp')    { video.volume = Math.min(1, video.volume + 0.1); volumeSlider.value = video.volume; updateMuteIcon() }
-        if (e.key === 'ArrowDown')  { video.volume = Math.max(0, video.volume - 0.1); volumeSlider.value = video.volume; updateMuteIcon() }
-        if (e.key === 'f') fullscreenBtn.click()
-        if (e.key === 'm') muteBtn.click()
+        document.body.classList.add('kbd')
+        showControls()
+        const key = MEDIA_CODES[e.keyCode] || e.key
+
+        if (settingsOpen()) { handleSettingsKey(e, key === 'Escape' || key === 'Backspace' || isBackKey(e)); return }
+        if (document.activeElement === seekBar && handleScrubKey(e, key)) return
+
+        if (shortcutsHelp.classList.contains('show') && (key === '?' || key === 'Escape' || isBackKey(e))) {
+          e.preventDefault(); toggleHelp(false); return
+        }
+
+        // Resume / next-episode prompts: arrows move between their buttons, OK clicks.
+        const prompt = playerWrap.querySelector('.resume-prompt, .next-ep-prompt')
+        if (prompt) {
+          if (key.startsWith('Arrow')) {
+            e.preventDefault()
+            const btns = [...prompt.querySelectorAll('button')]
+            const i = btns.indexOf(document.activeElement)
+            btns[(i + (key === 'ArrowLeft' || key === 'ArrowUp' ? -1 : 1) + btns.length) % btns.length].focus()
+          }
+          return
+        }
+
+        // Number buttons → type a time to jump to (keyboard row or numpad).
+        const digit = e.keyCode >= 48 && e.keyCode <= 57 ? e.keyCode - 48 : e.keyCode >= 96 && e.keyCode <= 105 ? e.keyCode - 96 : -1
+        if (digit >= 0 && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); typeTimeDigit(String(digit)); return }
+        if (_timeDigits) {
+          if (key === 'Enter') { e.preventDefault(); commitTimeEntry(); return }
+          if (isBackKey(e) || key === 'Escape' || key === 'Backspace') { e.preventDefault(); cancelTimeEntry(); return }
+        }
+
+        // OK/Enter on a focused control activates that control natively.
+        if (key === 'Enter' && e.target.closest && e.target.closest('button')) return
+
+        // Remote: Left/Right walk the control bar while a control has focus; Up leaves it.
+        const inBar = e.target.closest && e.target.closest('.player-controls, .player-topbar')
+        if (inBar && e.target.tagName === 'BUTTON') {
+          if (key === 'ArrowLeft' || key === 'ArrowRight') {
+            e.preventDefault()
+            const btns = barButtons()
+            const i = btns.indexOf(e.target)
+            const next = btns[Math.max(0, Math.min(btns.length - 1, i + (key === 'ArrowRight' ? 1 : -1)))]
+            if (next) next.focus()
+            return
+          }
+          if (key === 'ArrowUp' || key === 'ArrowDown') {
+            e.preventDefault()
+            if (key === 'ArrowUp' && e.target.closest('.player-controls')) seekBar.focus()   // buttons → timeline
+            return
+          }
+        }
+        // TV: Up/Down bring focus into the control bar (volume is the TV's own buttons).
+        if (IS_TV && (key === 'ArrowUp' || key === 'ArrowDown')) {
+          e.preventDefault()
+          if (key === 'ArrowUp') seekBar.focus()      // straight onto the timeline
+          else playPauseBtn.focus()
+          return
+        }
+
+        if (isBackKey(e)) {
+          e.preventDefault()
+          if (_seekTarget != null) { clearTimeout(_seekTimer); _seekTarget = null; seekOsd.classList.remove('show'); playerWrap.classList.remove('seek-preview'); return }
+          history.back()
+          return
+        }
+        if (e.keyCode === 403) { e.preventDefault(); toggleSubtitles(); return }            // red
+        if (e.keyCode === 404) { e.preventDefault(); openSettings(); return }               // green
+        switch (key) {
+          case '?':             e.preventDefault(); toggleHelp(); break
+          case ' ':
+          case 'k':
+          case 'Enter':
+          case 'MediaPlayPause': e.preventDefault(); togglePlay(); break
+          case 'MediaPlay':     video.play().catch(() => {}); break
+          case 'MediaPause':
+          case 'MediaStop':     video.pause(); break
+          case 'ArrowRight':
+          case 'MediaFastForward': e.preventDefault(); queueSeek(1, e.repeat); break
+          case 'ArrowLeft':
+          case 'MediaRewind':   e.preventDefault(); queueSeek(-1, e.repeat); break
+          case 'ArrowUp':       e.preventDefault(); changeVolume(0.1); break
+          case 'ArrowDown':     e.preventDefault(); changeVolume(-0.1); break
+          case 'f':             fullscreenBtn.click(); break
+          case 'm':             muteBtn.click(); break
+          case 'c':             toggleSubtitles(); break
+          case 's':             e.preventDefault(); openSettings(); break
+          case 'MediaTrackNext': if (_playerData && _playerData.episode) _playNextEpisode(); break
+        }
       })
+
+      // ── Media Session (phone lock screen, Android TV, Bluetooth remotes) ──
+      if ('mediaSession' in navigator && _playerData) {
+        try {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: _playerData.title || 'FilmBox',
+            artwork: _playerData.posterPath ? [{ src: 'https://image.tmdb.org/t/p/w500' + _playerData.posterPath, sizes: '500x750', type: 'image/jpeg' }] : []
+          })
+          navigator.mediaSession.setActionHandler('play', () => video.play().catch(() => {}))
+          navigator.mediaSession.setActionHandler('pause', () => video.pause())
+          navigator.mediaSession.setActionHandler('seekbackward', () => skip(-10))
+          navigator.mediaSession.setActionHandler('seekforward', () => skip(10))
+        } catch (e) {}
+      }
 
       // ── Auto-hide controls ──
       let hideTimeout
@@ -1231,12 +2572,18 @@
         playerWrap.classList.add('controls-visible')
         clearTimeout(hideTimeout)
         hideTimeout = setTimeout(() => {
-          if (!video.paused) playerWrap.classList.remove('controls-visible')
-        }, 3000)
+          if (!video.paused && !settingsOpen() && _scrubT == null) {
+            playerWrap.classList.remove('controls-visible')
+            // Hidden controls shouldn't keep remote focus — arrows go back to seeking.
+            const a = document.activeElement
+            if (a && a !== document.body && playerWrap.contains(a) && a.closest('.player-controls, .player-topbar')) a.blur()
+          }
+        }, 3500)
       }
 
       playerWrap.addEventListener('mousemove', showControls)
       playerWrap.addEventListener('mouseenter', showControls)
+      playerWrap.addEventListener('touchstart', showControls, { passive: true })
 
       video.addEventListener('pause', () => {
         playerWrap.classList.add('controls-visible')
@@ -1246,13 +2593,28 @@
       window.addEventListener('pagehide', () => {
         const pid = _profileId()
         if (_playerKey && pid !== 'default' && video.currentTime > 5) {
-          const url  = `/api/profiles/${pid}/progress/${encodeURIComponent(_playerKey)}`
+          const token = _profileToken(pid)
+          // Beacons can't set headers — the server also accepts the token as ?t=
+          const url  = `/api/profiles/${pid}/progress/${encodeURIComponent(_playerKey)}` + (token ? '?t=' + encodeURIComponent(token) : '')
           const body = JSON.stringify(_progressBody())
+          // sendBeacon always POSTs — the server accepts POST as well as PUT here.
           navigator.sendBeacon
             ? navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }))
-            : fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body }).catch(() => {})
+            : fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {})
         }
       })
+
+      // ── Start ── (last, so every const above is initialised)
+      async function boot() {
+        if (!source || !source.qualities.length) {
+          showError('Pro toto video nejsou k dispozici žádné zdroje.')
+          return
+        }
+        if (linksExpired() && source.pageUrl) await refreshSource()
+        buildSubtitleTracks()
+        playQuality(pickQuality(), 0, true)
+      }
+      if (_playerData) boot()
     </script>
   </body>
 </html>

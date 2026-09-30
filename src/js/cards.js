@@ -1,220 +1,297 @@
-// ================= MOVIE CARD BUILDER =================
+// ================= MOVIE CARD =================
+// One builder for every card on the page. Cards carry their data in
+// data-attributes and are handled by a single delegated click listener, so
+// titles with quotes/apostrophes ("Ocean's Eleven") can't break anything.
+//
+// opts: { index, variant: 'continue', remove: 'continue'|'list'|'watched',
+//         removeTitle, note, hideWatchedBadge, order (position in a film series), current }
 
-function buildCard(movie, extraClass = '') {
-  const title      = movie.title || movie.name
+function buildCard(movie, opts) {
+  opts = opts || {}
+  const title      = movie.title || movie.name || ''
   const safeTitle  = escapeHtml(title)
   const year       = (movie.release_date || movie.first_air_date || '').slice(0, 4)
   const mediaType  = movie.media_type || (movie.title ? 'movie' : 'tv')
+  const isContinue = opts.variant === 'continue'
   const inFav      = isFavorite(movie.id, mediaType)
-  const watched    = typeof isWatched === 'function' && isWatched(movie.id)
-  const isContinue = extraClass.split(' ').includes('continue-card')
+  const watched    = !opts.hideWatchedBadge && !isContinue && isWatched(movie.id, mediaType)
+  const rating     = movie.vote_average ? Number(movie.vote_average) : 0
 
-  // Continue-Watching cards pass an explicit position (movie._seconds/_duration)
-  // because their progress can be keyed per-episode, not by the show's tmdbId.
-  const _pEntry   = window._profileProgress ? window._profileProgress[String(movie.id)] : null
-  const pSeconds  = movie._seconds != null ? movie._seconds
-                  : (_pEntry && typeof _pEntry === 'object' ? _pEntry.seconds : _pEntry)
-  const pDuration = movie._duration != null ? movie._duration
-                  : (_pEntry && typeof _pEntry === 'object' && _pEntry.duration ? _pEntry.duration : (movie.runtime ? movie.runtime * 60 : null))
-  const pct = pSeconds && pDuration
-    ? Math.min(100, (parseFloat(pSeconds) / pDuration) * 100).toFixed(0)
-    : null
-  const remainMin = (isContinue && pSeconds && pDuration && pDuration > pSeconds)
-    ? Math.round((pDuration - pSeconds) / 60)
-    : null
-  const epLabel = movie._episodeLabel || null
+  // Continue-Watching cards pass an explicit position because their progress
+  // can be keyed per-episode, not by the show's tmdbId.
+  let pct = null
+  let remainMin = null
+  if (isContinue) {
+    const dur = movie._duration || (movie.runtime ? movie.runtime * 60 : null)
+    if (movie._seconds && dur) {
+      pct = Math.min(100, (movie._seconds / dur) * 100)
+      if (dur > movie._seconds) remainMin = Math.round((dur - movie._seconds) / 60)
+    }
+  }
+  const badgeText = isContinue
+    ? [movie._episodeLabel, remainMin != null ? 'Zbývá ' + remainMin + ' min' : null].filter(Boolean).join(' · ')
+    : ''
+
+  let removeBtn = ''
+  if (opts.remove) {
+    removeBtn = `<button class="card-btn remove-btn" data-action="remove-${opts.remove}" title="${escapeHtml(opts.removeTitle || 'Odebrat')}" aria-label="${escapeHtml(opts.removeTitle || 'Odebrat')}"><i class="bi bi-x-lg"></i></button>`
+  }
+  const favBtn = isContinue ? '' :
+    `<button class="card-btn fav-btn${inFav ? ' active' : ''}" data-action="fav" data-id="${movie.id}" data-type="${mediaType}" title="Oblíbené" aria-label="Oblíbené"><i class="bi ${inFav ? 'bi-heart-fill' : 'bi-heart'}"></i></button>`
+
+  const delay = opts.index != null ? ` style="-webkit-animation-delay:${Math.min(opts.index, 12) * 35}ms;animation-delay:${Math.min(opts.index, 12) * 35}ms"` : ''
+  const poster = movie.poster_path
+    ? `<img src="${tmdbImg(movie.poster_path, 'w342')}" alt="" loading="lazy" onerror="this.style.display='none'">`
+    : ''
 
   return `
-    <div class="movie-card${extraClass ? ' ' + extraClass : ''}" onclick="openDetailModal(${movie.id},'${mediaType}',decodeURIComponent('${encodeURIComponent(title)}'))">
+    <div class="movie-card${isContinue ? ' continue-card' : ''}${opts.current ? ' current' : ''}" tabindex="0" role="button"
+         data-id="${movie.id}" data-type="${mediaType}" data-title="${safeTitle}"
+         ${isContinue ? `data-play="1" data-key="${escapeHtml(movie._key)}" data-poster="${escapeHtml(movie.poster_path || '')}" data-ep="${escapeHtml(movie._episodeLabel || '')}"` : ''}
+         aria-label="${safeTitle}"${delay}>
       <div class="movie-poster">
-        <img src="https://image.tmdb.org/t/p/w500${movie.poster_path}" alt="${safeTitle}" loading="lazy">
-        <div class="rating">⭐ ${(movie.vote_average || 0).toFixed(1)}</div>
-        ${watched && !isContinue ? '<div class="watched-badge">✓ Seen</div>' : ''}
-        ${isContinue ? `<button class="continue-remove" title="Odebrat" onclick="event.stopPropagation();removeFromContinue('${movie._key}')"><i class="bi bi-x-lg"></i></button>` : ''}
-        <button class="fav-btn${inFav ? ' active' : ''}" data-tmdb-id="${movie.id}" data-media-type="${mediaType}" onclick="event.stopPropagation();favToggleCard(this,${movie.id},'${mediaType}')">
-          <i class="bi ${inFav ? 'bi-heart-fill' : 'bi-heart'}"></i>
-        </button>
-        ${(epLabel || remainMin != null) ? `<div class="remaining-badge">${[epLabel, remainMin != null ? 'Zbývá ' + remainMin + ' min' : null].filter(Boolean).join(' · ')}</div>` : ''}
-        ${pct ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
+        <div class="poster-fallback">${safeTitle}</div>
+        ${poster}
+        <div class="card-overlay"><span class="card-play"><i class="bi bi-play-fill"></i></span></div>
+        ${opts.order ? `<div class="order-badge">${opts.order}</div>` : ''}
+        ${rating && !opts.order ? `<div class="rating${rating >= 8 ? ' high' : ''}"><i class="bi bi-star-fill"></i>${rating.toFixed(1)}</div>` : ''}
+        ${watched ? '<div class="watched-badge" title="Zhlédnuto"><i class="bi bi-check-lg"></i></div>' : ''}
+        ${badgeText ? `<div class="remaining-badge">${escapeHtml(badgeText)}</div>` : ''}
+        ${pct != null ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct.toFixed(1)}%"></div></div>` : ''}
+        ${removeBtn}
+        ${favBtn}
       </div>
       <div class="movie-info">
         <h4>${safeTitle}</h4>
-        <div class="movie-meta"><span>${year}</span><span>${mediaType === 'tv' ? 'Seriál' : 'Film'}</span></div>
+        <div class="movie-meta">${year ? `<span>${year}</span>` : ''}<span>${mediaType === 'tv' ? 'Seriál' : 'Film'}</span>${opts.note ? `<span>${escapeHtml(opts.note)}</span>` : ''}</div>
       </div>
-    </div>
-  `
+    </div>`
 }
 
-// ================= GRID STATE =================
+// ── One click handler for every card ──
+document.addEventListener('click', e => {
+  const actionBtn = e.target.closest('[data-action]')
+  const card = e.target.closest('.movie-card')
+  if (!card || card.classList.contains('skeleton-card')) return
+  const id   = parseInt(card.dataset.id, 10)
+  const type = card.dataset.type
+  const title = card.dataset.title
 
-const gridState = {} // { [containerId]: { allMovies, currentSort, activeGenre } }
-
-function applyFiltersAndSort(containerId) {
-  const state = gridState[containerId]
-  if (!state) return
-  let movies = [...state.allMovies]
-
-  if (state.activeGenre) {
-    movies = movies.filter(m => (m.genre_ids || []).includes(state.activeGenre))
+  if (actionBtn && card.contains(actionBtn)) {
+    e.stopPropagation()
+    const action = actionBtn.dataset.action
+    if (action === 'fav') window.favToggleCard(actionBtn, id, type)
+    else if (action === 'remove-continue') window.removeFromContinue(card.dataset.key)
+    else if (action === 'remove-list') window.removeFromCurrentList(id)
+    else if (action === 'remove-watched') window.watchedRemoveCard(id, type)
+    return
   }
 
-  if (state.currentSort === 'rating') {
-    movies.sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0))
-  } else if (state.currentSort === 'year') {
-    movies.sort((a, b) => {
-      const ya = (b.release_date || b.first_air_date || '').slice(0, 4)
-      const yb = (a.release_date || a.first_air_date || '').slice(0, 4)
-      return ya.localeCompare(yb)
+  // Continue Watching cards carry "Show S01E03" titles — the detail view wants the show name.
+  // (For series it opens on the right season with the next episode highlighted.)
+  openDetailModal(id, type, card.dataset.play ? String(title).replace(/\s*S\d{1,2}E\d{1,3}.*$/i, '').trim() : title)
+})
+
+// ================= ROWS =================
+
+// Left/right scroll buttons for pointer users (hidden on TV and touch).
+function initRow(row) {
+  if (row._init) return
+  row._init = true
+  const track = row.querySelector('.row-track')
+  if (!track) return
+  const mk = dir => {
+    const b = document.createElement('button')
+    b.className = 'row-arrow ' + dir + ' off'
+    b.tabIndex = -1
+    b.setAttribute('aria-label', dir === 'left' ? 'Posunout doleva' : 'Posunout doprava')
+    b.innerHTML = `<i class="bi bi-chevron-${dir}"></i>`
+    b.addEventListener('click', () => {
+      const delta = track.clientWidth * 0.85 * (dir === 'left' ? -1 : 1)
+      if (track.scrollBy) track.scrollBy({ left: delta, behavior: 'smooth' })
+      else track.scrollLeft += delta
     })
+    row.appendChild(b)
+    return b
   }
-
-  const c = document.getElementById(containerId)
-  if (!c) return
-  const prevScroll = c.scrollTop
-  c.innerHTML = movies.map(m => buildCard(m)).join('')
-  c.scrollTop = prevScroll
+  row._left = mk('left')
+  row._right = mk('right')
+  track.addEventListener('scroll', () => updateRowArrows(track), { passive: true })
 }
 
-// containerId -> loaded-count label element id
-const countElementMap = {
+function updateRowArrows(track) {
+  const row = track && track.parentNode
+  if (!row || !row._left) return
+  row._left.classList.toggle('off', track.scrollLeft < 10)
+  row._right.classList.toggle('off', track.scrollLeft + track.clientWidth >= track.scrollWidth - 10)
+}
+window.updateRowArrows = updateRowArrows
+
+document.querySelectorAll('[data-row]').forEach(initRow)
+window.addEventListener('resize', () => document.querySelectorAll('.row-track').forEach(updateRowArrows))
+
+// ================= CATALOG ROWS =================
+
+const gridState = {}     // { [containerId]: { allMovies, currentSort, activeGenre, page, done } }
+const gridLoading = {}
+
+const FILTER_IDS = {
+  'popular-movies': 'genre-filters-popular',
+  'trending':       'genre-filters-trending',
+  'top-rated':      'genre-filters-top-rated'
+}
+const COUNT_IDS = {
   'popular-movies': 'count-popular',
   'trending':       'count-trending',
   'top-rated':      'count-top-rated'
 }
 
-function updateLoadedCount(containerId) {
-  const id = countElementMap[containerId]
-  if (!id) return
-  const el = document.getElementById(id)
-  if (!el || !gridState[containerId]) return
-  el.textContent = `Zobrazeno ${gridState[containerId].allMovies.length}`
+function visibleMovies(state) {
+  let movies = state.allMovies.slice()
+  if (state.activeGenre) movies = movies.filter(m => (m.genre_ids || []).indexOf(state.activeGenre) >= 0)
+  if (state.currentSort === 'rating') {
+    movies.sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0))
+  } else if (state.currentSort === 'year') {
+    const y = m => (m.release_date || m.first_air_date || '')
+    movies.sort((a, b) => y(b).localeCompare(y(a)))
+  }
+  return movies
 }
 
-function buildGenreFilters(containerId, movies, filtersId) {
+// Full re-render (sort / filter change). Keeps focus on the same title if it survives.
+function renderCatalog(containerId) {
+  const state = gridState[containerId]
+  const c = document.getElementById(containerId)
+  if (!state || !c) return
+  const focusedId = document.activeElement && c.contains(document.activeElement) ? document.activeElement.dataset.id : null
+  const movies = visibleMovies(state)
+  c.innerHTML = movies.length
+    ? movies.map((m, i) => buildCard(m, { index: i })).join('')
+    : '<div class="row-empty">V tomto žánru zatím nic není — zkuste načíst další tituly posunutím doprava.</div>'
+  c.scrollLeft = 0
+  if (focusedId) {
+    const again = c.querySelector(`.movie-card[data-id="${focusedId}"]`)
+    if (again) again.focus({ preventScroll: true })
+  }
+  updateRowArrows(c)
+}
+
+function buildGenreFilters(containerId) {
+  const state = gridState[containerId]
+  const wrap = document.getElementById(FILTER_IDS[containerId])
+  if (!wrap || !state) return
   const counts = {}
-  movies.forEach(m => (m.genre_ids || []).forEach(g => { counts[g] = (counts[g] || 0) + 1 }))
-  const genres = Object.entries(counts)
-    .filter(([id]) => GENRE_NAMES[id])
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-
-  const wrap = document.getElementById(filtersId)
-  if (!wrap || !genres.length) return
-
-  const activeGenre = gridState[containerId] ? gridState[containerId].activeGenre : null
-
+  state.allMovies.forEach(m => (m.genre_ids || []).forEach(g => { counts[g] = (counts[g] || 0) + 1 }))
+  const genres = Object.keys(counts)
+    .filter(id => GENRE_NAMES[id])
+    .sort((a, b) => counts[b] - counts[a])
+    .slice(0, 10)
+  if (!genres.length) return
   wrap.innerHTML =
-    `<button class="genre-chip${!activeGenre ? ' active' : ''}" data-genre="" data-grid="${containerId}">Vše</button>` +
-    genres.map(([id]) =>
-      `<button class="genre-chip${activeGenre === parseInt(id) ? ' active' : ''}" data-genre="${id}" data-grid="${containerId}">${GENRE_NAMES[id]}</button>`
+    `<button class="genre-chip${!state.activeGenre ? ' active' : ''}" data-genre="" data-grid="${containerId}">Vše</button>` +
+    genres.map(id =>
+      `<button class="genre-chip${state.activeGenre === parseInt(id, 10) ? ' active' : ''}" data-genre="${id}" data-grid="${containerId}">${GENRE_NAMES[id]}</button>`
     ).join('')
 }
 
-// ================= MOVIE GRIDS =================
-
-async function fetchMovies(type, containerId, page = 1, append = false) {
-  if (!append) renderSkeletons(containerId)
+async function fetchMovies(containerId, page, append) {
+  const c = document.getElementById(containerId)
+  if (!c) return
+  const type = c.dataset.type
+  if (!append) c.innerHTML = renderSkeletonsHTML(10)
+  let loader = null
+  if (append) {
+    loader = document.createElement('div')
+    loader.className = 'row-loader'
+    loader.innerHTML = '<i class="bi bi-arrow-repeat"></i>'
+    c.appendChild(loader)
+  }
   try {
-    const res    = await fetch(`/tmdb/movies?type=${type}&page=${page}`)
-    const data   = await res.json()
-    const movies = data.results.filter(m => m.poster_path)
+    const res  = await fetch(`/tmdb/movies?type=${type}&page=${page}`)
+    if (!res.ok) throw new Error('HTTP ' + res.status)
+    const data = await res.json()
+    const known = gridState[containerId] ? gridState[containerId].allMovies : []
+    const seen = {}
+    known.forEach(m => { seen[m.id] = true })
+    const movies = (data.results || []).filter(m => m.poster_path && !seen[m.id])
+    rememberMovies(movies)
 
-    movies.forEach(m => { searchDataMap[m.id] = m })
+    if (!gridState[containerId]) gridState[containerId] = { allMovies: [], currentSort: 'default', activeGenre: null, page: 1, done: false }
+    const state = gridState[containerId]
+    state.page = page
+    state.done = page >= (data.total_pages || 1)
 
-    if (!gridState[containerId]) gridState[containerId] = { allMovies: [], currentSort: 'default', activeGenre: null }
+    if (loader && loader.parentNode) loader.parentNode.removeChild(loader)
     if (append) {
-      gridState[containerId].allMovies.push(...movies)
+      state.allMovies = state.allMovies.concat(movies)
+      if (state.currentSort === 'default' && !state.activeGenre) {
+        // Append only the new cards so the focused card (TV remote) survives.
+        c.insertAdjacentHTML('beforeend', movies.map((m, i) => buildCard(m, { index: i })).join(''))
+      } else {
+        renderCatalog(containerId)
+      }
     } else {
-      gridState[containerId].allMovies = movies
+      state.allMovies = movies
+      renderCatalog(containerId)
     }
-
-    applyFiltersAndSort(containerId)
-
-    const filtersId = {
-      'popular-movies': 'genre-filters-popular',
-      'trending':       'genre-filters-trending',
-      'top-rated':      'genre-filters-top-rated'
-    }[containerId]
-    if (filtersId) buildGenreFilters(containerId, gridState[containerId].allMovies, filtersId)
-
-    updateLoadedCount(containerId)
-
-  } catch {
-    document.getElementById(containerId).innerHTML = '<p style="color:gray;padding:20px">Nepodařilo se načíst.</p>'
+    buildGenreFilters(containerId)
+    const count = document.getElementById(COUNT_IDS[containerId])
+    if (count) count.textContent = '· ' + state.allMovies.length + ' titulů'
+    updateRowArrows(c)
+  } catch (e) {
+    if (loader && loader.parentNode) loader.parentNode.removeChild(loader)
+    if (!append) {
+      c.innerHTML = `<div class="row-empty">Nepodařilo se načíst. <button class="btn btn-ghost btn-sm" data-retry="${containerId}">Zkusit znovu</button></div>`
+    }
   }
 }
 
-fetchMovies('popular',   'popular-movies')
-fetchMovies('trending',  'trending')
-fetchMovies('top_rated', 'top-rated')
+function loadNextPage(containerId) {
+  const state = gridState[containerId]
+  if (!state || state.done || gridLoading[containerId]) return
+  gridLoading[containerId] = true
+  fetchMovies(containerId, state.page + 1, true).then(() => { gridLoading[containerId] = false })
+}
 
-// ── Sort tabs ──
-document.querySelectorAll('.sort-tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const tabs = btn.closest('.sort-tabs')
-    const grid = tabs.dataset.grid
-    const sort = btn.dataset.sort
-    tabs.querySelectorAll('.sort-tab').forEach(t => t.classList.remove('active'))
-    btn.classList.add('active')
-    if (gridState[grid]) {
-      gridState[grid].currentSort = sort
-      applyFiltersAndSort(grid)
-    }
-  })
+Object.keys(FILTER_IDS).forEach(containerId => {
+  fetchMovies(containerId, 1, false)
+  const track = document.getElementById(containerId)
+  // Infinite scroll sideways: fetch the next page as the end comes into view.
+  track.addEventListener('scroll', () => {
+    if (track.scrollLeft + track.clientWidth >= track.scrollWidth - track.clientWidth * 0.6) loadNextPage(containerId)
+  }, { passive: true })
 })
 
-// ── Genre filters (event delegation) ──
 document.addEventListener('click', e => {
+  const retry = e.target.closest('[data-retry]')
+  if (retry) { fetchMovies(retry.dataset.retry, 1, false); return }
+
+  const tab = e.target.closest('.sort-tab')
+  if (tab) {
+    const tabs = tab.closest('.sort-tabs')
+    const grid = tabs.dataset.grid
+    tabs.querySelectorAll('.sort-tab').forEach(t => t.classList.toggle('active', t === tab))
+    if (gridState[grid]) { gridState[grid].currentSort = tab.dataset.sort; renderCatalog(grid) }
+    return
+  }
+
   const chip = e.target.closest('.genre-chip')
-  if (!chip) return
-  const grid  = chip.dataset.grid
-  const genre = chip.dataset.genre ? parseInt(chip.dataset.genre) : null
-  chip.closest('.genre-filters').querySelectorAll('.genre-chip').forEach(c => c.classList.remove('active'))
-  chip.classList.add('active')
-  if (gridState[grid]) {
-    gridState[grid].activeGenre = genre
-    applyFiltersAndSort(grid)
+  if (chip) {
+    const grid = chip.dataset.grid
+    chip.parentNode.querySelectorAll('.genre-chip').forEach(c => c.classList.toggle('active', c === chip))
+    if (gridState[grid]) {
+      gridState[grid].activeGenre = chip.dataset.genre ? parseInt(chip.dataset.genre, 10) : null
+      renderCatalog(grid)
+    }
   }
 })
 
-// ── Load more (shared by button + auto-load) ──
-const gridLoading = {} // { [containerId]: true } while a page is loading
-
-function loadNextPage(btn) {
-  if (!btn) return
-  const grid = btn.dataset.grid
-  if (gridLoading[grid]) return
-  gridLoading[grid] = true
-
-  const page = parseInt(btn.dataset.page) + 1
-  btn.dataset.page = page
-
-  const original = btn.innerHTML
-  btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Načítání...'
-  btn.disabled = true
-
-  return fetchMovies(btn.dataset.type, grid, page, true)
-    .finally(() => {
-      btn.innerHTML = original
-      btn.disabled = false
-      gridLoading[grid] = false
+// ── Section reveal on scroll ──
+if ('IntersectionObserver' in window) {
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(en => {
+      if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target) }
     })
+  }, { rootMargin: '0px 0px -8% 0px' })
+  document.querySelectorAll('.row-section, .site-footer').forEach(s => { s.classList.add('reveal'); io.observe(s) })
 }
-
-document.querySelectorAll('.load-more-btn').forEach(btn => {
-  btn.addEventListener('click', () => { loadNextPage(btn) })
-})
-
-// ── Auto-load on scroll (infinite scroll inside each category grid) ──
-const SCROLL_THRESHOLD = 120
-;['popular-movies', 'trending', 'top-rated'].forEach(containerId => {
-  const grid = document.getElementById(containerId)
-  if (!grid) return
-  grid.addEventListener('scroll', () => {
-    if (gridLoading[containerId]) return
-    if (grid.scrollTop + grid.clientHeight >= grid.scrollHeight - SCROLL_THRESHOLD) {
-      const btn = document.querySelector(`.load-more-btn[data-grid="${containerId}"]`)
-      loadNextPage(btn)
-    }
-  })
-})

@@ -4,537 +4,609 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#07070a" />
   <title>FilmBox</title>
-  <link rel="icon" type="image/x-icon" href="image.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
 
+  <link rel="preconnect" href="https://image.tmdb.org" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
 
   <link rel="stylesheet" href="css/base.css" />
   <link rel="stylesheet" href="css/navbar.css" />
   <link rel="stylesheet" href="css/hero.css" />
-  <link rel="stylesheet" href="css/cards.css" />
-  <link rel="stylesheet" href="css/grid.css" />
+  <link rel="stylesheet" href="css/rows.css" />
   <link rel="stylesheet" href="css/modals.css" />
-  <link rel="stylesheet" href="css/watchlist.css" />
-  <link rel="stylesheet" href="css/responsive.css" />
-  <link rel="stylesheet" href="css/intro.css" />
-  <link rel="stylesheet" href="css/animations.css" />
+  <link rel="stylesheet" href="css/profiles.css" />
   <link rel="stylesheet" href="css/settings.css" />
+  <link rel="stylesheet" href="css/watchlist.css" />
   <link rel="stylesheet" href="css/footer.css" />
+  <link rel="stylesheet" href="css/responsive.css" />
 </head>
 
-<body>
+<body class="dark">
 
-  <!-- ── Intro screen ── -->
-  <div id="intro-screen">
-    <div class="intro-logo-box">FB</div>
+  <!-- Ambient page glow (tinted from the current hero slide) -->
+  <div class="ambient" id="ambient" aria-hidden="true"></div>
+
+  <!-- ── Intro ── -->
+  <div id="intro-screen" aria-hidden="true">
+    <div class="intro-stage">
+      <div class="intro-mark"><img src="icons/icon-192.png" alt=""></div>
+      <div class="intro-word">
+        <span>F</span><span>I</span><span>L</span><span>M</span><span class="accent">B</span><span class="accent">O</span><span class="accent">X</span>
+      </div>
+    </div>
   </div>
 
   <!-- ── Profile chooser ── -->
   <div id="profile-chooser" class="hidden" style="opacity:0">
     <div class="profile-chooser-inner">
+      <div class="chooser-brand"><img class="brand-mark" src="icons/icon-192.png" alt="FilmBox"></div>
       <h1>Kdo se dívá?</h1>
       <div id="profile-grid" class="profile-grid"></div>
-      <button id="add-profile-btn" class="profile-add-btn">
+      <button id="add-profile-btn" class="btn btn-ghost profile-add-btn">
         <i class="bi bi-plus-lg"></i> Přidat profil
       </button>
     </div>
   </div>
 
   <!-- ── Add profile modal ── -->
-  <div id="profile-add-modal" class="hidden">
-    <div class="profile-add-inner">
-      <h3>Nový profil</h3>
-      <input type="text" id="new-profile-name" placeholder="Jméno profilu..." maxlength="20" />
-      <div class="profile-theme-picker">
+  <div id="profile-add-modal" class="overlay-modal hidden" role="dialog" aria-modal="true" aria-labelledby="profile-add-title">
+    <div class="overlay-backdrop" data-close></div>
+    <div class="overlay-card profile-add-inner">
+      <h3 id="profile-add-title">Nový profil</h3>
+      <input type="text" id="new-profile-name" class="field" placeholder="Jméno profilu..." maxlength="20" />
+      <div class="segmented profile-theme-picker">
         <button class="theme-option active" data-theme="dark"><i class="bi bi-moon-stars"></i> Tmavý</button>
         <button class="theme-option" data-theme="light"><i class="bi bi-sun"></i> Světlý</button>
       </div>
-      <div class="profile-add-actions">
-        <button id="profile-add-confirm" class="btn-confirm">Vytvořit</button>
-        <button id="profile-add-cancel" class="btn-cancel">Zrušit</button>
+      <div class="overlay-actions">
+        <button id="profile-add-cancel" class="btn btn-ghost">Zrušit</button>
+        <button id="profile-add-confirm" class="btn btn-primary">Vytvořit</button>
       </div>
     </div>
   </div>
 
-  <header class="navbar">
-    <div class="container navbar-content">
-      <div class="logo-wrapper">
-        <div id="navbar-logo-box" class="logo-box">F</div>
+  <!-- ── Navbar ── -->
+  <header class="navbar" id="navbar">
+    <div class="navbar-content">
+      <a href="#" class="brand" id="nav-brand" aria-label="FilmBox — domů">
+        <img class="brand-mark" src="icons/icon-96.png" alt="">
+      </a>
 
-        <div id="navbar-profile-text">
-          <h1>FilmBox</h1>
-          <p>Streamovací platforma</p>
-        </div>
-      </div>
-
-      <nav>
-        <a href="#" id="nav-home">Domů</a>
-        <a href="#" id="nav-filmy">Nejnavštěvovanější</a>
-        <a href="#" id="nav-serialy">Trendy</a>
-        <a href="#" id="nav-novinky">Nejlépe hodnocené</a>
+      <nav class="nav-links" id="nav-links">
+        <a href="#" class="nav-link active" data-target="top">Domů</a>
+        <a href="#" class="nav-link" data-target="watchlist-section" id="nav-watchlist">Můj seznam</a>
+        <a href="#" class="nav-link" data-target="section-popular">Populární</a>
+        <a href="#" class="nav-link" data-target="section-trending">Trendy</a>
+        <a href="#" class="nav-link" data-target="section-top-rated">Nejlépe hodnocené</a>
       </nav>
 
       <div class="actions">
-        <button id="settings-btn" title="Nastavení">
-          <i class="bi bi-gear"></i>
-        </button>
-
-        <button id="theme-toggle">
-          <i class="bi bi-moon-stars"></i>
-        </button>
-
-        <button id="search-mobile-btn" title="Hledat">
-          <i class="bi bi-search"></i>
-        </button>
-
-        <div class="search-wrapper">
-          <i class="bi bi-search search-icon"></i>
-          <input type="text" id="search-input" placeholder="Hledat filmy nebo seriály..." autocomplete="off" />
-          <button id="search-close-mobile"><i class="bi bi-x-lg"></i></button>
-          <div id="search-results" class="search-results"></div>
+        <div class="search-wrapper" id="search-wrapper">
+          <div class="search-bar">
+            <i class="bi bi-search search-icon"></i>
+            <input type="text" id="search-input" placeholder="Filmy a seriály" autocomplete="off" spellcheck="false" />
+            <div class="search-mode" id="search-mode" role="group" aria-label="Kde hledat">
+              <button type="button" data-mode="tmdb" class="active" aria-pressed="true" title="Hledat filmy a seriály (TMDB)">TMDB</button>
+              <button type="button" data-mode="sources" aria-pressed="false" title="Hledat přímo na prehraj.to, FastShare a Sledujteto"><i class="bi bi-collection-play"></i>Zdroje</button>
+            </div>
+          </div>
+          <button id="search-close-mobile" class="icon-btn" aria-label="Zavřít hledání"><i class="bi bi-x-lg"></i></button>
+          <div id="search-results" class="search-results" role="listbox"></div>
         </div>
+        <button id="search-mobile-btn" class="icon-btn" title="Hledat" aria-label="Hledat"><i class="bi bi-search"></i></button>
+        <button id="theme-toggle" class="icon-btn" title="Přepnout motiv" aria-label="Přepnout motiv"><i class="bi bi-moon-stars"></i></button>
+        <button id="settings-btn" class="icon-btn" title="Nastavení" aria-label="Nastavení"><i class="bi bi-gear"></i></button>
+        <button id="profile-btn" class="profile-chip" title="Změnit profil" aria-label="Změnit profil">
+          <span id="navbar-logo-box" class="profile-chip-avatar">?</span>
+          <span id="navbar-profile-name" class="profile-chip-name"></span>
+          <i class="bi bi-chevron-down"></i>
+        </button>
       </div>
     </div>
   </header>
 
-  <!-- ── Continue Watching ── -->
-
-  <section class="hero container">
-    <div class="hero-banner">
-      <img id="hero-image" src="" alt="Hero" />
-
-      <div class="hero-content">
-        <span class="badge">
-          <i class="bi bi-fire"></i>
-          Nejsledovanější tento týden
-        </span>
-
-        <h2 id="hero-title">Načítání...</h2>
-
-        <p id="hero-description">
-          Načítání popisu filmu...
-        </p>
-
-        <div class="hero-buttons">
-          <button class="play-btn" id="hero-play-btn">
-            <i class="bi bi-play-fill"></i>
-            Přehrát
-          </button>
-
-          <button class="info-btn" id="hero-info-btn">
-            <i class="bi bi-info-circle"></i>
-            Více informací
-          </button>
-        </div>
-
-        <div id="hero-dots" class="hero-dots"></div>
+  <!-- ── Hero ── -->
+  <section class="hero" id="hero" aria-roledescription="carousel">
+    <div class="hero-media">
+      <img class="hero-img" id="hero-img-a" alt="" />
+      <img class="hero-img" id="hero-img-b" alt="" />
+      <div class="hero-shade"></div>
+    </div>
+    <div class="hero-content" id="hero-content">
+      <span class="hero-badge"><i class="bi bi-fire"></i> Nejsledovanější tento týden</span>
+      <h2 id="hero-title" class="hero-title skeleton-text">Načítání…</h2>
+      <div class="hero-meta" id="hero-meta"></div>
+      <p id="hero-description" class="hero-desc"></p>
+      <div class="hero-buttons">
+        <button class="btn btn-primary btn-lg" id="hero-play-btn"><i class="bi bi-play-fill"></i> Přehrát</button>
+        <button class="btn btn-glass btn-lg" id="hero-info-btn"><i class="bi bi-info-circle"></i> Více informací</button>
+        <button class="btn btn-glass btn-lg btn-icon-only" id="hero-list-btn" title="Přidat do seznamu" aria-label="Přidat do seznamu"><i class="bi bi-plus-lg"></i></button>
       </div>
     </div>
+    <div id="hero-dots" class="hero-dots" role="tablist"></div>
   </section>
 
-  <main class="container" id="continue-watching-section" style="display:none; padding-top: 40px;">
-    <section>
-      <div class="section-header">
+  <main class="rows" id="rows">
+
+    <!-- Search results (shown after pressing Enter in search) -->
+    <section class="row-section" id="search-movies-section" style="display:none">
+      <div class="row-header">
+        <div>
+          <h3 id="search-results-title">Výsledky hledání</h3>
+          <p id="search-results-sub"></p>
+        </div>
+        <div class="row-actions">
+          <button id="direct-search-movies" class="btn btn-ghost btn-sm"><i class="bi bi-collection-play"></i> Hledat přímo na zdrojích</button>
+          <button id="clear-search-movies" class="btn btn-ghost btn-sm"><i class="bi bi-x-lg"></i> Zavřít</button>
+        </div>
+      </div>
+      <div class="card-grid" id="search-movies"></div>
+    </section>
+
+    <section class="row-section" id="continue-watching-section" style="display:none">
+      <div class="row-header">
         <div>
           <h3>Pokračovat ve sledování</h3>
           <p>Tam, kde jste skončili</p>
         </div>
       </div>
-      <div class="movies-grid" id="continue-watching-movies"></div>
+      <div class="row" data-row><div class="row-track" id="continue-watching-movies"></div></div>
     </section>
-  </main>
 
-  <main class="container" id="favorites-section" style="display:none; padding-top: 40px;">
-    <section>
-      <div class="section-header">
+    <!-- ── Recommended (from what this profile watched / liked) ── -->
+    <section class="row-section" id="recommended-section" style="display:none">
+      <div class="row-header">
+        <div>
+          <h3>Doporučeno pro vás</h3>
+          <p id="recommended-sub">Podle toho, co sledujete</p>
+        </div>
+      </div>
+      <div class="row" data-row><div class="row-track" id="recommended-movies"></div></div>
+    </section>
+
+    <!-- ── Watchlist ── -->
+    <section class="row-section" id="watchlist-section" style="display:none">
+      <div class="row-header">
+        <div>
+          <h3>Můj seznam</h3>
+          <p>Filmy a seriály, které chcete vidět</p>
+        </div>
+        <div class="row-tools wl-header-actions">
+          <div class="wl-inline-new hidden" id="wl-inline-new">
+            <input type="text" id="wl-inline-input" class="field field-sm wl-inline-input" placeholder="Název seznamu..." maxlength="30" />
+            <button id="wl-inline-confirm" class="btn btn-ghost btn-sm" aria-label="Vytvořit"><i class="bi bi-check-lg"></i></button>
+            <button id="wl-inline-cancel" class="btn btn-ghost btn-sm" aria-label="Zrušit"><i class="bi bi-x-lg"></i></button>
+          </div>
+          <button id="wl-add-list-btn" class="btn btn-ghost btn-sm"><i class="bi bi-plus-lg"></i> Nový seznam</button>
+          <button id="clear-watchlist" class="btn btn-ghost btn-sm"><i class="bi bi-trash"></i> Vymazat</button>
+        </div>
+      </div>
+      <div id="watchlist-tabs" class="chip-row watchlist-tabs"></div>
+      <div class="row" data-row><div class="row-track" id="watchlist-movies"></div></div>
+    </section>
+
+    <section class="row-section" id="favorites-section" style="display:none">
+      <div class="row-header">
         <div>
           <h3>Oblíbené</h3>
           <p>Vaše oblíbené filmy a seriály</p>
         </div>
       </div>
-      <div class="movies-grid" id="favorites-movies"></div>
+      <div class="row" data-row><div class="row-track" id="favorites-movies"></div></div>
     </section>
-  </main>
 
-  <!-- ── Watched ── -->
-  <main class="container" id="watched-section" style="display:none; padding-top: 40px;">
-    <section>
-      <div class="section-header">
+    <section class="row-section catalog" id="section-popular">
+      <div class="row-header">
+        <div>
+          <h3>Populární</h3>
+          <p>Nejnavštěvovanější filmy <span class="loaded-count" id="count-popular"></span></p>
+        </div>
+        <div class="segmented sort-tabs" data-grid="popular-movies">
+          <button class="sort-tab active" data-sort="default">Výchozí</button>
+          <button class="sort-tab" data-sort="rating">Hodnocení</button>
+          <button class="sort-tab" data-sort="year">Rok</button>
+        </div>
+      </div>
+      <div class="chip-row genre-filters" id="genre-filters-popular"></div>
+      <div class="row" data-row><div class="row-track" id="popular-movies" data-type="popular" data-page="1"></div></div>
+    </section>
+
+    <section class="row-section catalog" id="section-trending">
+      <div class="row-header">
+        <div>
+          <h3>Trendy</h3>
+          <p>O čem se tento týden mluví <span class="loaded-count" id="count-trending"></span></p>
+        </div>
+        <div class="segmented sort-tabs" data-grid="trending">
+          <button class="sort-tab active" data-sort="default">Výchozí</button>
+          <button class="sort-tab" data-sort="rating">Hodnocení</button>
+          <button class="sort-tab" data-sort="year">Rok</button>
+        </div>
+      </div>
+      <div class="chip-row genre-filters" id="genre-filters-trending"></div>
+      <div class="row" data-row><div class="row-track" id="trending" data-type="trending" data-page="1"></div></div>
+    </section>
+
+    <section class="row-section catalog" id="section-top-rated">
+      <div class="row-header">
+        <div>
+          <h3>Nejlépe hodnocené</h3>
+          <p>Klasiky, které stojí za to <span class="loaded-count" id="count-top-rated"></span></p>
+        </div>
+        <div class="segmented sort-tabs" data-grid="top-rated">
+          <button class="sort-tab active" data-sort="default">Výchozí</button>
+          <button class="sort-tab" data-sort="rating">Hodnocení</button>
+          <button class="sort-tab" data-sort="year">Rok</button>
+        </div>
+      </div>
+      <div class="chip-row genre-filters" id="genre-filters-top-rated"></div>
+      <div class="row" data-row><div class="row-track" id="top-rated" data-type="top_rated" data-page="1"></div></div>
+    </section>
+
+    <!-- ── Film series + watch guides (series.js) ── -->
+    <section class="row-section" id="series-section" style="display:none">
+      <div class="row-header">
+        <div>
+          <h3>Filmové série</h3>
+          <p>Průvodci pořadím sledování a známé série — s vaším postupem</p>
+        </div>
+      </div>
+      <div class="row" data-row><div class="row-track" id="series-movies"></div></div>
+    </section>
+
+    <!-- ── Browse by genre / decade ── -->
+    <section class="row-section" id="browse-section" data-nav-controls>
+      <div class="row-header">
+        <div>
+          <h3>Procházet</h3>
+          <p id="browse-sub">Filmy a seriály podle žánru a období</p>
+        </div>
+        <div class="row-tools">
+          <div class="segmented" id="browse-type">
+            <button class="active" data-type="movie"><i class="bi bi-film"></i> Filmy</button>
+            <button data-type="tv"><i class="bi bi-tv"></i> Seriály</button>
+          </div>
+          <div class="segmented" id="browse-sort">
+            <button class="active" data-sort="popular">Populární</button>
+            <button data-sort="rating">Hodnocení</button>
+            <button data-sort="newest">Nejnovější</button>
+          </div>
+        </div>
+      </div>
+      <div class="chip-row" id="browse-genres"></div>
+      <div class="chip-row" id="browse-decades"></div>
+      <div class="card-grid" id="browse-grid"></div>
+      <div class="browse-more"><button class="btn btn-ghost" id="browse-more" style="display:none"><i class="bi bi-plus-lg"></i> Načíst další</button></div>
+    </section>
+
+    <!-- ── Watched ── -->
+    <section class="row-section" id="watched-section" style="display:none">
+      <div class="row-header">
         <div>
           <h3>Zhlédnuto</h3>
           <p>Filmy a seriály, které jste již viděli</p>
         </div>
       </div>
-      <div class="movies-grid" id="watched-movies"></div>
-    </section>
-  </main>
-
-  <!-- ── Watchlist ── -->
-  <main class="container" id="watchlist-section" style="display:none; padding-top: 40px;">
-    <section>
-      <div class="section-header">
-        <div>
-          <h3>Můj seznam</h3>
-          <p>Filmy, které chcete vidět</p>
-        </div>
-        <div class="wl-header-actions">
-          <div class="wl-inline-new hidden" id="wl-inline-new">
-            <input type="text" id="wl-inline-input" class="wl-inline-input" placeholder="Název seznamu..." maxlength="30" />
-            <button id="wl-inline-confirm" class="info-btn" style="font-size:13px; padding:8px 14px;"><i class="bi bi-check-lg"></i></button>
-            <button id="wl-inline-cancel" class="info-btn" style="font-size:13px; padding:8px 14px;"><i class="bi bi-x-lg"></i></button>
-          </div>
-          <button id="wl-add-list-btn" class="info-btn" style="font-size:13px; padding:8px 16px;">
-            <i class="bi bi-plus-lg"></i> Nový seznam
-          </button>
-          <button id="clear-watchlist" class="info-btn" style="font-size:13px; padding:8px 16px;">
-            <i class="bi bi-trash"></i> Vymazat
-          </button>
-        </div>
-      </div>
-      <div id="watchlist-tabs" class="watchlist-tabs"></div>
-      <div class="movies-grid" id="watchlist-movies"></div>
-    </section>
-  </main>
-
-  <main class="container" id="search-movies-section" style="display:none; padding-top: 40px;">
-    <section>
-      <div class="section-header">
-        <div>
-          <h3>Výsledky hledání</h3>
-          <p>Vámi vybrané filmy a seriály</p>
-        </div>
-        <button id="clear-search-movies" class="info-btn">Vymazat vše</button>
-      </div>
-      <div class="movies-grid" id="search-movies"></div>
-    </section>
-  </main>
-
-  <main class="container categories">
-    <section id="section-popular">
-      <div class="section-header">
-        <div>
-          <h3>Nejnavštěvovanější</h3>
-          <p>Nejlepší obsah z TMDB databáze <span class="loaded-count" id="count-popular"></span></p>
-        </div>
-        <div class="grid-controls">
-          <div class="sort-tabs" data-grid="popular-movies" data-type="popular">
-            <button class="sort-tab active" data-sort="default">Výchozí</button>
-            <button class="sort-tab" data-sort="rating">Hodnocení</button>
-            <button class="sort-tab" data-sort="year">Rok</button>
-          </div>
-        </div>
-      </div>
-      <div class="genre-filters" id="genre-filters-popular"></div>
-      <div class="movies-grid" id="popular-movies"></div>
-      <button class="load-more-btn" data-grid="popular-movies" data-type="popular" data-page="1">Načíst více</button>
-    </section>
-
-    <section id="section-trending">
-      <div class="section-header">
-        <div>
-          <h3>Trendy</h3>
-          <p>Nejlepší obsah z TMDB databáze <span class="loaded-count" id="count-trending"></span></p>
-        </div>
-        <div class="grid-controls">
-          <div class="sort-tabs" data-grid="trending" data-type="trending">
-            <button class="sort-tab active" data-sort="default">Výchozí</button>
-            <button class="sort-tab" data-sort="rating">Hodnocení</button>
-            <button class="sort-tab" data-sort="year">Rok</button>
-          </div>
-        </div>
-      </div>
-      <div class="genre-filters" id="genre-filters-trending"></div>
-      <div class="movies-grid" id="trending"></div>
-      <button class="load-more-btn" data-grid="trending" data-type="trending" data-page="1">Načíst více</button>
-    </section>
-
-    <section id="section-top-rated">
-      <div class="section-header">
-        <div>
-          <h3>Nejlépe hodnocené</h3>
-          <p>Nejlepší obsah z TMDB databáze <span class="loaded-count" id="count-top-rated"></span></p>
-        </div>
-        <div class="grid-controls">
-          <div class="sort-tabs" data-grid="top-rated" data-type="top_rated">
-            <button class="sort-tab active" data-sort="default">Výchozí</button>
-            <button class="sort-tab" data-sort="rating">Hodnocení</button>
-            <button class="sort-tab" data-sort="year">Rok</button>
-          </div>
-        </div>
-      </div>
-      <div class="genre-filters" id="genre-filters-top-rated"></div>
-      <div class="movies-grid" id="top-rated"></div>
-      <button class="load-more-btn" data-grid="top-rated" data-type="top_rated" data-page="1">Načíst více</button>
+      <div class="row" data-row><div class="row-track" id="watched-movies"></div></div>
     </section>
   </main>
 
   <!-- ── Footer ── -->
   <footer class="site-footer">
-    <div class="container footer-inner">
+    <div class="footer-inner">
       <div class="footer-brand">
-        <div class="footer-logo-box">FB</div>
+        <img class="brand-mark" src="icons/icon-96.png" alt="FilmBox">
         <div>
-          <h4>FilmBox</h4>
           <p>Streamovací platforma pro váš domov</p>
         </div>
       </div>
-
       <nav class="footer-links">
         <div class="footer-col">
           <h5>Procházet</h5>
-          <a href="#section-popular">Nejnavštěvovanější</a>
-          <a href="#section-trending">Trendy</a>
-          <a href="#section-top-rated">Nejlépe hodnocené</a>
+          <a href="#" data-target="section-popular">Populární</a>
+          <a href="#" data-target="section-trending">Trendy</a>
+          <a href="#" data-target="section-top-rated">Nejlépe hodnocené</a>
         </div>
         <div class="footer-col">
           <h5>Odkazy</h5>
-          <a href="#" id="footer-top">Zpět nahoru</a>
+          <a href="#" data-target="top">Zpět nahoru</a>
           <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a>
           <a href="https://prehrajto.cz" target="_blank" rel="noopener">prehraj.to</a>
+          <a href="https://fastshare.cloud" target="_blank" rel="noopener">FastShare</a>
+          <a href="https://www.sledujteto.cz" target="_blank" rel="noopener">Sledujteto</a>
         </div>
       </nav>
     </div>
-
-    <div class="container footer-bottom">
+    <div class="footer-bottom">
       <p>© <span id="footer-year">2026</span> FilmBox</p>
       <p>Data o filmech poskytuje <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a>. Tento produkt není schválen ani certifikován TMDB.</p>
     </div>
   </footer>
 
-  <div id="detail-modal" class="detail-modal hidden">
-    <div class="detail-backdrop"></div>
-    <div class="detail-inner">
-      <button id="detail-close"><i class="bi bi-x-lg"></i></button>
-      <div class="detail-layout">
-        <div class="detail-poster-wrap">
-          <div id="detail-skeleton" class="detail-skeleton"></div>
-          <img id="detail-poster" src="" alt="" style="display:none">
+  <!-- ── Detail modal ── -->
+  <div id="detail-modal" class="sheet-modal hidden" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet">
+      <button class="sheet-close" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
+      <div class="detail-hero">
+        <img id="detail-backdrop" class="detail-backdrop-img" alt="" />
+        <div class="detail-hero-shade"></div>
+      </div>
+      <div class="detail-body">
+        <div class="detail-top">
+          <div class="detail-poster-wrap">
+            <div id="detail-skeleton" class="skeleton detail-skeleton"></div>
+            <img id="detail-poster" src="" alt="" style="display:none">
+          </div>
+          <div class="detail-head">
+            <div id="detail-genres" class="detail-genres"></div>
+            <h2 id="detail-title"></h2>
+            <p id="detail-meta" class="detail-meta"></p>
+            <div class="detail-actions">
+              <button id="detail-play-btn" class="btn btn-primary"><i class="bi bi-play-fill"></i> Přehrát</button>
+              <button id="detail-trailer-btn" class="btn btn-glass"><i class="bi bi-youtube"></i> Trailer</button>
+              <button id="detail-wl-btn" class="btn btn-glass"><i class="bi bi-bookmark"></i> Přidat</button>
+              <button id="detail-fav-btn" class="btn btn-glass btn-icon-only" aria-label="Oblíbit"><i class="bi bi-heart"></i></button>
+              <button id="detail-watched-btn" class="btn btn-glass btn-icon-only" aria-label="Označit jako zhlédnuté"><i class="bi bi-check-circle"></i></button>
+            </div>
+          </div>
         </div>
-        <div class="detail-content">
-          <div id="detail-genres" class="detail-genres"></div>
-          <h2 id="detail-title"></h2>
-          <p id="detail-meta" class="detail-meta"></p>
-          <p id="detail-overview" class="detail-overview"></p>
+        <p id="detail-overview" class="detail-overview"></p>
+        <div id="detail-cast-wrap" class="detail-block" style="display:none">
+          <h4 class="block-title">Hrají</h4>
           <div id="detail-cast" class="detail-cast"></div>
-          <div class="detail-actions">
-            <button id="detail-play-btn" class="play-btn">
-              <i class="bi bi-play-fill"></i> Přehrát
-            </button>
-            <button id="detail-trailer-btn" class="info-btn">
-              <i class="bi bi-youtube"></i> Trailer
-            </button>
-            <button id="detail-fav-btn" class="info-btn">
-              <i class="bi bi-heart"></i> Oblíbit
-            </button>
-            <button id="detail-watched-btn" class="info-btn">
-              <i class="bi bi-check-circle"></i> Označit
-            </button>
-            <button id="detail-wl-btn" class="info-btn">
-              <i class="bi bi-bookmark"></i> Přidat
-            </button>
-          </div>
-          <div id="detail-seasons" class="detail-seasons" style="display:none"></div>
-          <div id="detail-similar" class="detail-similar" style="display:none">
-            <h4 class="similar-title">Podobné</h4>
-            <div class="movies-grid" id="detail-similar-grid"></div>
-          </div>
+        </div>
+        <div id="detail-seasons" class="detail-block detail-seasons" style="display:none"></div>
+        <!-- "Součást série" — filled by series.js when the film belongs to a series / guide -->
+        <div id="detail-series" class="detail-block" style="display:none"></div>
+        <div id="detail-similar" class="detail-block" style="display:none">
+          <h4 class="block-title">Podobné tituly</h4>
+          <div class="row row-compact" data-row><div class="row-track" id="detail-similar-grid"></div></div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Trailer embed modal -->
-  <div id="trailer-modal" class="trailer-modal hidden">
-    <div class="trailer-backdrop" id="trailer-backdrop"></div>
+  <!-- ── Trailer modal ── -->
+  <div id="trailer-modal" class="overlay-modal trailer-modal hidden" role="dialog" aria-modal="true" aria-label="Trailer">
+    <div class="overlay-backdrop" data-close></div>
     <div class="trailer-inner">
-      <button id="trailer-close"><i class="bi bi-x-lg"></i></button>
+      <button class="sheet-close" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
       <div class="trailer-embed" id="trailer-embed"></div>
     </div>
   </div>
 
-  <div id="prehraj-modal" class="prehraj-modal hidden">
-    <div class="prehraj-modal-backdrop"></div>
-    <div class="prehraj-modal-inner">
-      <div class="prehraj-modal-header">
+  <!-- ── Source picker (prehraj.to + fastshare.cloud + sledujteto.cz) ── -->
+  <div id="prehraj-modal" class="overlay-modal hidden" role="dialog" aria-modal="true" aria-labelledby="prehraj-modal-title">
+    <div class="overlay-backdrop" data-close></div>
+    <div class="overlay-card source-card">
+      <div class="source-header">
         <div>
+          <span class="eyebrow">Vyberte zdroj</span>
           <h3 id="prehraj-modal-title">Výsledky</h3>
-          <p id="prehraj-modal-subtitle">Výsledky z prehraj.to</p>
+          <p id="prehraj-modal-subtitle">Hledání na prehraj.to, FastShare a Sledujteto…</p>
         </div>
-        <button id="prehraj-modal-close"><i class="bi bi-x-lg"></i></button>
+        <button class="sheet-close static" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
       </div>
-      <div id="prehraj-modal-content" class="prehraj-modal-content">
-        <div class="prehraj-loading">
-          <i class="bi bi-arrow-repeat"></i>
-          Načítání...
-        </div>
+      <div class="chip-row source-sites" id="prehraj-sites" role="group" aria-label="Hledat na"></div>
+      <div class="source-search">
+        <i class="bi bi-search"></i>
+        <input type="text" id="prehraj-query" class="field" placeholder="Upravit hledání…" autocomplete="off"
+               role="combobox" aria-autocomplete="list" aria-controls="prehraj-suggest" aria-expanded="false" />
+        <button id="prehraj-query-btn" class="btn btn-primary btn-sm">Hledat</button>
+        <div id="prehraj-suggest" class="source-suggest" role="listbox"></div>
       </div>
+      <div class="chip-row source-filters" id="prehraj-filters"></div>
+      <div id="prehraj-modal-content" class="source-list"></div>
     </div>
   </div>
 
-  <!-- Actor modal -->
-  <div id="actor-modal" class="detail-modal hidden">
-    <div class="detail-backdrop" id="actor-backdrop"></div>
-    <div class="detail-inner actor-inner">
-      <button id="actor-close"><i class="bi bi-x-lg"></i></button>
-      <div class="actor-layout">
-        <div class="actor-header">
-          <img id="actor-photo" src="" alt="" style="display:none">
-          <div id="actor-photo-placeholder" class="cast-placeholder actor-photo-placeholder"><i
-              class="bi bi-person"></i></div>
-          <div>
-            <h2 id="actor-name"></h2>
-            <p id="actor-bio" class="actor-bio"></p>
+  <!-- ── Watch guide / film series ── -->
+  <div id="guide-modal" class="sheet-modal hidden" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet guide-sheet">
+      <button class="sheet-close" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
+      <div class="detail-hero guide-hero">
+        <img id="guide-backdrop" class="detail-backdrop-img" alt="" />
+        <div class="detail-hero-shade"></div>
+      </div>
+      <div class="guide-body">
+        <span class="eyebrow" id="guide-eyebrow">Průvodce sledováním</span>
+        <h2 id="guide-title"></h2>
+        <p id="guide-subtitle" class="detail-meta"></p>
+        <div class="guide-progress">
+          <div class="season-summary-bar"><span id="guide-progress-bar"></span></div>
+          <span id="guide-progress-text"></span>
+        </div>
+        <div class="guide-actions">
+          <button id="guide-continue" class="btn btn-primary" style="display:none"></button>
+          <div class="segmented" id="guide-order" style="display:none">
+            <button data-order="release"><i class="bi bi-calendar3"></i> Podle vydání</button>
+            <button data-order="chrono"><i class="bi bi-hourglass-split"></i> Chronologicky</button>
           </div>
         </div>
-        <div id="actor-works" class="movies-grid" style="margin-top:24px"></div>
+        <p id="guide-note" class="guide-note"></p>
+        <div id="guide-list" class="guide-list"></div>
       </div>
     </div>
   </div>
 
-  <!-- Watchlist modal -->
-  <div id="wl-modal" class="wl-modal hidden">
-    <div class="wl-modal-backdrop" id="wl-modal-backdrop"></div>
-    <div class="wl-modal-inner">
-      <div class="wl-modal-header">
-        <h3>Přidat do seznamu</h3>
-        <button id="wl-modal-close"><i class="bi bi-x-lg"></i></button>
+  <!-- ── Actor modal ── -->
+  <div id="actor-modal" class="sheet-modal hidden" role="dialog" aria-modal="true" aria-labelledby="actor-name">
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet actor-sheet">
+      <button class="sheet-close" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
+      <div class="actor-header">
+        <img id="actor-photo" src="" alt="" style="display:none">
+        <div id="actor-photo-placeholder" class="cast-placeholder actor-photo-placeholder"><i class="bi bi-person"></i></div>
+        <div>
+          <span class="eyebrow">Herec / herečka</span>
+          <h2 id="actor-name"></h2>
+          <p id="actor-bio" class="actor-bio"></p>
+        </div>
+      </div>
+      <h4 class="block-title">Známé z</h4>
+      <div id="actor-works" class="card-grid"></div>
+    </div>
+  </div>
+
+  <!-- ── Watchlist modal ── -->
+  <div id="wl-modal" class="overlay-modal hidden" role="dialog" aria-modal="true" aria-labelledby="wl-modal-title">
+    <div class="overlay-backdrop" data-close></div>
+    <div class="overlay-card wl-modal-inner">
+      <div class="overlay-header">
+        <h3 id="wl-modal-title">Přidat do seznamu</h3>
+        <button class="sheet-close static" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
       </div>
       <div id="wl-modal-lists"></div>
       <div class="wl-modal-footer">
-        <input type="text" id="wl-new-list-input" placeholder="Nový seznam..." maxlength="30" />
-        <button id="wl-new-list-btn" class="play-btn"><i class="bi bi-plus-lg"></i></button>
+        <input type="text" id="wl-new-list-input" class="field" placeholder="Nový seznam..." maxlength="30" />
+        <button id="wl-new-list-btn" class="btn btn-primary" aria-label="Vytvořit seznam"><i class="bi bi-plus-lg"></i></button>
       </div>
     </div>
   </div>
 
-  <!-- Settings modal -->
-  <div id="settings-modal" class="settings-modal hidden">
-    <div class="settings-backdrop" id="settings-backdrop"></div>
-    <div class="settings-inner">
-      <div class="settings-header">
-        <h3>Nastavení profilu</h3>
-        <button id="settings-close" title="Zavřít"><i class="bi bi-x-lg"></i></button>
+  <!-- ── Settings modal ── -->
+  <div id="settings-modal" class="overlay-modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="overlay-backdrop" data-close></div>
+    <div class="overlay-card settings-inner">
+      <div class="overlay-header">
+        <h3 id="settings-title">Nastavení profilu</h3>
+        <button class="sheet-close static" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
       </div>
 
       <div class="settings-body">
-        <!-- Picture -->
         <section class="settings-section">
-          <label class="settings-label">Profilový obrázek</label>
+          <span class="settings-label">Profilový obrázek</span>
           <div class="settings-picture-row">
             <div id="settings-avatar" class="settings-avatar"></div>
             <div class="settings-picture-actions">
-              <button id="settings-pic-upload" class="settings-btn-secondary">
-                <i class="bi bi-upload"></i> Nahrát
-              </button>
-              <button id="settings-pic-remove" class="settings-btn-secondary">
-                <i class="bi bi-trash"></i> Odebrat
-              </button>
+              <button id="settings-pic-upload" class="btn btn-ghost btn-sm"><i class="bi bi-upload"></i> Nahrát</button>
+              <button id="settings-pic-remove" class="btn btn-ghost btn-sm"><i class="bi bi-trash"></i> Odebrat</button>
               <input type="file" id="settings-pic-input" accept="image/*" hidden />
             </div>
           </div>
         </section>
 
-        <!-- Name -->
         <section class="settings-section">
           <label class="settings-label" for="settings-name-input">Jméno</label>
           <div class="settings-inline">
-            <input type="text" id="settings-name-input" maxlength="30" placeholder="Jméno profilu" />
-            <button id="settings-name-save" class="settings-btn-primary">Uložit</button>
+            <input type="text" id="settings-name-input" class="field" maxlength="30" placeholder="Jméno profilu" />
+            <button id="settings-name-save" class="btn btn-primary btn-sm">Uložit</button>
           </div>
         </section>
 
-        <!-- Theme -->
         <section class="settings-section">
-          <label class="settings-label">Motiv</label>
-          <div class="settings-theme-options">
-            <button class="settings-theme-option" data-theme="dark">
-              <i class="bi bi-moon-stars"></i> Tmavý
-            </button>
-            <button class="settings-theme-option" data-theme="light">
-              <i class="bi bi-sun"></i> Světlý
-            </button>
+          <span class="settings-label">Motiv</span>
+          <div class="segmented settings-theme-options">
+            <button class="settings-theme-option" data-theme="dark"><i class="bi bi-moon-stars"></i> Tmavý</button>
+            <button class="settings-theme-option" data-theme="light"><i class="bi bi-sun"></i> Světlý</button>
           </div>
         </section>
 
-        <!-- PIN -->
         <section class="settings-section">
-          <label class="settings-label">PIN profilu <span id="settings-pin-status" class="settings-hint"></span></label>
+          <label class="settings-label" for="settings-pin-input">PIN profilu <span id="settings-pin-status" class="settings-hint"></span></label>
           <div class="settings-inline">
-            <input type="password" id="settings-pin-input" inputmode="numeric" maxlength="4"
-                   placeholder="4 číslice" pattern="\d{4}" />
-            <button id="settings-pin-save" class="settings-btn-primary">Nastavit</button>
-            <button id="settings-pin-remove" class="settings-btn-secondary">Odebrat</button>
+            <input type="password" id="settings-pin-input" class="field" inputmode="numeric" maxlength="4" placeholder="4 číslice" pattern="\d{4}" />
+            <button id="settings-pin-save" class="btn btn-primary btn-sm">Nastavit</button>
+            <button id="settings-pin-remove" class="btn btn-ghost btn-sm">Odebrat</button>
           </div>
         </section>
 
-        <!-- Preferences -->
         <section class="settings-section">
-          <label class="settings-label">Předvolby</label>
+          <span class="settings-label">Předvolby</span>
           <label class="settings-toggle">
             <input type="checkbox" id="settings-reduce-motion" />
+            <span class="switch" aria-hidden="true"></span>
             <span>Omezit animace</span>
           </label>
           <label class="settings-toggle">
             <input type="checkbox" id="settings-autoplay" />
+            <span class="switch" aria-hidden="true"></span>
             <span>Automaticky přehrávat upoutávky</span>
           </label>
         </section>
 
-        <!-- Data -->
         <section class="settings-section">
-          <label class="settings-label">Moje data</label>
+          <span class="settings-label">Moje data</span>
           <div class="settings-inline">
-            <button id="settings-export" class="settings-btn-secondary">
-              <i class="bi bi-download"></i> Exportovat
-            </button>
-            <button id="settings-wipe" class="settings-btn-secondary">
-              <i class="bi bi-eraser"></i> Vymazat data
-            </button>
+            <button id="settings-export" class="btn btn-ghost btn-sm"><i class="bi bi-download"></i> Exportovat</button>
+            <button id="settings-wipe" class="btn btn-ghost btn-sm"><i class="bi bi-eraser"></i> Vymazat data</button>
           </div>
           <p class="settings-hint">Export stáhne vaše oblíbené, sledované, seznamy a průběh jako JSON. Vymazání ponechá profil, ale smaže jeho knihovnu.</p>
         </section>
 
-        <!-- Danger -->
         <section class="settings-section settings-danger">
-          <button id="settings-delete" class="settings-btn-danger">
-            <i class="bi bi-trash"></i> Smazat tento profil
-          </button>
+          <button id="settings-delete" class="btn btn-danger"><i class="bi bi-trash"></i> Smazat tento profil</button>
         </section>
       </div>
     </div>
   </div>
 
-  <!-- PIN prompt modal -->
-  <div id="pin-prompt-modal" class="pin-modal hidden">
-    <div class="pin-backdrop" id="pin-backdrop"></div>
-    <div class="pin-inner">
+  <!-- ── PIN prompt ── -->
+  <div id="pin-prompt-modal" class="overlay-modal hidden" role="dialog" aria-modal="true" aria-labelledby="pin-prompt-title">
+    <div class="overlay-backdrop" id="pin-backdrop"></div>
+    <div class="overlay-card pin-inner">
       <div class="pin-lock"><i class="bi bi-lock-fill"></i></div>
       <h3 id="pin-prompt-title">Zadejte PIN</h3>
-      <input type="password" id="pin-prompt-input" class="pin-input" inputmode="numeric"
+      <input type="password" id="pin-prompt-input" class="field pin-input" inputmode="numeric"
              maxlength="4" placeholder="••••" pattern="\d{4}" autocomplete="off" />
-      <div class="pin-actions">
-        <button id="pin-prompt-cancel" class="settings-btn-secondary">Zrušit</button>
-        <button id="pin-prompt-confirm" class="settings-btn-primary">Potvrdit</button>
+      <div class="overlay-actions">
+        <button id="pin-prompt-cancel" class="btn btn-ghost">Zrušit</button>
+        <button id="pin-prompt-confirm" class="btn btn-primary">Potvrdit</button>
       </div>
     </div>
   </div>
 
-  <!-- Toast -->
-  <div id="toast" class="toast hidden"></div>
+  <!-- ── Confirm dialog (replaces window.confirm, works with a TV remote) ── -->
+  <div id="confirm-modal" class="overlay-modal hidden" role="alertdialog" aria-modal="true" aria-labelledby="confirm-text">
+    <div class="overlay-backdrop" data-close></div>
+    <div class="overlay-card confirm-inner">
+      <div class="confirm-icon"><i class="bi bi-exclamation-triangle"></i></div>
+      <p id="confirm-text"></p>
+      <div class="overlay-actions">
+        <button id="confirm-cancel" class="btn btn-ghost">Zrušit</button>
+        <button id="confirm-ok" class="btn btn-danger">Potvrdit</button>
+      </div>
+    </div>
+  </div>
 
-  <script src="js/intro.js"></script>
+  <!-- ── What's new video: once per profile after an update (whatsnew.js) ── -->
+  <div id="whatsnew-modal" class="whatsnew hidden" role="dialog" aria-modal="true" aria-label="Novinky ve FilmBoxu">
+    <video id="whatsnew-video" playsinline preload="none"></video>
+    <div class="whatsnew-actions">
+      <button id="whatsnew-sound" class="btn btn-glass hidden" type="button"><i class="bi bi-volume-up-fill"></i>Zapnout zvuk</button>
+      <button id="whatsnew-skip" class="btn btn-glass" type="button">Přeskočit<i class="bi bi-skip-end-fill"></i></button>
+    </div>
+    <div class="whatsnew-progress"><div id="whatsnew-progress-fill"></div></div>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="js/compat.js"></script>
   <script src="js/utils.js"></script>
-  <script src="js/watchlist.js"></script>
+  <script src="js/tv.js"></script>
+  <script src="js/intro.js"></script>
+  <script src="js/whatsnew.js"></script>
   <script src="js/favorites.js"></script>
   <script src="js/watched.js"></script>
+  <script src="js/watchlist.js"></script>
   <script src="js/cards.js"></script>
   <script src="js/trailer.js"></script>
   <script src="js/actor.js"></script>
+  <script src="js/relevance.js"></script>
   <script src="js/player.js"></script>
   <script src="js/detail.js"></script>
   <script src="js/search.js"></script>
   <script src="js/hero.js"></script>
+  <script src="js/recommend.js"></script>
+  <script src="js/browse.js"></script>
+  <script src="js/series.js"></script>
   <script src="js/main.js"></script>
   <script src="js/settings.js"></script>
 </body>

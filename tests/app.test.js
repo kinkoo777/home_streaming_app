@@ -1,13 +1,17 @@
-const { test, expect, chromium } = require('@playwright/test');
+const { test, expect } = require('@playwright/test');
 
-const BASE = 'http://localhost:3000';
+// End-to-end tests against a running server (needs a real TMDB token).
+// Start it with `node server.js` (or PORT=3100 node server.js and BASE=http://localhost:3100).
+const BASE = process.env.BASE || 'http://localhost:3000';
+const WEBOS_UA = 'Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/68.0.3440.106 Safari/537.36 WebAppManager';
+
+const firstCard = page => page.locator('#popular-movies .movie-card:not(.skeleton-card)').first();
+const waitForGrid = page => firstCard(page).waitFor({ timeout: 15000 });
 
 // Skip intro + profile chooser for every test by pre-seeding sessionStorage
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
-    sessionStorage.setItem('filmbox_active_profile', JSON.stringify({
-      id: 'p1', name: 'Tester', colorIdx: 0
-    }));
+    sessionStorage.setItem('filmbox_active_profile', JSON.stringify({ id: 'p1', name: 'Tester', theme: 'dark' }));
   });
 });
 
@@ -17,126 +21,90 @@ test.describe('FilmBox – page load & hero', () => {
     await expect(page).toHaveTitle(/FilmBox/);
   });
 
-  test('hero section shows a film title (not loading placeholder)', async ({ page }) => {
+  test('hero shows a film title and backdrop', async ({ page }) => {
     await page.goto(BASE);
-    const heroTitle = page.locator('#hero-title');
-    await expect(heroTitle).not.toHaveText('Načítání...', { timeout: 10000 });
-    const text = await heroTitle.textContent();
-    expect(text.trim().length).toBeGreaterThan(0);
-  });
-
-  test('hero image loads', async ({ page }) => {
-    await page.goto(BASE);
+    await expect(page.locator('#hero-title')).not.toHaveText('Načítání…', { timeout: 10000 });
     await page.waitForFunction(() => {
-      const img = document.getElementById('hero-image');
-      return img && img.src && img.complete && img.naturalWidth > 0;
-    }, { timeout: 10000 });
+      const img = document.querySelector('.hero-img.active');
+      return img && img.complete && img.naturalWidth > 0;
+    }, null, { timeout: 10000 });
   });
 
-  test('hero dots appear after load', async ({ page }) => {
+  test('hero dots switch slides', async ({ page }) => {
     await page.goto(BASE);
-    await expect(page.locator('.hero-dot')).toHaveCount(5, { timeout: 10000 });
-  });
-
-  test('hero dot click switches slide', async ({ page }) => {
-    await page.goto(BASE);
-    await page.locator('.hero-dot').nth(0).waitFor({ timeout: 10000 });
-    const titleBefore = await page.locator('#hero-title').textContent();
-    await page.locator('.hero-dot').nth(2).click();
-    await page.waitForTimeout(800);
-    const titleAfter = await page.locator('#hero-title').textContent();
-    // title should have changed (or at minimum not crash)
-    expect(titleAfter.trim().length).toBeGreaterThan(0);
+    await page.locator('.hero-dot').nth(1).waitFor({ timeout: 10000 });
+    const before = await page.locator('#hero-title').textContent();
+    await page.locator('.hero-dot').nth(1).click();
+    await expect(page.locator('#hero-title')).not.toHaveText(before, { timeout: 3000 });
   });
 });
 
-test.describe('FilmBox – movie grids', () => {
-  test('popular movies grid loads cards', async ({ page }) => {
-    await page.goto(BASE);
-    await expect(page.locator('#popular-movies .movie-card')).toHaveCount(20, { timeout: 15000 });
-  });
-
-  test('trending grid loads cards', async ({ page }) => {
-    await page.goto(BASE);
-    await expect(page.locator('#trending .movie-card')).toHaveCount(20, { timeout: 15000 });
-  });
-
-  test('top-rated grid loads cards', async ({ page }) => {
-    await page.goto(BASE);
-    await expect(page.locator('#top-rated .movie-card')).toHaveCount(20, { timeout: 15000 });
-  });
-
-  test('genre filter chips appear', async ({ page }) => {
-    await page.goto(BASE);
-    await page.locator('#popular-movies .movie-card').first().waitFor({ timeout: 15000 });
-    const chips = page.locator('#genre-filters-popular .genre-chip');
-    await expect(chips.first()).toBeVisible();
-    expect(await chips.count()).toBeGreaterThan(1);
-  });
+test.describe('FilmBox – rows', () => {
+  for (const id of ['popular-movies', 'trending', 'top-rated']) {
+    test(`${id} row loads cards`, async ({ page }) => {
+      await page.goto(BASE);
+      await page.waitForFunction(sel => document.querySelectorAll(sel).length >= 10,
+        `#${id} .movie-card:not(.skeleton-card)`, { timeout: 15000 });
+    });
+  }
 
   test('genre filter narrows results', async ({ page }) => {
     await page.goto(BASE);
-    await page.locator('#popular-movies .movie-card').first().waitFor({ timeout: 15000 });
-    const chips = page.locator('#genre-filters-popular .genre-chip');
-    const count = await chips.count();
-    if (count > 1) {
-      await chips.nth(1).click();
-      await page.waitForTimeout(300);
-      const cards = await page.locator('#popular-movies .movie-card').count();
-      expect(cards).toBeGreaterThan(0);
-    }
-  });
-
-  test('sort by rating changes order', async ({ page }) => {
-    await page.goto(BASE);
-    await page.locator('#popular-movies .movie-card').first().waitFor({ timeout: 15000 });
-    const ratingBefore = await page.locator('#popular-movies .movie-card .rating').first().textContent();
-    await page.locator('[data-grid="popular-movies"] .sort-tab[data-sort="rating"]').click();
-    await page.waitForTimeout(300);
-    const ratingAfter = await page.locator('#popular-movies .movie-card .rating').first().textContent();
-    // highest rated should be 8+
-    expect(parseFloat(ratingAfter.replace('⭐', ''))).toBeGreaterThanOrEqual(parseFloat(ratingBefore.replace('⭐', '')));
-  });
-
-  test('load more button appends more cards', async ({ page }) => {
-    await page.goto(BASE);
-    await page.locator('#popular-movies .movie-card').first().waitFor({ timeout: 15000 });
+    await waitForGrid(page);
     const before = await page.locator('#popular-movies .movie-card').count();
-    await page.locator('.load-more-btn[data-grid="popular-movies"]').click();
-    await page.waitForFunction(
-      (prev) => document.querySelectorAll('#popular-movies .movie-card').length > prev,
-      before, { timeout: 10000 }
-    );
+    await page.locator('#genre-filters-popular .genre-chip').nth(1).click();
     const after = await page.locator('#popular-movies .movie-card').count();
-    expect(after).toBeGreaterThan(before);
+    expect(after).toBeGreaterThan(0);
+    expect(after).toBeLessThanOrEqual(before);
+  });
+
+  test('sort by rating puts the highest rating first', async ({ page }) => {
+    await page.goto(BASE);
+    await waitForGrid(page);
+    await page.locator('[data-grid="popular-movies"] .sort-tab[data-sort="rating"]').click();
+    const ratings = await page.locator('#popular-movies .movie-card .rating').allTextContents();
+    const nums = ratings.map(r => parseFloat(r));
+    expect(nums[0]).toBe(Math.max(...nums));
+  });
+
+  test('scrolling a row to the end loads the next page', async ({ page }) => {
+    await page.goto(BASE);
+    await waitForGrid(page);
+    const before = await page.locator('#popular-movies .movie-card').count();
+    await page.evaluate(() => { const t = document.getElementById('popular-movies'); t.style.scrollBehavior = 'auto'; t.scrollLeft = t.scrollWidth })
+    await page.waitForFunction(prev => document.querySelectorAll('#popular-movies .movie-card').length > prev, before, { timeout: 10000 });
   });
 });
 
 test.describe('FilmBox – search', () => {
-  test('search returns results for "inception"', async ({ page }) => {
+  test('live search shows results', async ({ page }) => {
     await page.goto(BASE);
     await page.fill('#search-input', 'inception');
     await page.locator('.search-results.active .search-item').first().waitFor({ timeout: 8000 });
-    const count = await page.locator('.search-results.active .search-item').count();
-    expect(count).toBeGreaterThan(0);
   });
 
-  test('clicking search result adds card to search section', async ({ page }) => {
+  test('clicking a result opens the detail modal', async ({ page }) => {
     await page.goto(BASE);
     await page.fill('#search-input', 'inception');
+    await page.locator('.search-results.active .search-item').first().click({ timeout: 8000 });
+    await expect(page.locator('#detail-modal')).not.toHaveClass(/hidden/, { timeout: 5000 });
+  });
+
+  test('Enter shows a results grid; titles with apostrophes open fine', async ({ page }) => {
+    await page.goto(BASE);
+    await page.fill('#search-input', "Ocean's Eleven");
     await page.locator('.search-results.active .search-item').first().waitFor({ timeout: 8000 });
-    await page.locator('.search-results.active .search-item').first().click();
+    await page.press('#search-input', 'Enter');
     await expect(page.locator('#search-movies-section')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('#search-movies .movie-card')).toHaveCount(1);
+    await page.locator('#search-movies .movie-card').first().click();
+    await expect(page.locator('#detail-title')).not.toBeEmpty({ timeout: 8000 });
   });
 
   test('empty search shows history on focus', async ({ page }) => {
     await page.goto(BASE);
-    // trigger a search first to populate history
     await page.fill('#search-input', 'inception');
     await page.locator('.search-results.active .search-item').first().waitFor({ timeout: 8000 });
-    await page.locator('.search-results.active .search-item').first().click();
-    // clear and focus
+    await page.press('#search-input', 'Enter');
     await page.fill('#search-input', '');
     await page.locator('#search-input').focus();
     await expect(page.locator('.search-history-label')).toBeVisible({ timeout: 3000 });
@@ -144,105 +112,47 @@ test.describe('FilmBox – search', () => {
 });
 
 test.describe('FilmBox – detail modal', () => {
-  test('clicking a movie card opens detail modal', async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await page.goto(BASE);
-    await page.locator('#popular-movies .movie-card').first().waitFor({ timeout: 15000 });
-    await page.locator('#popular-movies .movie-card').first().click();
-    await expect(page.locator('#detail-modal')).not.toHaveClass(/hidden/, { timeout: 8000 });
+    await waitForGrid(page);
+    await firstCard(page).click();
+    await expect(page.locator('#detail-skeleton')).toBeHidden({ timeout: 10000 });
   });
 
-  test('detail modal shows title, overview and genres', async ({ page }) => {
-    await page.goto(BASE);
-    await page.locator('#popular-movies .movie-card').first().waitFor({ timeout: 15000 });
-    await page.locator('#popular-movies .movie-card').first().click();
-    await expect(page.locator('#detail-skeleton')).toBeHidden({ timeout: 10000 });
+  test('shows title, overview, genres and cast', async ({ page }) => {
     await expect(page.locator('#detail-title')).not.toBeEmpty();
     await expect(page.locator('#detail-overview')).not.toBeEmpty();
     expect(await page.locator('.genre-tag').count()).toBeGreaterThan(0);
-  });
-
-  test('detail modal shows cast', async ({ page }) => {
-    await page.goto(BASE);
-    await page.locator('#popular-movies .movie-card').first().waitFor({ timeout: 15000 });
-    await page.locator('#popular-movies .movie-card').first().click();
-    await expect(page.locator('#detail-skeleton')).toBeHidden({ timeout: 10000 });
     expect(await page.locator('.cast-item').count()).toBeGreaterThan(0);
   });
 
-  test('detail modal shows similar movies', async ({ page }) => {
-    await page.goto(BASE);
-    await page.locator('#popular-movies .movie-card').first().waitFor({ timeout: 15000 });
-    await page.locator('#popular-movies .movie-card').first().click();
-    await expect(page.locator('#detail-skeleton')).toBeHidden({ timeout: 10000 });
-    await expect(page.locator('#detail-similar')).toBeVisible({ timeout: 5000 });
-    expect(await page.locator('#detail-similar-grid .movie-card').count()).toBeGreaterThan(0);
-  });
-
-  test('detail modal closes with X button', async ({ page }) => {
-    await page.goto(BASE);
-    await page.locator('#popular-movies .movie-card').first().waitFor({ timeout: 15000 });
-    await page.locator('#popular-movies .movie-card').first().click();
-    await expect(page.locator('#detail-modal')).not.toHaveClass(/hidden/, { timeout: 8000 });
-    await page.locator('#detail-close').click();
+  test('closes with the X button', async ({ page }) => {
+    await page.locator('#detail-modal .sheet-close').click();
     await expect(page.locator('#detail-modal')).toHaveClass(/hidden/);
   });
 
-  test('detail modal closes on Escape key', async ({ page }) => {
-    await page.goto(BASE);
-    await page.locator('#popular-movies .movie-card').first().waitFor({ timeout: 15000 });
-    await page.locator('#popular-movies .movie-card').first().click();
-    await expect(page.locator('#detail-modal')).not.toHaveClass(/hidden/, { timeout: 8000 });
+  test('Escape closes only the top modal', async ({ page }) => {
+    await page.locator('#detail-wl-btn').click();
+    await expect(page.locator('#wl-modal')).not.toHaveClass(/hidden/);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#wl-modal')).toHaveClass(/hidden/);
+    await expect(page.locator('#detail-modal')).not.toHaveClass(/hidden/);
     await page.keyboard.press('Escape');
     await expect(page.locator('#detail-modal')).toHaveClass(/hidden/);
   });
 
   test('trailer button opens trailer modal', async ({ page }) => {
-    await page.goto(BASE);
-    await page.locator('#popular-movies .movie-card').first().waitFor({ timeout: 15000 });
-    await page.locator('#popular-movies .movie-card').first().click();
-    await expect(page.locator('#detail-skeleton')).toBeHidden({ timeout: 10000 });
     await page.locator('#detail-trailer-btn').click();
     await expect(page.locator('#trailer-modal')).not.toHaveClass(/hidden/, { timeout: 5000 });
   });
-});
 
-test.describe('FilmBox – watchlist', () => {
-  test('bookmark button on card adds to watchlist', async ({ page }) => {
-    await page.goto(BASE);
-    await page.locator('#popular-movies .movie-card').first().waitFor({ timeout: 15000 });
-    const wlBtn = page.locator('#popular-movies .movie-card').first().locator('.wl-btn');
-    await wlBtn.hover();
-    await wlBtn.click();
-    await expect(wlBtn).toHaveClass(/active/);
+  test('play opens the source picker', async ({ page }) => {
+    await page.locator('#detail-play-btn').click();
+    await expect(page.locator('#prehraj-modal')).not.toHaveClass(/hidden/);
+    await page.locator('.source-item, .source-state').first().waitFor({ timeout: 20000 });
   });
 
-  test('watchlist toggle button shows watchlist section', async ({ page }) => {
-    await page.goto(BASE);
-    await page.locator('#popular-movies .movie-card').first().waitFor({ timeout: 15000 });
-    // add a movie first
-    const wlBtn = page.locator('#popular-movies .movie-card').first().locator('.wl-btn');
-    await wlBtn.hover();
-    await wlBtn.click();
-    await page.locator('#watchlist-toggle').click();
-    await expect(page.locator('#watchlist-section')).toBeVisible({ timeout: 3000 });
-    expect(await page.locator('#watchlist-movies .movie-card').count()).toBeGreaterThan(0);
-  });
-
-  test('add to list modal opens from detail modal', async ({ page }) => {
-    await page.goto(BASE);
-    await page.locator('#popular-movies .movie-card').first().waitFor({ timeout: 15000 });
-    await page.locator('#popular-movies .movie-card').first().click();
-    await expect(page.locator('#detail-skeleton')).toBeHidden({ timeout: 10000 });
-    await page.locator('#detail-wl-btn').click();
-    await expect(page.locator('#wl-modal')).not.toHaveClass(/hidden/, { timeout: 3000 });
-    expect(await page.locator('.wl-list-item').count()).toBeGreaterThan(0);
-  });
-
-  test('create a new list in wl-modal', async ({ page }) => {
-    await page.goto(BASE);
-    await page.locator('#popular-movies .movie-card').first().waitFor({ timeout: 15000 });
-    await page.locator('#popular-movies .movie-card').first().click();
-    await expect(page.locator('#detail-skeleton')).toBeHidden({ timeout: 10000 });
+  test('create a new list in the list modal', async ({ page }) => {
     await page.locator('#detail-wl-btn').click();
     await page.fill('#wl-new-list-input', 'Test seznam');
     await page.locator('#wl-new-list-btn').click();
@@ -250,19 +160,57 @@ test.describe('FilmBox – watchlist', () => {
   });
 });
 
-test.describe('FilmBox – theme toggle', () => {
-  test('theme toggle switches dark mode', async ({ page }) => {
+test.describe('FilmBox – watchlist', () => {
+  test('"Můj seznam" in the navbar opens the section even when empty', async ({ page }) => {
     await page.goto(BASE);
-    const hasDark = await page.evaluate(() => document.body.classList.contains('dark'));
-    await page.locator('#theme-toggle').click();
-    const hasDarkAfter = await page.evaluate(() => document.body.classList.contains('dark'));
-    expect(hasDarkAfter).toBe(!hasDark);
+    await page.locator('#nav-watchlist').click();
+    await expect(page.locator('#watchlist-section')).toBeVisible({ timeout: 3000 });
   });
+});
 
-  test('theme is persisted in localStorage', async ({ page }) => {
+test.describe('FilmBox – theme', () => {
+  test('theme toggle switches and persists', async ({ page }) => {
     await page.goto(BASE);
+    const dark = await page.evaluate(() => document.body.classList.contains('dark'));
     await page.locator('#theme-toggle').click();
-    const saved = await page.evaluate(() => localStorage.getItem('filmbox_theme'));
-    expect(['dark', '']).toContain(saved);
+    expect(await page.evaluate(() => document.body.classList.contains('dark'))).toBe(!dark);
+    expect(await page.evaluate(() => localStorage.getItem('filmbox_theme'))).toBe(dark ? 'light' : 'dark');
+  });
+});
+
+test.describe('FilmBox – TV remote (webOS)', () => {
+  test.use({ userAgent: WEBOS_UA, viewport: { width: 1920, height: 1080 } });
+
+  test('TV mode, D-pad focus and Back key', async ({ page }) => {
+    await page.goto(BASE);
+    await waitForGrid(page);
+    await expect(page.locator('body')).toHaveClass(/tv/);
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    const focused = await page.evaluate(() => document.activeElement.className);
+    expect(focused).toContain('movie-card');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#detail-modal')).not.toHaveClass(/hidden/, { timeout: 5000 });
+    await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { keyCode: 461, bubbles: true })));
+    await expect(page.locator('#detail-modal')).toHaveClass(/hidden/);
+  });
+});
+
+test.describe('FilmBox – PIN lock', () => {
+  test('locked profile is refused by the API, asks for the PIN, then loads its data', async ({ page, request }) => {
+    const p = await (await request.post(`${BASE}/api/profiles`, { data: { name: 'PIN ' + Date.now() } })).json();
+    const set = await (await request.post(`${BASE}/api/profiles/${p.id}/pin`, { data: { pin: '4321' } })).json();
+    const auth = { 'X-Profile-Token': set.token };
+    await request.post(`${BASE}/api/profiles/${p.id}/favorites`, { data: { tmdbId: 157336, mediaType: 'movie', title: 'Interstellar' }, headers: auth });
+    expect((await request.get(`${BASE}/api/profiles/${p.id}/favorites`)).status()).toBe(401);
+
+    await page.goto(BASE);
+    await page.evaluate(() => window.showProfileChooser());
+    await page.locator(`.profile-card[data-id="${p.id}"]`).click();
+    await page.fill('#pin-prompt-input', '4321');
+    await page.click('#pin-prompt-confirm');
+    await expect(page.locator('#favorites-section')).toBeVisible({ timeout: 10000 });
+
+    await request.delete(`${BASE}/api/profiles/${p.id}`, { headers: auth });
   });
 });

@@ -1,0 +1,447 @@
+/* ═════════════ CONTENT ROWS ═════════════
+   Horizontal, remote-friendly rows of poster cards. Rows scroll
+   horizontally; arrow buttons appear on hover (added by cards.js). */
+
+.rows {
+  position: relative;
+  z-index: 2;
+  margin-top: -9vh;          /* pull the first row up over the hero fade */
+  padding-bottom: 40px;
+}
+body:not(.dark) .rows { margin-top: 0; }
+
+.row-section { padding-top: 26px; }
+.row-section + .row-section { padding-top: 34px; }
+
+.row-header {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: flex-end;
+  align-items: flex-end;
+  -webkit-justify-content: space-between;
+  justify-content: space-between;
+  -webkit-flex-wrap: wrap;
+  flex-wrap: wrap;
+  padding: 0 var(--gutter);
+  margin-bottom: 12px;
+}
+.row-header > div:first-child { margin-right: 20px; }
+.row-header h3 {
+  font-size: 23px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+}
+.row-header h3::before {
+  content: '';
+  width: 4px;
+  height: 20px;
+  border-radius: 4px;
+  background: var(--accent-grad);
+  margin-right: 11px;
+}
+.row-header p { color: var(--muted); font-size: 14px; margin-top: 5px; padding-left: 15px; }
+.loaded-count { color: var(--dim); font-size: 12px; margin-left: 6px; }
+.row-tools { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-flex-wrap: wrap; flex-wrap: wrap; }
+.row-tools > * { margin-left: 8px; margin-top: 6px; }
+
+.genre-filters { margin-bottom: 4px; }
+
+.row { position: relative; }
+
+.row-track {
+  display: -webkit-flex;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 18px var(--gutter) 30px;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.row-track::-webkit-scrollbar { display: none; }
+.row-track > .movie-card { margin-right: 16px; }
+.row-track > .movie-card:last-child { margin-right: 0; }
+.row-track > .row-empty { padding: 22px 0; color: var(--dim); font-size: 14px; }
+
+/* Arrow buttons */
+.row-arrow {
+  position: absolute;
+  top: 18px;
+  bottom: 30px;
+  width: var(--gutter);
+  min-width: 44px;
+  z-index: 5;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 30px;
+  opacity: 0;
+  transition: opacity 0.25s ease, background-color 0.25s ease;
+}
+.row-arrow.left  { left: 0;  background: linear-gradient(90deg, rgba(7,7,10,0.85), rgba(7,7,10,0)); }
+.row-arrow.right { right: 0; background: linear-gradient(270deg, rgba(7,7,10,0.85), rgba(7,7,10,0)); }
+body:not(.dark) .row-arrow { color: var(--text); }
+body:not(.dark) .row-arrow.left  { background: linear-gradient(90deg, rgba(243,243,246,0.95), rgba(243,243,246,0)); }
+body:not(.dark) .row-arrow.right { background: linear-gradient(270deg, rgba(243,243,246,0.95), rgba(243,243,246,0)); }
+.row:hover .row-arrow:not(.off) { opacity: 1; }
+.row-arrow i { transition: transform 0.25s var(--spring); }
+.row-arrow:hover i { transform: scale(1.3); }
+.row-arrow.off { pointer-events: none; }
+
+/* Grid (search results, actor works). Flex-wrap first for engines without CSS
+   grid (webOS 4 apps = Chromium 53), real grid where supported. */
+.card-grid {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-wrap: wrap;
+  flex-wrap: wrap;
+  padding: 16px var(--gutter) 10px;
+}
+.card-grid > * { margin: 0 16px 26px 0; }
+@supports (display: grid) {
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
+    grid-gap: 26px 16px;
+    gap: 26px 16px;
+  }
+  .card-grid > * { margin: 0; }
+}
+
+/* ═════════════ MOVIE CARD ═════════════ */
+
+.movie-card {
+  position: relative;
+  width: var(--card-w);
+  -webkit-flex-shrink: 0;
+  flex-shrink: 0;
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: transform 0.35s var(--ease);
+  -webkit-animation: fb-card-in 0.5s var(--ease) both;
+  animation: fb-card-in 0.5s var(--ease) both;
+}
+.card-grid > .movie-card { width: auto; }
+@keyframes fb-card-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+.movie-poster {
+  position: relative;
+  padding-top: 150%;                 /* 2:3 poster — aspect-ratio isn't on webOS 5 */
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-2);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.28);
+  transition: box-shadow 0.35s ease;
+  -webkit-transform: translateZ(0);  /* keeps rounded corners clipping during scale */
+  transform: translateZ(0);
+}
+.movie-poster > img {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s var(--ease), opacity 0.4s ease;
+}
+.movie-poster > img.img-loading { opacity: 0; }
+.movie-poster .poster-fallback {
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  padding: 14px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* Light sweep across the poster on hover / focus */
+.movie-poster::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; left: -60%;
+  width: 45%;
+  background: linear-gradient(100deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.22) 50%, rgba(255,255,255,0) 100%);
+  -webkit-transform: skewX(-18deg);
+  transform: skewX(-18deg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Hover/focus overlay with play glyph */
+.card-overlay {
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: linear-gradient(0deg, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.15) 45%, rgba(0,0,0,0) 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+}
+.card-play {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.92);
+  color: #0a0a0c;
+  font-size: 28px;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  padding-left: 3px;
+  -webkit-transform: scale(0.6);
+  transform: scale(0.6);
+  transition: transform 0.35s var(--spring);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+}
+
+.movie-card:hover, .movie-card:focus { transform: translateY(-6px) scale(1.06); z-index: 3; }
+.movie-card:hover .movie-poster, .movie-card:focus .movie-poster {
+  box-shadow: 0 22px 50px rgba(0,0,0,0.55), 0 0 0 2px rgba(255,255,255,0.9), 0 0 40px rgba(244,63,94,0.35);
+}
+body:not(.dark) .movie-card:hover .movie-poster,
+body:not(.dark) .movie-card:focus .movie-poster { box-shadow: 0 22px 50px rgba(20,20,40,0.3), 0 0 0 2px #111, 0 0 40px rgba(244,63,94,0.25); }
+.movie-card:hover .movie-poster > img, .movie-card:focus .movie-poster > img { transform: scale(1.06); }
+.movie-card:hover .card-overlay, .movie-card:focus .card-overlay { opacity: 1; }
+.movie-card:hover .card-play, .movie-card:focus .card-play { transform: scale(1); }
+.movie-card:hover .movie-poster::after, .movie-card:focus .movie-poster::after {
+  -webkit-animation: fb-sweep 0.9s ease-out;
+  animation: fb-sweep 0.9s ease-out;
+}
+@keyframes fb-sweep {
+  0%   { left: -60%; opacity: 0; }
+  20%  { opacity: 1; }
+  100% { left: 130%; opacity: 0; }
+}
+body.kbd .movie-card:focus { outline: none; }
+body.kbd .movie-card:hover:not(:focus) { transform: none; }
+body.kbd .movie-card:hover:not(:focus) .movie-poster { box-shadow: 0 8px 24px rgba(0,0,0,0.28); }
+body.kbd .movie-card:hover:not(:focus) .card-overlay { opacity: 0; }
+body.kbd .movie-card:hover:not(:focus) .movie-poster > img { transform: none; }
+
+/* Badges */
+.rating {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.66);
+  color: #fcd34d;
+  font-size: 12px;
+  font-weight: 700;
+  display: -webkit-inline-flex;
+  display: inline-flex;
+  -webkit-align-items: center;
+  align-items: center;
+}
+.rating i { margin-right: 4px; font-size: 10px; }
+.rating.high { color: #4ade80; }
+
+.watched-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--good);
+  color: #fff;
+  font-size: 15px;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(34,197,94,0.5);
+  -webkit-animation: fb-pop 0.45s var(--spring);
+  animation: fb-pop 0.45s var(--spring);
+}
+@keyframes fb-pop { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+.type-badge {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  z-index: 2;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: rgba(244,63,94,0.9);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Card action buttons (favorite / remove) — shown on hover/focus or when active */
+.card-btn {
+  position: absolute;
+  z-index: 4;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  font-size: 15px;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  opacity: 0;
+  -webkit-transform: scale(0.8);
+  transform: scale(0.8);
+  transition: opacity 0.2s ease, transform 0.25s var(--spring), background-color 0.2s ease, color 0.2s ease;
+}
+.card-btn.fav-btn { right: 10px; bottom: 10px; }
+.card-btn.remove-btn { right: 10px; top: 10px; }
+.card-btn:hover { background: rgba(0,0,0,0.85); transform: scale(1.1); }
+.remove-btn:hover { background: rgba(239,68,68,0.9); }
+.fav-btn.active { opacity: 1; transform: scale(1); color: #fb7185; }
+.movie-card:hover .card-btn, .movie-card:focus .card-btn, .card-btn:focus { opacity: 1; transform: scale(1); }
+.fav-btn.bump { -webkit-animation: fb-heart 0.5s var(--spring); animation: fb-heart 0.5s var(--spring); }
+@keyframes fb-heart { 0% { transform: scale(1); } 35% { transform: scale(1.45); } 100% { transform: scale(1); } }
+
+/* Continue watching extras */
+.remaining-badge {
+  position: absolute;
+  left: 10px;
+  bottom: 16px;
+  z-index: 2;
+  padding: 4px 9px;
+  border-radius: 7px;
+  background: rgba(0,0,0,0.72);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  max-width: calc(100% - 64px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.progress-bar {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 5px;
+  z-index: 3;
+  background: rgba(255,255,255,0.18);
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent-grad);
+  box-shadow: 0 0 12px rgba(244,63,94,0.8);
+  -webkit-animation: fb-progress 1s var(--ease) both;
+  animation: fb-progress 1s var(--ease) both;
+  -webkit-transform-origin: left;
+  transform-origin: left;
+}
+@keyframes fb-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* Info under poster */
+.movie-info { padding: 10px 2px 0; }
+.movie-info h4 {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.movie-meta {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  margin-top: 4px;
+  color: var(--dim);
+  font-size: 12px;
+}
+.movie-meta > span + span::before { content: '•'; margin: 0 6px; opacity: 0.6; }
+
+/* Skeleton cards */
+.skeleton-card { pointer-events: none; -webkit-animation: none; animation: none; }
+.skeleton-card .movie-poster { box-shadow: none; }
+.skeleton-line { height: 12px; border-radius: 6px; margin-top: 10px; width: 80%; }
+.skeleton-line.short { width: 45%; margin-top: 7px; height: 10px; }
+
+/* Loader card at the end of a row while the next page loads */
+.row-loader {
+  -webkit-flex-shrink: 0;
+  flex-shrink: 0;
+  width: 80px;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  color: var(--dim);
+  font-size: 26px;
+}
+.row-loader i { -webkit-animation: fb-spin 0.9s linear infinite; animation: fb-spin 0.9s linear infinite; }
+@keyframes fb-spin { to { transform: rotate(360deg); } }
+
+.row-error { padding: 24px var(--gutter); color: var(--dim); }
+
+/* Browse section */
+#browse-genres, #browse-decades { margin-bottom: 4px; }
+.browse-more { text-align: center; padding: 8px var(--gutter) 0; }
+.browse-empty { grid-column: 1 / -1; padding: 30px 0; text-align: center; color: var(--dim); }
+.row-error button { margin-left: 10px; }
+
+.row-actions { display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap; -webkit-justify-content: flex-end; justify-content: flex-end; }
+.row-actions .btn + .btn { margin-left: 6px; }
+
+/* ═════════════ Film series row + series order in the detail view ═════════════ */
+.series-card .series-count { color: #fff; }
+.progress-fill.done { background: var(--good); box-shadow: 0 0 10px rgba(34,197,94,0.6); }
+.order-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 7px;
+  border-radius: 9px;
+  background: rgba(0,0,0,0.75);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+}
+.movie-card.current .movie-poster { box-shadow: 0 0 0 3px var(--accent), 0 10px 30px rgba(244,63,94,0.35); }
+.movie-card.current .order-badge { background: var(--accent-grad); border-color: transparent; }

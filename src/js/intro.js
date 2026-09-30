@@ -2,149 +2,131 @@
   'use strict'
 
   const COLORS = [
-    'linear-gradient(135deg,#e50914,#b81d24)',
-    'linear-gradient(135deg,#2563eb,#1d4ed8)',
+    'linear-gradient(135deg,#f43f5e,#be123c)',
+    'linear-gradient(135deg,#3b82f6,#1d4ed8)',
     'linear-gradient(135deg,#22c55e,#15803d)',
     'linear-gradient(135deg,#f59e0b,#d97706)',
     'linear-gradient(135deg,#a855f7,#7c3aed)',
     'linear-gradient(135deg,#ec4899,#be185d)',
+    'linear-gradient(135deg,#14b8a6,#0f766e)',
   ]
 
   function avatarColor(name) {
     let h = 0
-    for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff
+    const s = String(name || '?')
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffffffff
     return COLORS[Math.abs(h) % COLORS.length]
   }
+  window.avatarColor = avatarColor
 
-  // ── API helpers ──
-
-  async function apiFetch(path, opts) {
-    const res = await fetch(path, opts)
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}))
-      throw new Error(body.error || res.statusText)
-    }
-    return res.json()
+  // Avatar contents: uploaded picture (data: URL only) or the initial.
+  function avatarHTML(p) {
+    if (p.picture && /^data:image\//.test(p.picture)) return `<img src="${escapeHtml(p.picture)}" alt="">`
+    return escapeHtml(String(p.name || '?').charAt(0).toUpperCase())
   }
+  window.profileAvatarHTML = avatarHTML
 
   const api = {
-    list:   ()         => apiFetch('/api/profiles'),
-    create: (name, theme) => apiFetch('/api/profiles', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, theme })
-    }),
-    delete: id => apiFetch(`/api/profiles/${id}`, { method: 'DELETE' }),
+    list:   ()            => apiFetch('/api/profiles'),
+    create: (name, theme) => apiFetch('/api/profiles', jsonBody('POST', { name, theme })),
+    delete: id            => apiFetch(`/api/profiles/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   }
 
-  // ── Cached profiles list ──
   let profiles = []
-
-  // ── Active profile (sessionStorage) ──
-  function getActiveProfile() {
-    const raw = sessionStorage.getItem('filmbox_active_profile')
-    return raw ? JSON.parse(raw) : null
-  }
 
   function setActiveProfile(profile) {
     sessionStorage.setItem('filmbox_active_profile', JSON.stringify(profile))
   }
 
-  // ── Apply theme to body ──
+  // ── Theme + per-profile preferences ──
   function applyTheme(theme) {
-    if (theme === 'dark') {
-      document.body.classList.add('dark')
-      localStorage.setItem('filmbox_theme', 'dark')
-    } else {
-      document.body.classList.remove('dark')
-      localStorage.removeItem('filmbox_theme')
-    }
+    const dark = theme !== 'light'
+    document.body.classList.toggle('dark', dark)
+    lsSet('filmbox_theme', dark ? 'dark' : 'light')
+    const icon = document.querySelector('#theme-toggle i')
+    if (icon) icon.className = 'bi ' + (dark ? 'bi-moon-stars' : 'bi-sun')
   }
+  window.applyTheme = applyTheme
 
-  // ── Apply theme + per-profile preferences (reduce motion) ──
   function applyProfileSettings(profile) {
     if (!profile) return
     applyTheme(profile.theme)
-    const reduceMotion = !!(profile.settings && profile.settings.reduceMotion)
-    document.body.classList.toggle('reduce-motion', reduceMotion)
+    document.body.classList.toggle('reduce-motion', !!(profile.settings && profile.settings.reduceMotion))
   }
   window.applyProfileSettings = applyProfileSettings
 
-  // ── Update navbar badge ──
+  // ── Navbar profile chip ──
   function updateNavbarProfile(profile) {
-    const logoBox = document.getElementById('navbar-logo-box')
-    if (logoBox) {
-      if (profile.picture) {
-        logoBox.style.background = ''
-        logoBox.innerHTML = `<img src="${profile.picture}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`
-      } else {
-        logoBox.style.background = avatarColor(profile.name)
-        logoBox.textContent = profile.name.charAt(0).toUpperCase()
-      }
-      logoBox.classList.remove('profile-switched')
-      void logoBox.offsetWidth
-      logoBox.classList.add('profile-switched')
+    const box = document.getElementById('navbar-logo-box')
+    if (box) {
+      box.style.background = profile.picture ? '' : avatarColor(profile.name)
+      box.innerHTML = avatarHTML(profile)
+      box.classList.remove('profile-switched')
+      void box.offsetWidth
+      box.classList.add('profile-switched')
     }
-    const profileText = document.getElementById('navbar-profile-text')
-    if (profileText) {
-      profileText.innerHTML =
-        `<h1>${profile.name}</h1>` +
-        `<p class="profile-switch-line"><a class="profile-switch-link" onclick="window.showProfileChooser();return false" href="#">` +
-        `Profil · Změnit</a></p>`
-    }
+    const name = document.getElementById('navbar-profile-name')
+    if (name) name.textContent = profile.name || ''
   }
   window.updateNavbarProfile = updateNavbarProfile
 
-  // ── Render profile grid ──
+  // ── Profile grid ──
   async function renderProfileGrid() {
     const grid = document.getElementById('profile-grid')
     if (!grid) return
-    grid.innerHTML = '<div style="color:#555;font-size:14px;padding:20px">Načítání...</div>'
+    grid.innerHTML = '<div class="profile-msg">Načítání…</div>'
 
     try {
       profiles = await api.list()
-    } catch {
-      grid.innerHTML = '<div style="color:#e55;font-size:14px;padding:20px">Chyba načítání profilů</div>'
+    } catch (e) {
+      grid.innerHTML = '<div class="profile-msg error">Chyba načítání profilů</div>'
       return
     }
 
     if (!profiles.length) {
-      grid.innerHTML = '<div style="color:#555;font-size:14px;padding:20px">Žádné profily – vytvořte první.</div>'
+      grid.innerHTML = '<div class="profile-msg">Žádné profily – vytvořte první.</div>'
+      if (document.body.classList.contains('kbd')) document.getElementById('add-profile-btn').focus()
       return
     }
 
-    grid.innerHTML = profiles.map(p => {
-      const bg    = p.picture ? '' : `background:${avatarColor(p.name)}`
-      const inner = p.picture
-        ? `<img src="${p.picture}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`
-        : p.name.charAt(0).toUpperCase()
-      return `
-        <div class="profile-card" data-id="${p.id}">
-          <div class="profile-avatar-wrap">
-            <div class="profile-avatar" style="${bg}">${inner}</div>
-            <button class="profile-delete-btn" data-id="${p.id}" title="Smazat profil">
-              <i class="bi bi-x-lg"></i>
-            </button>
-          </div>
-          <span class="profile-name">${p.name}</span>
-        </div>`
-    }).join('')
+    grid.innerHTML = profiles.map(p => `
+      <div class="profile-card" tabindex="0" role="button" data-id="${escapeHtml(p.id)}" aria-label="${escapeHtml(p.name)}">
+        <div class="profile-avatar-wrap">
+          <div class="profile-avatar" style="${p.picture ? '' : 'background:' + avatarColor(p.name)}">${avatarHTML(p)}</div>
+          ${p.hasPin ? '<span class="profile-lock"><i class="bi bi-lock-fill"></i></span>' : ''}
+          <button class="profile-delete-btn" data-id="${escapeHtml(p.id)}" title="Smazat profil" aria-label="Smazat profil ${escapeHtml(p.name)}" tabindex="-1">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <span class="profile-name">${escapeHtml(p.name)}</span>
+      </div>`).join('')
 
     grid.querySelectorAll('.profile-card').forEach(card => {
       card.addEventListener('click', () => chooseProfile(card.dataset.id))
     })
-
     grid.querySelectorAll('.profile-delete-btn').forEach(btn => {
       btn.addEventListener('click', async e => {
         e.stopPropagation()
+        const p = profiles.find(x => x.id === btn.dataset.id)
+        if (p && p.hasPin && !getProfileToken(p.id)) {
+          if (!(await window.openPinPrompt(p))) return
+        }
+        const ok = await confirmDialog(`Smazat profil „${p ? p.name : ''}“ včetně oblíbených, seznamů a historie? Tuto akci nelze vrátit.`, 'Smazat')
+        if (!ok) return
         try {
           await api.delete(btn.dataset.id)
           await renderProfileGrid()
+          showToast('Profil smazán')
         } catch (err) {
           showToast('Chyba: ' + err.message)
         }
       })
     })
+
+    if (document.body.classList.contains('kbd')) {
+      const first = grid.querySelector('.profile-card')
+      if (first) first.focus()
+    }
   }
 
   // ── Choose a profile ──
@@ -160,66 +142,74 @@
 
     setActiveProfile(profile)
     applyProfileSettings(profile)
+    // First visit after an update → the "what's new" video (whatsnew.js), over the fading chooser.
+    if (window.maybeShowWhatsNew) window.maybeShowWhatsNew(profile)
 
     const chooser = document.getElementById('profile-chooser')
-    chooser.style.transition = 'opacity 0.35s ease'
+    chooser.style.transition = 'opacity 0.4s ease'
     chooser.style.opacity = '0'
     setTimeout(async () => {
       chooser.classList.add('hidden')
       updateNavbarProfile(profile)
-      if (window.reloadFavorites)        window.reloadFavorites()
-      if (window.reloadWatched)          await window.reloadWatched()
-      if (window.reloadWatchlist)        await window.reloadWatchlist()
-      if (typeof loadProfileProgress === 'function') await loadProfileProgress()
-      if (window.reloadContinueWatching) window.reloadContinueWatching()
-    }, 360)
+      await reloadProfileData()
+      if (window.tvFocusStart) window.tvFocusStart()
+    }, 400)
   }
 
-  // ── Show chooser (callable from navbar "Změnit") ──
+  async function reloadProfileData() {
+    const tasks = []
+    if (window.reloadFavorites) tasks.push(window.reloadFavorites())
+    if (window.reloadWatched)   tasks.push(window.reloadWatched())
+    if (window.reloadWatchlist) tasks.push(window.reloadWatchlist())
+    tasks.push(loadProfileProgress())
+    await Promise.all(tasks)
+    if (window.reloadContinueWatching) window.reloadContinueWatching()
+    if (window.reloadRecommendations) window.reloadRecommendations()
+  }
+
+  // ── Show chooser (navbar profile chip) ──
   window.showProfileChooser = function () {
     const chooser = document.getElementById('profile-chooser')
+    chooser.style.transition = ''
     chooser.style.opacity = '0'
     chooser.classList.remove('hidden')
     renderProfileGrid()
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      chooser.style.transition = 'opacity 0.35s ease'
+      chooser.style.transition = 'opacity 0.4s ease'
       chooser.style.opacity = '1'
     }))
   }
 
   // ── Add-profile modal ──
   let selectedTheme = 'dark'
+  const addModal = () => document.getElementById('profile-add-modal')
 
   function openAddProfile() {
-    const modal = document.getElementById('profile-add-modal')
-    if (!modal) return
-    modal.classList.remove('hidden')
     const nameInput = document.getElementById('new-profile-name')
     nameInput.value = ''
-    nameInput.focus()
     selectedTheme = 'dark'
     syncThemeOptions()
+    openModal(addModal(), closeAddProfile)
+    setTimeout(() => nameInput.focus(), 60)
   }
-
-  function closeAddProfile() {
-    document.getElementById('profile-add-modal').classList.add('hidden')
-  }
+  function closeAddProfile() { closeModal(addModal()) }
 
   function syncThemeOptions() {
     document.querySelectorAll('.theme-option').forEach(btn =>
-      btn.classList.toggle('active', btn.dataset.theme === selectedTheme)
-    )
+      btn.classList.toggle('active', btn.dataset.theme === selectedTheme))
   }
 
   // ── Intro sound ──
   function playIntroSound() {
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)()
+      const Ctx = window.AudioContext || window.webkitAudioContext
+      if (!Ctx) return
+      const ctx = new Ctx()
       const t = ctx.currentTime
-      function tone(freq, start, dur, peak, type = 'sine') {
+      const tone = (freq, start, dur, peak, type) => {
         const osc  = ctx.createOscillator()
         const gain = ctx.createGain()
-        osc.type = type
+        osc.type = type || 'sine'
         osc.frequency.setValueAtTime(freq, t + start)
         gain.gain.setValueAtTime(0, t + start)
         gain.gain.linearRampToValueAtTime(peak, t + start + 0.05)
@@ -239,67 +229,63 @@
 
   // ── Boot ──
   document.addEventListener('DOMContentLoaded', () => {
-
     document.querySelectorAll('.theme-option').forEach(btn => {
-      btn.addEventListener('click', () => {
-        selectedTheme = btn.dataset.theme
-        syncThemeOptions()
-      })
+      btn.addEventListener('click', () => { selectedTheme = btn.dataset.theme; syncThemeOptions() })
     })
 
-    document.getElementById('add-profile-btn')?.addEventListener('click', openAddProfile)
-    document.getElementById('profile-add-cancel')?.addEventListener('click', closeAddProfile)
-    document.getElementById('profile-add-confirm')?.addEventListener('click', async () => {
+    document.getElementById('add-profile-btn').addEventListener('click', openAddProfile)
+    document.getElementById('profile-add-cancel').addEventListener('click', closeAddProfile)
+    document.getElementById('profile-add-confirm').addEventListener('click', async () => {
       const name = document.getElementById('new-profile-name').value.trim()
-      if (!name) return
+      if (!name) { document.getElementById('new-profile-name').focus(); return }
       try {
         await api.create(name, selectedTheme)
-        await renderProfileGrid()
         closeAddProfile()
+        await renderProfileGrid()
       } catch (err) {
         showToast('Chyba: ' + err.message)
       }
     })
-    document.getElementById('new-profile-name')?.addEventListener('keydown', e => {
+    document.getElementById('new-profile-name').addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('profile-add-confirm').click()
     })
-    document.getElementById('profile-add-modal')?.addEventListener('click', e => {
-      if (e.target === document.getElementById('profile-add-modal')) closeAddProfile()
-    })
+    document.getElementById('profile-btn').addEventListener('click', () => window.showProfileChooser())
 
-    // Apply system dark-mode preference on first visit (no stored theme, no active session)
-    if (!localStorage.getItem('filmbox_theme') && !sessionStorage.getItem('filmbox_active_profile')) {
-      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        document.body.classList.add('dark')
-      }
-    }
+    // Theme before any profile is picked: stored choice, else the OS preference.
+    const stored = lsGet('filmbox_theme', null)
+    if (stored) applyTheme(stored)
+    else applyTheme(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
 
-    // If profile already active in this tab → skip intro
+    const intro = document.getElementById('intro-screen')
+
+    // Profile already active in this tab → skip intro
     const active = getActiveProfile()
     if (active) {
-      document.getElementById('intro-screen').style.display = 'none'
+      intro.style.display = 'none'
       document.getElementById('profile-chooser').classList.add('hidden')
-      document.getElementById('profile-chooser').style.opacity = '0'
       applyProfileSettings(active)
-      updateNavbarProfile(active)
-      if (typeof loadProfileProgress === 'function') {
-        loadProfileProgress().then(() => {
-          if (window.reloadContinueWatching) window.reloadContinueWatching()
-        })
-      }
+      updateNavbarProfile(active)   // library rows load themselves (favorites/watched/watchlist.js)
+      setTimeout(() => { if (window.tvFocusStart) window.tvFocusStart() }, 600)
       return
     }
 
-    // Play intro animation → show chooser
-    setTimeout(playIntroSound, 400)
-    setTimeout(() => {
-      const intro = document.getElementById('intro-screen')
-      intro.style.transition = 'opacity 0.55s ease'
-      intro.style.opacity = '0'
+    // Intro animation → chooser (skippable with any key / click)
+    let left = false
+    const leave = () => {
+      if (left) return
+      left = true
+      intro.classList.add('leaving')
       setTimeout(() => {
         intro.style.display = 'none'
         window.showProfileChooser()
       }, 560)
-    }, 2700)
+    }
+    setTimeout(playIntroSound, 400)
+    setTimeout(leave, 2800)
+    intro.addEventListener('click', leave)
+    document.addEventListener('keydown', function skip() {
+      document.removeEventListener('keydown', skip)
+      leave()
+    })
   })
 })()
