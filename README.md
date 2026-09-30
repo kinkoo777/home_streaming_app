@@ -15,6 +15,10 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 - **Theme persistence** — dark/light toggle saved to the profile in the JSON store
 - **Hero banner** — rotating trending movies with backdrop, title and description
 - **3 browsable rows** — Popular, Trending, Top Rated; genre filters, sort tabs, infinite sideways loading
+- **Doporučeno pro vás** — a row built from TMDB recommendations for what the profile recently watched, liked or has in progress (already-seen titles are left out)
+- **Procházet** — browse films or series by genre, decade (last 5 years … older) and sort (popular / rating / newest), with "load more"
+- **Online subtitles** — optional OpenSubtitles search inside the player (see *Configure*)
+- **Next episode during the credits** — a "Další epizoda" card with a countdown in the last 45 s of an episode
 - **Search** — live TMDB search with dropdown and search history; <kbd>Enter</kbd> shows a full results grid
 - **Detail modal** — backdrop header, poster, genres, cast (with characters), overview, trailer, season/episode browser with episode stills and per-episode progress, similar titles
 - **Source picker (prehraj.to)** — only real films/episodes are shown: results must match the title (search text, Czech or original TMDB name), be long enough (films ≥ 40 min, episodes ≥ 8 min), not be clips/trailers/gameplay/music videos, and for episodes carry the right SxxEyy/2x03 code; film searches drop series episodes. "Zobrazit vše" reveals the hidden rest. Results as cards with thumbnail, duration, size, quality and CZ-dub/subtitle tags, filters and a recommended pick; plays in the FilmBox player (quality, HDR fix, subtitles, resume)
@@ -46,6 +50,8 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 home_streaming_app/
 ├── server.js           # Express server — TMDB proxy, profiles/favorites/watched/watchlists/progress API, prehraj.to scraping
 ├── stream.js           # prehraj.to page parsing, MP4 colour-tag probing, /stream proxy
+├── security.js         # API input validation, PIN sessions, wrong-PIN rate limit
+├── subtitles.js        # SRT→WebVTT + OpenSubtitles search/download
 ├── db.js               # JSON file store (profiles, favorites, watched, watchlists, progress)
 ├── package.json
 ├── data/               # Created automatically on first run
@@ -81,6 +87,8 @@ home_streaming_app/
         ├── detail.js     # Detail modal + season browser
         ├── search.js     # Live search, history, results grid
         ├── hero.js       # Hero carousel
+        ├── recommend.js  # "Doporučeno pro vás" row
+        ├── browse.js     # "Procházet" genre / decade browser
         ├── watched.js    # Per-profile watched history + badges
         ├── watchlist.js  # Continue Watching + multi-list management
         ├── settings.js   # Profile settings + PIN prompt
@@ -116,6 +124,17 @@ TMDB_READ_TOKEN=your_tmdb_v4_read_access_token_here
 ```
 
 `.env` is git-ignored. The server refuses to start if `TMDB_READ_TOKEN` is missing.
+
+**Optional — online subtitles.** When a video has no Czech/Slovak subtitles, the player can search [OpenSubtitles.com](https://www.opensubtitles.com). Create a free account, add an API consumer at *Profile → API consumers*, and add:
+
+```ini
+OPENSUBTITLES_API_KEY=your_api_key
+# optional: log in for a higher daily download quota
+OPENSUBTITLES_USERNAME=your_username
+OPENSUBTITLES_PASSWORD=your_password
+```
+
+Without a key the feature simply stays hidden. Downloaded subtitles are cached in `data/subtitles/`.
 
 ### Run
 
@@ -219,6 +238,17 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 | `GET /tmdb/actor?id=` | Actor bio + works |
 | `GET /tmdb/season?id=&season=N` | TV season episodes |
 | `GET /tmdb/hero` | Trending movies for hero banner |
+| `GET /tmdb/recommendations?id=&type=` | Recommendations for one title |
+| `GET /tmdb/discover?type=movie\|tv&genre=&from=&to=&sort=popular\|rating\|newest&page=` | Browse by genre / year range |
+| `GET /tmdb/genres?type=movie\|tv` | Genre list |
+
+### Subtitles (OpenSubtitles, optional)
+
+| Endpoint | Description |
+|---|---|
+| `GET /subs/status` | `{ enabled }` — whether an API key is configured |
+| `GET /subs/search?tmdbId=&type=movie\|tv&season=&episode=` | Czech/Slovak subtitles → `[{ fileId, lang, release, downloads, hearingImpaired }]` |
+| `GET /subs/file/:fileId` | The subtitle as WebVTT (cached on disk) |
 
 ### Playback (prehraj.to)
 

@@ -132,7 +132,8 @@
     // skipping row headers and filter chips — those are for the pointer.
     if (root === document.body && (dir === 'down' || dir === 'up') &&
         (cur.classList.contains('movie-card') || (dir === 'down' && cur.closest('.hero')))) {
-      const cards = list.filter(el => el.classList.contains('movie-card') || !el.closest('.row-section'))
+      // …except sections marked data-nav-controls (Procházet), whose chips are the point.
+      const cards = list.filter(el => el.classList.contains('movie-card') || !el.closest('.row-section') || el.closest('[data-nav-controls]'))
       if (cards.length) list = cards
     }
 

@@ -398,4 +398,9 @@ body.kbd .movie-card:hover:not(:focus) .movie-poster > img { transform: none; }
 @keyframes fb-spin { to { transform: rotate(360deg); } }
 
 .row-error { padding: 24px var(--gutter); color: var(--dim); }
+
+/* Browse section */
+#browse-genres, #browse-decades { margin-bottom: 4px; }
+.browse-more { text-align: center; padding: 8px var(--gutter) 0; }
+.browse-empty { grid-column: 1 / -1; padding: 30px 0; text-align: center; color: var(--dim); }
 .row-error button { margin-left: 10px; }

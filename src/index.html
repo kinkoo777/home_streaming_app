@@ -147,6 +147,17 @@
       <div class="row" data-row><div class="row-track" id="continue-watching-movies"></div></div>
     </section>
 
+    <!-- ── Recommended (from what this profile watched / liked) ── -->
+    <section class="row-section" id="recommended-section" style="display:none">
+      <div class="row-header">
+        <div>
+          <h3>Doporučeno pro vás</h3>
+          <p id="recommended-sub">Podle toho, co sledujete</p>
+        </div>
+      </div>
+      <div class="row" data-row><div class="row-track" id="recommended-movies"></div></div>
+    </section>
+
     <!-- ── Watchlist ── -->
     <section class="row-section" id="watchlist-section" style="display:none">
       <div class="row-header">
@@ -224,6 +235,31 @@
       </div>
       <div class="chip-row genre-filters" id="genre-filters-top-rated"></div>
       <div class="row" data-row><div class="row-track" id="top-rated" data-type="top_rated" data-page="1"></div></div>
+    </section>
+
+    <!-- ── Browse by genre / decade ── -->
+    <section class="row-section" id="browse-section" data-nav-controls>
+      <div class="row-header">
+        <div>
+          <h3>Procházet</h3>
+          <p id="browse-sub">Filmy a seriály podle žánru a období</p>
+        </div>
+        <div class="row-tools">
+          <div class="segmented" id="browse-type">
+            <button class="active" data-type="movie"><i class="bi bi-film"></i> Filmy</button>
+            <button data-type="tv"><i class="bi bi-tv"></i> Seriály</button>
+          </div>
+          <div class="segmented" id="browse-sort">
+            <button class="active" data-sort="popular">Populární</button>
+            <button data-sort="rating">Hodnocení</button>
+            <button data-sort="newest">Nejnovější</button>
+          </div>
+        </div>
+      </div>
+      <div class="chip-row" id="browse-genres"></div>
+      <div class="chip-row" id="browse-decades"></div>
+      <div class="card-grid" id="browse-grid"></div>
+      <div class="browse-more"><button class="btn btn-ghost" id="browse-more" style="display:none"><i class="bi bi-plus-lg"></i> Načíst další</button></div>
     </section>
 
     <!-- ── Watched ── -->
@@ -497,6 +533,8 @@
   <script src="js/detail.js"></script>
   <script src="js/search.js"></script>
   <script src="js/hero.js"></script>
+  <script src="js/recommend.js"></script>
+  <script src="js/browse.js"></script>
   <script src="js/main.js"></script>
   <script src="js/settings.js"></script>
 </body>

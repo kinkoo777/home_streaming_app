@@ -162,6 +162,7 @@
     tasks.push(loadProfileProgress())
     await Promise.all(tasks)
     if (window.reloadContinueWatching) window.reloadContinueWatching()
+    if (window.reloadRecommendations) window.reloadRecommendations()
   }
 
   // ── Show chooser (navbar profile chip) ──

@@ -636,6 +636,33 @@
       @keyframes buffer-spin { to { transform: rotate(360deg); } }
 
       /* ── RESUME / NEXT-EPISODE PROMPTS ── */
+      /* Next-episode card during the credits */
+      .next-ep-mini {
+        position: absolute;
+        right: 32px;
+        bottom: 130px;
+        z-index: 12;
+        display: none;
+        align-items: center;
+        padding: 10px 10px 10px 18px;
+        border-radius: 16px;
+        background: rgba(18,18,22,0.92);
+        border: 1px solid rgba(255,255,255,0.14);
+        box-shadow: 0 16px 40px rgba(0,0,0,0.55);
+        animation: prompt-fade 0.3s ease;
+      }
+      .next-ep-mini.show { display: flex; }
+      .next-ep-mini .label { font-size: 13px; color: rgba(255,255,255,0.7); margin-right: 14px; line-height: 1.35; }
+      .next-ep-mini .label b { display: block; color: #fff; font-size: 15px; }
+      .next-ep-mini .go { background: #fff; color: #111; border: none; border-radius: 10px; padding: 10px 16px; font-weight: 700; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; }
+      .next-ep-mini .go i { margin-right: 6px; }
+      .next-ep-mini .x { margin-left: 8px; width: 34px; height: 34px; border-radius: 10px; border: none; background: rgba(255,255,255,0.1); color: #fff; cursor: pointer; }
+      body.kbd .next-ep-mini .go:focus, body.kbd .next-ep-mini .x:focus { outline: 3px solid #f43f5e; outline-offset: 2px; }
+      body.tv .next-ep-mini { right: 56px; bottom: 170px; padding: 14px 14px 14px 22px; }
+      body.tv .next-ep-mini .label { font-size: 16px; }
+      body.tv .next-ep-mini .label b { font-size: 19px; }
+      body.tv .next-ep-mini .go { font-size: 18px; padding: 14px 22px; }
+
       .resume-prompt, .next-ep-prompt {
         position: absolute;
         top: 0; right: 0; bottom: 0; left: 0;
@@ -794,6 +821,13 @@
 
       <!-- 2× speed hold indicator -->
       <div id="speed-indicator">2× <i class="bi bi-fast-forward-fill"></i></div>
+
+      <!-- next episode, offered during the credits -->
+      <div class="next-ep-mini" id="next-ep-mini">
+        <div class="label">Další epizoda <b id="next-ep-mini-count">za 0:45</b></div>
+        <button class="go" id="next-ep-mini-go"><i class="bi bi-skip-end-fill"></i> Přehrát</button>
+        <button class="x" id="next-ep-mini-x" aria-label="Skrýt"><i class="bi bi-x-lg"></i></button>
+      </div>
 
       <!-- seek preview while holding ◀ / ▶ -->
       <div id="seek-osd"><i class="bi bi-fast-forward-fill" id="seek-osd-icon"></i><span id="seek-osd-delta">+0:10</span><small id="seek-osd-time">0:00</small></div>
@@ -1315,6 +1349,47 @@
       const SUB_SIZE_LABELS = { s: 'Malé', m: 'Střední', l: 'Velké', xl: 'Obří' }
       subtitleOverlay.style.setProperty('--sub-size', SUB_SIZES[subSize] || SUB_SIZES.m)
 
+      // ── Online subtitles (OpenSubtitles via /subs/*, only if the server has a key) ──
+      const _onlineSubs = { enabled: false, results: null, loading: false, error: null }
+      fetch('/subs/status').then(r => r.json()).then(d => {
+        _onlineSubs.enabled = !!(d && d.enabled && _playerData && _playerData.tmdbId)
+        if (_onlineSubs.enabled) ccBtn.style.display = ''
+      }).catch(() => {})
+
+      async function searchOnlineSubs() {
+        if (_onlineSubs.loading || _onlineSubs.results) return
+        _onlineSubs.loading = true
+        _onlineSubs.error = null
+        renderSettings()
+        try {
+          const d = _playerData
+          const q = new URLSearchParams({ tmdbId: String(d.tmdbId), type: d.episode ? 'tv' : (d.mediaType === 'tv' ? 'tv' : 'movie') })
+          if (d.episode) { q.set('season', String(d.episode.season)); q.set('episode', String(d.episode.number)) }
+          const r = await fetch('/subs/search?' + q)
+          const data = await r.json()
+          if (!r.ok) throw new Error(data.error || 'Hledání selhalo')
+          _onlineSubs.results = data
+        } catch (e) {
+          _onlineSubs.error = e.message
+        } finally {
+          _onlineSubs.loading = false
+          renderSettings()
+        }
+      }
+
+      function addOnlineSub(r) {
+        const src = '/subs/file/' + r.fileId
+        let idx = source.subtitles.findIndex(s => s.src === src)
+        if (idx < 0) {
+          source.subtitles.push({ src, lang: r.lang, label: (r.lang || '').toUpperCase() + ' · online', online: true })
+          buildSubtitleTracks()
+          idx = source.subtitles.findIndex(s => s.src === src)
+        }
+        selectSubtitle(idx)
+        closeSettings()
+        toast('Titulky: ' + r.release.slice(0, 60))
+      }
+
       // Stable language key across files: "cze1" / "CZE1" → "cze".
       const subKey = s => ((s.lang || s.label || '').toLowerCase().replace(/[^a-z]/g, '') || 'sub')
 
@@ -1327,13 +1402,15 @@
           const tr = document.createElement('track')
           tr.kind  = 'subtitles'
           tr.label = s.label || ('Titulky ' + (i + 1))
-          // Proxy through the server so cross-origin .vtt/.srt loads (and SRT converts)
-          tr.src   = `/get_subtitle?url=${encodeURIComponent(s.src)}`
+          // Online subtitles come from our own /subs/ route; the rest is proxied so
+          // cross-origin .vtt/.srt loads (and SRT converts)
+          tr.src   = s.src.indexOf('/subs/') === 0 ? s.src : `/get_subtitle?url=${encodeURIComponent(s.src)}`
+          if (s.online) tr.addEventListener('error', () => toast('Titulky se nepodařilo stáhnout (možná vyčerpán denní limit)', 5000))
           video.appendChild(tr)
           tr.track.mode = 'disabled'
           tr.track.addEventListener('cuechange', renderCues)
         })
-        ccBtn.style.display = list.length ? '' : 'none'
+        ccBtn.style.display = list.length || _onlineSubs.enabled ? '' : 'none'
         activeSub = -1
         const want = keep || (subPref !== 'off' ? subPref : null)
         if (want) {
@@ -1377,7 +1454,10 @@
       ccBtn.addEventListener('click', toggleSubtitles)
       function toggleSubtitles() {
         const subs = source ? source.subtitles : []
-        if (!subs.length) { toast('Toto video nemá titulky'); return }
+        if (!subs.length) {
+          if (_onlineSubs.enabled) { openSettings(); openSettingsPage('online'); searchOnlineSubs(); return }
+          toast('Toto video nemá titulky'); return
+        }
         if (activeSub >= 0) { selectSubtitle(-1); toast('Titulky vypnuty'); return }
         let i = lastSub
         if (i < 0) i = subs.findIndex(s => subKey(s) === subPref)
@@ -1428,8 +1508,8 @@
         return b
       }
 
-      function backItem(title) {
-        const b = menuItem({ label: title, onClick: () => openSettingsPage('main') })
+      function backItem(title, page) {
+        const b = menuItem({ label: title, onClick: () => openSettingsPage(page || 'main') })
         b.classList.add('settings-back')
         b.firstChild.prepend(el('i', 'bi bi-chevron-left'))
         return b
@@ -1489,6 +1569,21 @@
           add(backItem('Titulky'))
           add(menuItem({ label: 'Vypnuto', active: activeSub < 0, onClick: () => selectSubtitle(-1) }))
           subs.forEach((s, i) => add(menuItem({ label: s.label, active: activeSub === i, onClick: () => selectSubtitle(i) })))
+          if (_onlineSubs.enabled) {
+            add(menuItem({ label: 'Hledat titulky online', sub: true, value: 'OpenSubtitles', onClick: () => { openSettingsPage('online'); searchOnlineSubs() } }))
+          }
+        }
+
+        if (_settingsPage === 'online') {
+          add(backItem('Titulky online', 'subs'))
+          if (_onlineSubs.loading) add(menuItem({ label: 'Hledám…', onClick: () => {} }))
+          else if (_onlineSubs.error) add(menuItem({ label: 'Nepodařilo se', hint: _onlineSubs.error, onClick: () => { _onlineSubs.results = null; searchOnlineSubs() } }))
+          else if (_onlineSubs.results && !_onlineSubs.results.length) add(menuItem({ label: 'Žádné české ani slovenské titulky', onClick: () => {} }))
+          else (_onlineSubs.results || []).forEach(r => add(menuItem({
+            label: (r.lang || '?').toUpperCase() + (r.hearingImpaired ? ' · pro neslyšící' : ''),
+            hint: r.release.slice(0, 70) + ' · ' + r.downloads + '× staženo',
+            onClick: () => addOnlineSub(r)
+          })))
         }
 
         if (_settingsPage === 'subsize') {
@@ -1566,7 +1661,7 @@
           e.preventDefault(); items[(i - 1 + items.length) % items.length].focus()
         } else if (e.key === 'ArrowLeft' || isBack) {
           e.preventDefault()
-          if (_settingsPage !== 'main') openSettingsPage('main')
+          if (_settingsPage !== 'main') openSettingsPage(_settingsPage === 'online' ? 'subs' : 'main')
           else { closeSettings(); settingsBtn.focus() }
         } else if (e.key === 'ArrowRight') {
           e.preventDefault()
@@ -1728,6 +1823,7 @@
           timeCurrent.textContent = fmt(video.currentTime)
         }
         if (showRemaining) updateTotalLabel()
+        updateNextEpisodeMini()
         updateBuffered()
         // Auto-mark watched at 90%
         if (!_watchedFired && video.currentTime / video.duration >= 0.9) {
@@ -1767,6 +1863,7 @@
       video.addEventListener('ended', () => {
         playPauseBtn.innerHTML = '<i class="bi bi-arrow-counterclockwise"></i>'
         _hideSpinner()
+        nextMini.classList.remove('show')
         if (_playerData && _playerData.episode) _showNextEpisodePrompt()
       })
 
@@ -1816,6 +1913,32 @@
           return true
         } catch { return false }
       }
+
+      // Offer the next episode during the last 45 s (end credits).
+      const nextMini = document.getElementById('next-ep-mini')
+      let _nextMiniDismissed = false
+      function updateNextEpisodeMini() {
+        if (!_playerData || !_playerData.episode || !isFinite(video.duration) || video.duration < 300) return
+        const left = video.duration - video.currentTime
+        const show = !_nextMiniDismissed && left <= 45 && left > 0.5
+        if (show !== nextMini.classList.contains('show')) {
+          nextMini.classList.toggle('show', show)
+          if (show && document.body.classList.contains('kbd')) document.getElementById('next-ep-mini-go').focus()
+        }
+        if (show) document.getElementById('next-ep-mini-count').textContent = 'za ' + fmt(left)
+      }
+      document.getElementById('next-ep-mini-go').addEventListener('click', async () => {
+        document.getElementById('next-ep-mini-count').textContent = 'hledám…'
+        _nextMiniDismissed = true
+        if (!(await _playNextEpisode())) {
+          nextMini.classList.add('show')
+          document.getElementById('next-ep-mini-count').textContent = 'nenalezena'
+        }
+      })
+      document.getElementById('next-ep-mini-x').addEventListener('click', () => {
+        _nextMiniDismissed = true
+        nextMini.classList.remove('show')
+      })
 
       function _showNextEpisodePrompt() {
         const d = _playerData

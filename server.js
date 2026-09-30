@@ -19,6 +19,8 @@ function getSystemChromium() {
 }
 const { fetchVideoPage, getMp4Info, handleStream, isAllowedCdnUrl, cleanTrackLabel } = require('./stream');
 const sec = require('./security');
+const subtitles = require('./subtitles');
+const { srtToVtt } = subtitles;
 const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB, sanitizeProfile } = require('./db');
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 3000;
@@ -224,6 +226,75 @@ app.get('/tmdb/movies', async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Recommendations for one title (used to build "Doporučeno pro vás").
+app.get('/tmdb/recommendations', async (req, res) => {
+    const id = sec.toId(req.query.id);
+    const type = sec.tmdbType(req.query.type);
+    if (!id || !type) return res.status(400).json({ error: 'Neplatné id nebo type (movie|tv)' });
+    try { res.json(await tmdbFetch(`/${type}/${id}/recommendations?language=cs-CZ`)); }
+    catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Browse by genre / year range / sort ("Procházet").
+const DISCOVER_SORT = { popular: 'popularity.desc', rating: 'vote_average.desc', newest: null };
+app.get('/tmdb/discover', async (req, res) => {
+    const type = sec.tmdbType(req.query.type);
+    if (!type) return res.status(400).json({ error: 'type musí být movie nebo tv' });
+    const sort = Object.prototype.hasOwnProperty.call(DISCOVER_SORT, req.query.sort) ? req.query.sort : 'popular';
+    const q = new URLSearchParams({ language: 'cs-CZ', include_adult: 'false' });
+    q.set('sort_by', DISCOVER_SORT[sort] || (type === 'tv' ? 'first_air_date.desc' : 'primary_release_date.desc'));
+    if (sort === 'rating') q.set('vote_count.gte', '200');                         // keep obscure 10/10s out
+    if (sort === 'newest') q.set(type === 'tv' ? 'first_air_date.lte' : 'primary_release_date.lte', new Date().toISOString().slice(0, 10));
+    const genre = sec.toId(req.query.genre);
+    if (genre) q.set('with_genres', String(genre));
+    // Year range (decade chips in the UI): from / to, inclusive.
+    const from = sec.toId(req.query.from), to = sec.toId(req.query.to);
+    const field = type === 'tv' ? 'first_air_date' : 'primary_release_date';
+    if (from && from >= 1900 && from <= 2100) q.set(field + '.gte', from + '-01-01');
+    if (to && to >= 1900 && to <= 2100) q.set(field + '.lte', to + '-12-31');
+    q.set('page', String(Math.min(500, Math.max(1, parseInt(req.query.page, 10) || 1))));
+    try { res.json(await tmdbFetch(`/discover/${type}?${q}`)); }
+    catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/tmdb/genres', async (req, res) => {
+    const type = sec.tmdbType(req.query.type);
+    if (!type) return res.status(400).json({ error: 'type musí být movie nebo tv' });
+    try { res.json(await tmdbFetch(`/genre/${type}/list?language=cs-CZ`)); }
+    catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Online subtitles (OpenSubtitles, optional — see subtitles.js) ──
+app.get('/subs/status', (req, res) => res.json({ enabled: subtitles.enabled() }));
+
+app.get('/subs/search', async (req, res) => {
+    const tmdbId = sec.toId(req.query.tmdbId);
+    const type = sec.tmdbType(req.query.type);
+    if (!tmdbId || !type) return res.status(400).json({ error: 'Neplatné tmdbId nebo type' });
+    const season = sec.toId(req.query.season);
+    const episode = sec.toId(req.query.episode);
+    const key = `subs:${type}:${tmdbId}:${season}:${episode}`;
+    const cached = getCache(key);
+    if (cached) return res.json(cached);
+    try {
+        const list = await subtitles.search({ tmdbId, type, season, episode });
+        setCache(key, list);
+        res.json(list);
+    } catch (err) {
+        res.status(err.code === 503 ? 503 : 502).json({ error: err.message });
+    }
+});
+
+app.get('/subs/file/:fileId', async (req, res) => {
+    try {
+        const vtt = await subtitles.download(req.params.fileId);
+        res.set('Content-Type', 'text/vtt; charset=utf-8');
+        res.send(vtt);
+    } catch (err) {
+        res.status(err.code === 503 ? 503 : 502).json({ error: err.message });
+    }
+});
+
 
 
 function makeAbsolute(elements, base) {
@@ -390,14 +461,6 @@ function isAllowedVideoUrl(raw) {
     }
 }
 
-// Convert a SubRip (.srt) document to WebVTT so <track> can render it.
-function srtToVtt(srt) {
-    const body = srt
-        .replace(/\r+/g, '')
-        .replace(/^\d+\s*$/gm, '')                                   // drop sequence numbers
-        .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');           // comma → dot in timestamps
-    return 'WEBVTT\n\n' + body.replace(/\n{3,}/g, '\n\n').trim() + '\n';
-}
 
 // Proxy + normalize subtitle files (avoids cross-origin <track> failures).
 app.get('/get_subtitle', async (req, res) => {
