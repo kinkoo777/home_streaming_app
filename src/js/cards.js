@@ -67,12 +67,6 @@ function buildCard(movie, opts) {
     </div>`
 }
 
-// "S01E05" → { season: 1, number: 5 }
-function parseEpisodeLabel(label) {
-  const m = /S(\d+)E(\d+)/i.exec(label || '')
-  return m ? { season: parseInt(m[1], 10), number: parseInt(m[2], 10) } : null
-}
-
 // ── One click handler for every card ──
 document.addEventListener('click', e => {
   const actionBtn = e.target.closest('[data-action]')
@@ -92,14 +86,9 @@ document.addEventListener('click', e => {
     return
   }
 
-  // Continue Watching → straight to the source picker (the player offers "resume").
-  if (card.dataset.play) {
-    const ep = parseEpisodeLabel(card.dataset.ep)
-    const query = ep ? `${title} S${String(ep.season).padStart(2, '0')}E${String(ep.number).padStart(2, '0')}` : title
-    openPrehrajSearch(query, id, type, card.dataset.poster || null, ep)
-    return
-  }
-  openDetailModal(id, type, title)
+  // Continue Watching cards carry "Show S01E03" titles — the detail view wants the show name.
+  // (For series it opens on the right season with the next episode highlighted.)
+  openDetailModal(id, type, card.dataset.play ? String(title).replace(/\s*S\d{1,2}E\d{1,3}.*$/i, '').trim() : title)
 })
 
 // ================= ROWS =================

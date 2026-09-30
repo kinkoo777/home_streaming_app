@@ -60,6 +60,7 @@ window.openDetailModal = async function (id, type, title) {
   openModal(detailModal, closeDetailModal)
 
   // Actions work immediately, even before details arrive.
+  $d('detail-play-btn').innerHTML  = '<i class="bi bi-play-fill"></i> Přehrát'
   $d('detail-play-btn').onclick    = () => { closeDetailModal(); openPrehrajSearch(_detailMovie.title || title, id, type, _detailMovie.poster_path || null) }
   $d('detail-trailer-btn').onclick = () => openTrailerModal(id, type)
   $d('detail-wl-btn').onclick      = () => openWlModal(_detailMovie)
@@ -153,6 +154,8 @@ window.openDetailModal = async function (id, type, title) {
         if (m && v && (v.updatedAt || '') >= latest && nums.indexOf(parseInt(m[1], 10)) >= 0) { latest = v.updatedAt || ''; startSeason = parseInt(m[1], 10) }
       })
       renderSeasonTabs(id)
+      detailModal._seasonNums = nums
+      setSeriesPlayButton(id, nums, movieTitle, d.poster_path || null)
       loadSeason(id, startSeason, movieTitle, d.poster_path || null)
     }
 
@@ -196,6 +199,41 @@ function seasonWatchedCount(tvId, s) {
 }
 
 // Season tabs: "2. řada ✓" when every episode is watched, "3/10" when started.
+// The episode to offer next for a whole show: the most recently started
+// unfinished one, else the one after the furthest finished, else the first.
+function nextEpisodeFor(tvId, seasonNums) {
+  const progress = window._profileProgress || {}
+  const counts = detailModal._seasonCounts || {}
+  const re = new RegExp('^' + tvId + ':S(\\d+)E(\\d+)$')
+  let partial = null, furthest = null
+  Object.keys(progress).forEach(k => {
+    const m = re.exec(k)
+    if (!m) return
+    const s = parseInt(m[1], 10), e = parseInt(m[2], 10)
+    const st = episodeState(tvId, s, e)
+    if (st.status === 'partial' && (!partial || st.at > partial.at)) partial = { season: s, number: e, at: st.at }
+    if (st.status === 'done' && (!furthest || s > furthest.season || (s === furthest.season && e > furthest.number))) furthest = { season: s, number: e }
+  })
+  if (partial) return { season: partial.season, number: partial.number, resume: true }
+  if (!furthest) return seasonNums.length ? { season: seasonNums[0], number: 1, first: true } : null
+  if (!counts[furthest.season] || furthest.number < counts[furthest.season]) return { season: furthest.season, number: furthest.number + 1 }
+  const later = seasonNums.filter(n => n > furthest.season)
+  return later.length ? { season: later[0], number: 1 } : null          // everything watched
+}
+
+function setSeriesPlayButton(tvId, seasonNums, showTitle, poster) {
+  const btn = $d('detail-play-btn')
+  const next = nextEpisodeFor(tvId, seasonNums)
+  if (!next) {
+    btn.innerHTML = '<i class="bi bi-arrow-counterclockwise"></i> Přehrát od začátku'
+    btn.onclick = () => { closeDetailModal(); openPrehrajSearch(`${showTitle} S${String(seasonNums[0] || 1).padStart(2, '0')}E01`, tvId, 'tv', poster, { season: seasonNums[0] || 1, number: 1 }) }
+    return
+  }
+  const code = `S${String(next.season).padStart(2, '0')}E${String(next.number).padStart(2, '0')}`
+  btn.innerHTML = `<i class="bi bi-play-fill"></i> ${next.resume ? 'Pokračovat' : next.first ? 'Přehrát' : 'Další'} ${code}`
+  btn.onclick = () => { closeDetailModal(); openPrehrajSearch(`${showTitle} ${code}`, tvId, 'tv', poster, { season: next.season, number: next.number }) }
+}
+
 function renderSeasonTabs(tvId) {
   const counts = detailModal._seasonCounts || {}
   document.querySelectorAll('.season-tab').forEach(t => {
@@ -318,6 +356,7 @@ async function toggleEpisodeWatched(tvId, seasonNum, epNum, runtime) {
       window._profileProgress[key] = Object.assign({ updatedAt: new Date().toISOString() }, entry)
     }
     renderEpisodes(tvId, seasonNum)
+    setSeriesPlayButton(tvId, detailModal._seasonNums || [seasonNum], list.dataset.show, list.dataset.poster || null)
     if (window.reloadContinueWatching) window.reloadContinueWatching()
     showToast(wasDone ? 'Epizoda označena jako nezhlédnutá' : 'Epizoda označena jako zhlédnutá ✓')
   } catch (e) {
