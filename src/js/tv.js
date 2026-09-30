@@ -32,6 +32,17 @@
       (el.dataset && el.dataset.title ? '[' + el.dataset.title.slice(0, 30) + ']' : '')
   }
   let keyLogs = 0, cursorLogs = 0
+  // Diagnostics: every key event type in the capture phase (before anything else
+  // can swallow it), focus moves the browser makes on its own, and scrolling.
+  let rawLogs = 0, focusLogs = 0, scrollLogs = 0, lastScrollLog = 0
+  ;['keydown', 'keyup', 'keypress'].forEach(type => window.addEventListener(type, e => {
+    if (rawLogs++ < 60) clientLog('raw.' + type, { key: e.key, code: e.keyCode, which: e.which, target: desc(e.target) })
+  }, true))
+  document.addEventListener('focusin', e => { if (focusLogs++ < 40) clientLog('focusin', { target: desc(e.target), kbd: document.body.classList.contains('kbd') }) })
+  window.addEventListener('scroll', () => {
+    const now = Date.now()
+    if (now - lastScrollLog > 700 && scrollLogs++ < 20) { lastScrollLog = now; clientLog('scroll', { y: Math.round(window.pageYOffset), active: desc(document.activeElement) }) }
+  }, { passive: true })
 
   const KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down' }
   const BACK_CODES = [461, 10009, 27]   // webOS Back, Tizen Back, Escape

@@ -103,5 +103,11 @@
   }
 
   window.maybeShowWhatsNew = maybeShow
-  document.addEventListener('DOMContentLoaded', videoAvailable)
+  document.addEventListener('DOMContentLoaded', () => {
+    videoAvailable().then(ok => {
+      // ?whatsnew with a profile already active in this tab → play right away (testing).
+      const active = getActiveProfile()
+      if (ok && FORCE && active) setTimeout(() => maybeShow(active), 800)
+    })
+  })
 })()
