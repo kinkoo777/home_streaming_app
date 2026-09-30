@@ -19,6 +19,7 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 - **Procházet** — browse films or series by genre, decade (last 5 years … older) and sort (popular / rating / newest), with "load more"
 - **Online subtitles** — optional OpenSubtitles search inside the player (see *Configure*)
 - **Per-episode watch state** — each episode in the detail view shows *Zhlédnuto* (watched), a progress bar with minutes left, or *Další na řadě* (next up); a season summary ("Zhlédnuto 3 z 10" + Pokračovat) and ✓ on fully watched seasons; episodes can be marked watched/unwatched by hand. Finished episodes stay in the progress store flagged `finished` (Continue Watching skips them)
+- **What's new video** — the first time each profile is opened after an update, a short full-screen video shows the new features (Skip button, TV Back key; falls back to muted with a *Zapnout zvuk* button if the browser blocks sound). Seen state is stored per profile on the server, so it plays once per profile, not per device
 - **Film series & watch guides** — a *Filmové série* row with hand-made guides (MCU, Star Wars, Wizarding World, Fast & Furious, Alien) and popular TMDB collections, each card showing "Viděno X z N". A guide opens a sheet with a **Podle vydání / Chronologicky** order toggle (remembered per guide), numbered films, ✓ marks, *Další na řadě* and a *Pokračovat* button. A film's detail shows **Součást série** with the whole collection in order, your progress and links to the full series/guide
 - **Next episode during the credits** — a "Další epizoda" card with a countdown in the last 45 s of an episode
 - **Search** — live TMDB search with dropdown and search history; <kbd>Enter</kbd> shows a full results grid
@@ -68,6 +69,7 @@ home_streaming_app/
 │   └── progress.json     # Per-profile playback position, keyed by tmdbId or "tmdbId:S01E05" → { seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }
 └── src/
     ├── index.html
+    ├── media/whats-new.mp4 # "What's new" video (not in git — copy it in manually)
     ├── guides/guides.json # Generated watch guides + collections (node tools/build-guides.js)
     ├── player.html       # Video player (quality, subtitles, HDR fix, remote controls)
     ├── css/
@@ -97,6 +99,7 @@ home_streaming_app/
         ├── hero.js       # Hero carousel
         ├── recommend.js  # "Doporučeno pro vás" row
         ├── browse.js     # "Procházet" genre / decade browser
+        ├── whatsnew.js   # One-time "what's new" video after choosing a profile
         ├── series.js     # "Filmové série" row, watch-guide sheet, "Součást série" in the detail
         ├── watched.js    # Per-profile watched history + badges
         ├── watchlist.js  # Continue Watching + multi-list management
@@ -164,6 +167,10 @@ On an LG TV, open the same address in the webOS browser.
 | 🟢 Green | My list | Settings (quality, subtitles, colours) |
 | 🟡 Yellow | Profile settings | — |
 | 🔵 Blue | Switch profile | — |
+
+### What's new video
+
+Put the video at `src/media/whats-new.mp4` (H.264 MP4; it is git-ignored because of its size). Without the file the feature simply stays off. To show a new video to everyone again, replace the file and bump `VERSION` in `src/js/whatsnew.js`.
 
 ### Watch guides
 

@@ -57,6 +57,8 @@ test('profileChanges: name, theme, picture and settings rules', () => {
     assert.ok(sec.profileChanges({ picture: 'http://evil/x.png' }, false).error);
     assert.ok(sec.profileChanges({ picture: 'data:image/jpeg;base64,AAAA' }, false).changes);
     assert.deepStrictEqual(sec.profileChanges({ settings: { reduceMotion: true, isAdmin: true } }, false).changes.settings, { reduceMotion: true });
+    assert.deepStrictEqual(sec.profileChanges({ settings: { seenWhatsNew: '2026-09' } }, false).changes.settings, { seenWhatsNew: '2026-09' });
+    assert.deepStrictEqual(sec.profileChanges({ settings: { seenWhatsNew: '<script>' } }, false).changes.settings, {});
 });
 
 test('wrong-PIN limit: 5 failures then blocked, success clears', () => {

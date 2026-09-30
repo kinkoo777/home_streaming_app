@@ -576,11 +576,22 @@
     </div>
   </div>
 
+  <!-- ── What's new video: once per profile after an update (whatsnew.js) ── -->
+  <div id="whatsnew-modal" class="whatsnew hidden" role="dialog" aria-modal="true" aria-label="Novinky ve FilmBoxu">
+    <video id="whatsnew-video" playsinline preload="none"></video>
+    <div class="whatsnew-actions">
+      <button id="whatsnew-sound" class="btn btn-glass hidden" type="button"><i class="bi bi-volume-up-fill"></i>Zapnout zvuk</button>
+      <button id="whatsnew-skip" class="btn btn-glass" type="button">Přeskočit<i class="bi bi-skip-end-fill"></i></button>
+    </div>
+    <div class="whatsnew-progress"><div id="whatsnew-progress-fill"></div></div>
+  </div>
+
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <script src="js/utils.js"></script>
   <script src="js/tv.js"></script>
   <script src="js/intro.js"></script>
+  <script src="js/whatsnew.js"></script>
   <script src="js/favorites.js"></script>
   <script src="js/watched.js"></script>
   <script src="js/watchlist.js"></script>

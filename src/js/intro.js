@@ -142,6 +142,8 @@
 
     setActiveProfile(profile)
     applyProfileSettings(profile)
+    // First visit after an update → the "what's new" video (whatsnew.js), over the fading chooser.
+    if (window.maybeShowWhatsNew) window.maybeShowWhatsNew(profile)
 
     const chooser = document.getElementById('profile-chooser')
     chooser.style.transition = 'opacity 0.4s ease'

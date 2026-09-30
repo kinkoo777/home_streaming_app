@@ -121,6 +121,9 @@ function profileChanges(b, creating) {
         if (!b.settings || typeof b.settings !== 'object') return { error: 'Neplatná nastavení' };
         const s = {};
         SETTINGS_KEYS.forEach(k => { if (typeof b.settings[k] === 'boolean') s[k] = b.settings[k]; });
+        // Version of the "what's new" video this profile has already seen.
+        const seen = b.settings.seenWhatsNew;
+        if (typeof seen === 'string' && /^[\w.-]{1,32}$/.test(seen)) s.seenWhatsNew = seen;
         changes.settings = s;
     }
     return { changes };
