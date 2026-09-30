@@ -52,6 +52,7 @@ home_streaming_app/
 ├── stream.js           # prehraj.to page parsing, MP4 colour-tag probing, /stream proxy
 ├── security.js         # API input validation, PIN sessions, wrong-PIN rate limit
 ├── subtitles.js        # SRT→WebVTT + OpenSubtitles search/download
+├── test-unit/          # node:test unit tests (npm run test:unit)
 ├── db.js               # JSON file store (profiles, favorites, watched, watchlists, progress)
 ├── package.json
 ├── data/               # Created automatically on first run
@@ -83,6 +84,7 @@ home_streaming_app/
         ├── trailer.js    # Trailer modal
         ├── actor.js      # Actor modal
         ├── player.js     # Source picker (prehraj.to search → player)
+        ├── relevance.js  # Film/series filter for source results (shared with unit tests)
         ├── hdr-renderer.js # WebGL HDR → SDR tone mapping for the player
         ├── detail.js     # Detail modal + season browser
         ├── search.js     # Live search, history, results grid
@@ -157,6 +159,12 @@ On an LG TV, open the same address in the webOS browser.
 | 🔵 Blue | Switch profile | — |
 
 ### Test
+
+Unit tests (no server or network needed) cover the HDR colour-tag patching, prehraj.to page parsing, API input validation / PIN limits and the film/series source filter:
+
+```bash
+npm run test:unit
+```
 
 End-to-end tests (Playwright) run against a running server with a valid TMDB token:
 

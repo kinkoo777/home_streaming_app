@@ -377,3 +377,5 @@ async function handleStream(req, res) {
 }
 
 module.exports = { UA, isAllowedCdnUrl, parseVideoPage, fetchVideoPage, getMp4Info, handleStream, cleanTrackLabel };
+// Internals, exported for the unit tests (test-unit/).
+module.exports._internals = { unescapeNal, findSpsColour, patchSps, patchTransform };
