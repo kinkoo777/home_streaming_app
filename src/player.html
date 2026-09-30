@@ -963,6 +963,10 @@
       let _decodeRetried = false
       let _directFallback = false
       const _failed    = new Set() // quality+route combos that errored
+      // Other uploads of the same title, best first (from the source picker).
+      let _alternatives = []
+      let _sourceSite   = null
+      const SITE_NAMES  = { prehrajto: 'prehraj.to', fastshare: 'FastShare', sledujteto: 'Sledujteto' }
 
       // ── Load data from sessionStorage ──
       // PIN-protected profiles: send the session token (see utils.js in the main app).
@@ -1020,6 +1024,8 @@
         _playerMediaType = data.mediaType || 'movie'
         _playerKey       = data.progressKey || (data.tmdbId != null ? String(data.tmdbId) : null)
         source           = normalizeSource(data)
+        _alternatives    = Array.isArray(data.alternatives) ? data.alternatives.filter(a => a && a.url) : []
+        _sourceSite      = data.sourceSite || null
 
         if (data.tmdbId) {
           const _baseMeta = {
@@ -1162,6 +1168,51 @@
         } catch { return false }
       }
 
+      // ── Switch to a backup upload (another site / file) at the same position ──
+      let _switching = false
+      async function switchToAlternative(reason) {
+        if (_switching) return true
+        if (!_alternatives.length) return false
+        _switching = true
+        const t = video.currentTime || _lastGoodTime || _pendingSeek || 0
+        const wasPlaying = !video.paused || !!video.error
+        try {
+          while (_alternatives.length) {
+            const alt = _alternatives.shift()
+            const site = SITE_NAMES[alt.source] || 'jiný zdroj'
+            toast(`${reason} — zkouším ${site}…`, 8000)
+            try {
+              const r = await fetch(`/get_video?url=${encodeURIComponent(alt.url)}`)
+              if (!r.ok) continue
+              const fresh = await r.json()
+              if (!fresh.qualities || !fresh.qualities.length) continue
+              activeSub      = -1                  // indexes belong to the old subtitle list
+              source         = fresh
+              _sourceSite    = alt.source || null
+              currentQ       = null
+              _failed.clear()
+              _directFallback = false
+              _refreshedAt   = Date.now()          // links are brand new
+              _reloads       = []
+              _stalls        = []
+              if (_playerData) {
+                _playerData.source = source
+                _playerData.sourceSite = _sourceSite
+                _playerData.alternatives = _alternatives
+                try { sessionStorage.setItem('filmbox_player', JSON.stringify(_playerData)) } catch {}
+              }
+              buildSubtitleTracks()
+              playQuality(pickQuality(), t, wasPlaying)
+              toast(`Přepnuto na ${site}${alt.title ? ': ' + alt.title : ''}`, 5000)
+              return true
+            } catch {}
+          }
+          return false
+        } finally {
+          _switching = false
+        }
+      }
+
       // Step down to the next lower quality that hasn't failed yet.
       function stepDown(reason) {
         const qs  = source.qualities
@@ -1229,6 +1280,9 @@
             return
           }
 
+          // This upload is done for — try the next site / file.
+          if (await switchToAlternative('Zdroj nejde přehrát')) return
+
           showError('Video se nepodařilo načíst. Zkuste jiný zdroj nebo to zkuste znovu.', true)
         } finally {
           _recovering = false
@@ -1274,6 +1328,8 @@
         _stalls = _stalls.filter(t => now - t < 120000)
         _stalls.push(now)
         if (qualityPref === 'auto' && _stalls.length >= 3 && stepDown('Pomalé připojení')) _stalls = []
+        // Still buffering all the time (no lower quality left) → the site itself is slow.
+        else if (_stalls.length >= 4) switchToAlternative('Zdroj se pořád zasekává').then(ok => { if (ok) _stalls = [] })
       }
       video.addEventListener('playing', onStallEnd)
       video.addEventListener('canplay', onStallEnd)
@@ -1545,6 +1601,13 @@
           if (hdr && hdr.active) {
             const cur = EXPOSURES.find(([x]) => x === hdrExposure)
             add(menuItem({ label: 'Jas HDR', sub: true, value: cur ? cur[1] : hdrExposure + '×', onClick: () => openSettingsPage('exposure') }))
+          }
+          if (_alternatives.length) {
+            add(menuItem({
+              label: 'Přepnout na jiný zdroj',
+              hint: `Teď ${SITE_NAMES[_sourceSite] || 'zdroj'} · záložních: ${_alternatives.length}`,
+              onClick: () => { closeSettings(); switchToAlternative('Ruční přepnutí') }
+            }))
           }
           add(menuItem({
             label: 'Znovu načíst video', hint: 'Pomůže, když se obraz zasekne',
@@ -1905,6 +1968,13 @@
           if (!results.length) return false
           // Prefer a Czech-dubbed upload, else the first result.
           const pick = results.find(r => r && r.dub) || results[0]
+          // Backups: other uploads of the same episode, same dubbing first.
+          const epCode = new RegExp('s0?' + d.episode.season + '\\s*e0?' + nextNum + '(?!\\d)|\\b0?' + d.episode.season + 'x0?' + nextNum + '(?!\\d)', 'i')
+          const alternatives = results
+            .filter(r => r && r.url && r !== pick && epCode.test(r.title || ''))
+            .sort((a, b) => (b.dub === pick.dub) - (a.dub === pick.dub) || (b.source !== pick.source) - (a.source !== pick.source))
+            .slice(0, 6)
+            .map(r => ({ url: r.url, title: r.title, source: r.source || 'prehrajto', dub: !!r.dub, res: r.res || null }))
           const href = pick && pick.url
           if (!href) return false
           const vr = await fetch(`/get_video?url=${encodeURIComponent(href)}`)
@@ -1914,6 +1984,8 @@
           sessionStorage.setItem('filmbox_player', JSON.stringify({
             title:       query,
             source:      next,
+            sourceSite:  pick.source || 'prehrajto',
+            alternatives,
             tmdbId:      d.tmdbId,
             mediaType:   'tv',
             posterPath:  d.posterPath || null,

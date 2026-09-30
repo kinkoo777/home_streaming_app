@@ -223,9 +223,57 @@ async function runSourceSearch(query) {
   }
 }
 
+// Backups the player falls back to if this source dies or keeps buffering:
+// the other relevant results, same dubbing first, preferring other sites
+// (a slow/limited site is usually slow for all its files).
+function backupSources(chosenUrl) {
+  const chosen = _prehrajAll.find(r => r.url === chosenUrl) || {}
+  const relevant = relevantResults(_prehrajAll, prehrajQuery.value)
+  const pool = (relevant.length ? relevant : _prehrajResults).filter(r => r.url !== chosenUrl)
+  const rank = r => (r.dub === chosen.dub ? 100 : 0) + (r.source !== chosen.source ? 8 : 0) + sourceScore(r)
+  return pool.slice().sort((a, b) => rank(b) - rank(a)).slice(0, 6)
+    .map(r => ({ url: r.url, title: r.title, source: r.source || 'prehrajto', dub: !!r.dub, res: r.res || null }))
+}
+
+// Direct (non-TMDB) searches: work out the film / episode from the upload's
+// name so progress, Continue Watching and online subtitles still work.
+// Tries the upload's own name first, then what was typed into the search.
+async function tmdbLinkFor(names) {
+  for (const n of names) {
+    const link = n ? await tmdbLinkOne(n) : null
+    if (link) return link
+  }
+  return null
+}
+
+async function tmdbLinkOne(uploadTitle) {
+  const R = window.FilmBoxRelevance
+  const parsed = R.parseReleaseName(uploadTitle)
+  if (!parsed.name) return null
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null
+  const timer = setTimeout(() => ctl && ctl.abort(), 3000)   // never hold up playback for long
+  try {
+    const res = await fetch(`/tmdb/search?q=${encodeURIComponent(parsed.name)}`, ctl ? { signal: ctl.signal } : undefined)
+    if (!res.ok) return null
+    const m = R.pickTmdbMatch(parsed, (await res.json()).results)
+    if (!m) return null
+    if (typeof rememberMovies === 'function') rememberMovies([m])
+    const tv = m.media_type === 'tv'
+    const episode = tv && parsed.season != null ? { season: parsed.season, number: parsed.episode } : null
+    const label = episode ? ' S' + String(episode.season).padStart(2, '0') + 'E' + String(episode.number).padStart(2, '0') : ''
+    return { title: (m.title || m.name) + label, tmdbId: m.id, mediaType: tv ? 'tv' : 'movie', posterPath: m.poster_path || null, episode }
+  } catch (e) {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 async function playSource(url) {
   const seq = ++_prehrajSeq
-  const ctx = _prehrajCtx
+  const picked = _prehrajAll.find(r => r.url === url) || {}
+  const linking = _prehrajCtx.tmdbId ? null : tmdbLinkFor([picked.title, prehrajQuery.value.trim() || _prehrajCtx.title])
+  let ctx = _prehrajCtx
   prehrajModalSubtitle.textContent = 'Připravuji přehrávání…'
   prehrajFilters.innerHTML = ''
   prehrajModalContent.innerHTML = `
@@ -240,14 +288,22 @@ async function playSource(url) {
     const source = await res.json()
     if (seq !== _prehrajSeq) return
     if (!source.qualities || !source.qualities.length) throw new Error('Nepodařilo se získat odkaz na video')
+    if (linking) {
+      const link = await linking
+      if (seq !== _prehrajSeq) return
+      if (link) ctx = Object.assign({}, ctx, link)
+    }
     const ep = ctx.episode
     const episodeLabel = ep
       ? 'S' + String(ep.season).padStart(2, '0') + 'E' + String(ep.number).padStart(2, '0')
       : null
     const progressKey = (ctx.tmdbId && episodeLabel) ? `${ctx.tmdbId}:${episodeLabel}` : (ctx.tmdbId != null ? String(ctx.tmdbId) : null)
+    const chosen = picked
     sessionStorage.setItem('filmbox_player', JSON.stringify({
       title:      ctx.title,
       source,
+      sourceSite: chosen.source || 'prehrajto',
+      alternatives: backupSources(url),
       tmdbId:     ctx.tmdbId,
       mediaType:  ctx.mediaType,
       posterPath: ctx.posterPath,

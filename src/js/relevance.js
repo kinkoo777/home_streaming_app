@@ -63,7 +63,74 @@
     return list
   }
 
-  const api = { titleWords, durationSeconds, hasEpisodeCode, filterSources }
+  // ── Upload name → { name, year, season, episode } ──
+  // "Matrix Revolutions [2003] akční, sci-fi AAC 5.1 1080p CZ dabing" → { name: "Matrix Revolutions", year: 2003 }
+  // "Stranger Things S01E03 CZ" → { name: "Stranger Things", season: 1, episode: 3 }
+  const RELEASE_JUNK = /^(cz|sk|en|eng|cze|czech|dabing|dab|czdab|czdabing|titulky|tit|subs?|1080p|720p|480p|2160p|4k|uhd|hd|fhd|fullhd|hdr|sdr|mkv|avi|mp4|m4v|bluray|bdrip|brrip|webrip|web|webdl|dvdrip|hdtv|x264|x265|h264|h265|hevc|avc|aac|ac3|dts|remastered|extended|uncut|rip|ewp)$/i
+
+  function parseReleaseName(raw) {
+    let t = String(raw || '').replace(/\.(mkv|avi|mp4|m4v|wmv)$/i, '')
+    t = t.replace(/[._]+/g, ' ').replace(/\s+-\s+|-/g, ' ').replace(/\s+/g, ' ').trim()
+    const out = { name: '', year: null, season: null, episode: null }
+    let cut = t.length
+
+    const ep = t.match(/\bs(\d{1,2})\s*e(\d{1,3})\b/i) || t.match(/\b(\d{1,2})x(\d{2,3})\b/)
+    if (ep) { out.season = +ep[1]; out.episode = +ep[2]; cut = Math.min(cut, ep.index) }
+
+    // A year after at least one word ("2012" alone is a title, not a year).
+    const yr = /(?:^|[\s(\[])((?:19|20)\d{2})(?=$|[\s)\]])/g
+    let m
+    while ((m = yr.exec(t))) {
+      const at = m.index + m[0].indexOf(m[1])
+      if (at === 0) continue
+      out.year = +m[1]
+      cut = Math.min(cut, at)
+      break
+    }
+
+    const words = t.slice(0, cut).replace(/[()[\]{}]/g, ' ').split(/\s+/).filter(Boolean)
+    const keep = []
+    for (const w of words) {
+      if (RELEASE_JUNK.test(w.replace(/[^\w]/g, '')) || /^\d+(\.\d+)?(gb|mb)$/i.test(w)) break
+      keep.push(w)
+    }
+    out.name = keep.join(' ').replace(/[,:;–-]+$/, '').trim()
+    return out
+  }
+
+  const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
+
+  // Best TMDB /search/multi hit for a parsed upload name, or null when nothing is
+  // convincing (a wrong link would mix up watch progress, so be strict).
+  function pickTmdbMatch(parsed, results) {
+    if (!parsed || !parsed.name || !Array.isArray(results)) return null
+    const wantTv = parsed.season != null
+    const name = norm(parsed.name)
+    let best = null, bestScore = 0
+    results.forEach((r, i) => {
+      if (!r || (r.media_type !== 'movie' && r.media_type !== 'tv')) return
+      if (wantTv && r.media_type !== 'tv') return
+      const titles = [r.title, r.name, r.original_title, r.original_name].filter(Boolean).map(norm)
+      const y = parseInt((r.release_date || r.first_air_date || '').slice(0, 4), 10)
+      const exact = titles.some(x => x === name)
+      const nameWords = name.split(' ')
+      const prefix = titles.some(x => x && (name.indexOf(x) === 0 || x.indexOf(name) === 0 ||
+        (nameWords.length >= 2 && nameWords.every(w => (' ' + x + ' ').indexOf(' ' + w + ' ') >= 0))))
+      const yearOk = parsed.year && y && Math.abs(y - parsed.year) <= 1
+      let score = 0
+      if (exact) score += 50
+      else if (prefix) score += 20
+      else return
+      if (yearOk) score += 40
+      else if (parsed.year && y) score -= 30        // a different year → a different film
+      if (wantTv) score += 10
+      score -= i * 2                                 // TMDB's own ranking breaks ties
+      if (score > bestScore) { bestScore = score; best = r }
+    })
+    return bestScore >= 45 ? best : null
+  }
+
+  const api = { titleWords, durationSeconds, hasEpisodeCode, filterSources, parseReleaseName, pickTmdbMatch }
   if (typeof module !== 'undefined' && module.exports) module.exports = api
   else root.FilmBoxRelevance = api
 })(typeof window !== 'undefined' ? window : this)

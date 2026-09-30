@@ -1,7 +1,7 @@
 // Unit tests for src/js/relevance.js — the "only real films / episodes" filter.
 const test = require('node:test');
 const assert = require('node:assert');
-const { filterSources, titleWords, durationSeconds, hasEpisodeCode } = require('../src/js/relevance');
+const { filterSources, titleWords, durationSeconds, hasEpisodeCode, parseReleaseName, pickTmdbMatch } = require('../src/js/relevance');
 
 const r = (title, duration) => ({ title, duration, url: title });
 const titles = list => list.map(x => x.title);
@@ -61,4 +61,32 @@ test('hasEpisodeCode matches S02E03 / S2E3 / S02 E03 / 2x03 but not other episod
 test('no names → nothing filtered', () => {
     const all = [r('anything', '00:01:00')];
     assert.strictEqual(filterSources(all, { names: [] }).length, 1);
+});
+
+test('parseReleaseName pulls the title, year and episode out of upload names', () => {
+    const p = t => { const r = parseReleaseName(t); return [r.name, r.year, r.season, r.episode]; };
+    assert.deepStrictEqual(p('Matrix Revolutions [2003] akční, sci-fi AAC 5.1 1080p CZ dabing'), ['Matrix Revolutions', 2003, null, null]);
+    assert.deepStrictEqual(p('Rychle a zbesile 8 CZ titulky v obraze 2017 The Fate of the Furious'), ['Rychle a zbesile 8', 2017, null, null]);
+    assert.deepStrictEqual(p('Interstellar.2014.1080p.BluRay.x264'), ['Interstellar', 2014, null, null]);
+    assert.deepStrictEqual(p('Pán prstenů - Společenstvo Prstenu mkv'), ['Pán prstenů Společenstvo Prstenu', null, null, null]);
+    assert.deepStrictEqual(p('Stranger Things S01E03 CZ dabing'), ['Stranger Things', null, 1, 3]);
+    assert.deepStrictEqual(p('Hra o trůny 2x05 CZ'), ['Hra o trůny', null, 2, 5]);
+    assert.deepStrictEqual(p('2012 (2009) CZ dabing'), ['2012', 2009, null, null]);   // leading number is the title
+});
+
+test('pickTmdbMatch links only convincing matches', () => {
+    const results = [
+        { id: 603, media_type: 'movie', title: 'Matrix', original_title: 'The Matrix', release_date: '1999-03-30' },
+        { id: 605, media_type: 'movie', title: 'Matrix Revolutions', release_date: '2003-11-05' },
+        { id: 1893, media_type: 'movie', title: 'Star Wars: Epizoda I – Skrytá hrozba', release_date: '1999-05-19' },
+        { id: 66732, media_type: 'tv', name: 'Stranger Things', first_air_date: '2016-07-15' },
+        { id: 7, media_type: 'person', name: 'Matrix' }
+    ];
+    const id = t => (pickTmdbMatch(parseReleaseName(t), results) || {}).id || null;
+    assert.strictEqual(id('Matrix 1 (1999) CZ dabing mkv'), 603);
+    assert.strictEqual(id('Matrix Revolutions [2003] 1080p'), 605);
+    assert.strictEqual(id('Star Wars Skryta hrozba 1999 mkv'), 1893);        // Czech title with extra words
+    assert.strictEqual(id('Stranger Things S01E03'), 66732);                   // episode → TV show only
+    assert.strictEqual(id('Matrix (2010) fan film'), null);                   // wrong year → no link
+    assert.strictEqual(id('Minecraft gameplay part 3'), null);
 });
