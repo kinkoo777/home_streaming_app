@@ -17,7 +17,7 @@
   padding: 44px var(--gutter) 28px;
 }
 .footer-brand { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; margin: 0 30px 20px 0; }
-.footer-brand .brand-mark { margin-right: 14px; width: 44px; height: 44px; font-size: 22px; border-radius: 13px; }
+.footer-brand .brand-mark { margin-right: 14px; width: 48px; height: 48px; }
 .footer-brand h4 { color: var(--text); font-size: 18px; font-weight: 800; }
 .footer-brand p { margin-top: 3px; }
 .footer-links { display: -webkit-flex; display: flex; }

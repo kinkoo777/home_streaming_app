@@ -16,14 +16,10 @@
 .intro-stage { position: relative; text-align: center; }
 
 .intro-mark {
-  width: 110px;
-  height: 110px;
+  width: 124px;
+  height: 124px;
   margin: 0 auto 28px;
-  border-radius: 30px;
-  background: var(--accent-grad);
-  color: #fff;
-  font-size: 62px;
-  font-weight: 900;
+  border-radius: 24%;                 /* matches the logo's corner radius (for the glow ring) */
   display: -webkit-flex;
   display: flex;
   -webkit-align-items: center;
@@ -62,6 +58,7 @@
   to   { opacity: 1; transform: none; filter: blur(0); }
 }
 .intro-mark { position: relative; overflow: hidden; }
+.intro-mark img { width: 100%; height: 100%; display: block; }
 .intro-mark::after {
   content: '';
   position: absolute;
@@ -112,7 +109,7 @@
   color: rgba(255,255,255,0.8);
   margin-bottom: 26px;
 }
-.chooser-brand .brand-mark { margin-right: 10px; width: 32px; height: 32px; font-size: 17px; border-radius: 10px; }
+.chooser-brand .brand-mark { margin-right: 10px; width: 34px; height: 34px; }
 #profile-chooser h1 {
   font-size: 48px;
   font-weight: 800;

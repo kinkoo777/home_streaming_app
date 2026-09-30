@@ -6,7 +6,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#07070a" />
   <title>FilmBox</title>
-  <link rel="icon" type="image/x-icon" href="image.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
 
   <link rel="preconnect" href="https://image.tmdb.org" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
@@ -31,7 +34,7 @@
   <!-- ── Intro ── -->
   <div id="intro-screen" aria-hidden="true">
     <div class="intro-stage">
-      <div class="intro-mark"><span>F</span></div>
+      <div class="intro-mark"><img src="icons/icon-192.png" alt=""></div>
       <div class="intro-word">
         <span>F</span><span>I</span><span>L</span><span>M</span><span class="accent">B</span><span class="accent">O</span><span class="accent">X</span>
       </div>
@@ -41,7 +44,7 @@
   <!-- ── Profile chooser ── -->
   <div id="profile-chooser" class="hidden" style="opacity:0">
     <div class="profile-chooser-inner">
-      <div class="chooser-brand"><span class="brand-mark">F</span> FilmBox</div>
+      <div class="chooser-brand"><img class="brand-mark" src="icons/icon-96.png" alt=""> FilmBox</div>
       <h1>Kdo se dívá?</h1>
       <div id="profile-grid" class="profile-grid"></div>
       <button id="add-profile-btn" class="btn btn-ghost profile-add-btn">
@@ -71,7 +74,7 @@
   <header class="navbar" id="navbar">
     <div class="navbar-content">
       <a href="#" class="brand" id="nav-brand" aria-label="FilmBox — domů">
-        <span class="brand-mark">F</span>
+        <img class="brand-mark" src="icons/icon-96.png" alt="">
         <span class="brand-word">Film<b>Box</b></span>
       </a>
 
@@ -278,7 +281,7 @@
   <footer class="site-footer">
     <div class="footer-inner">
       <div class="footer-brand">
-        <span class="brand-mark">F</span>
+        <img class="brand-mark" src="icons/icon-96.png" alt="">
         <div>
           <h4>FilmBox</h4>
           <p>Streamovací platforma pro váš domov</p>
