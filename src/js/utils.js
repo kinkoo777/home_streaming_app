@@ -35,6 +35,14 @@ function _flushClientLog() {
   } catch (e) {}
 }
 window.clientLog = clientLog
+// Script errors on the TV (older engines choke on newer syntax) → log them too.
+window.addEventListener('error', function (e) {
+  clientLog('js-error', { msg: String(e.message).slice(0, 200), src: String(e.filename || '').split('/').pop(), line: e.lineno, col: e.colno })
+})
+window.addEventListener('unhandledrejection', function (e) {
+  const r = e.reason
+  clientLog('promise-error', { msg: String(r && (r.message || r)).slice(0, 200) })
+})
 
 function lsGet(key, fallback) {
   try { const v = localStorage.getItem(key); return v === null ? fallback : v } catch (e) { return fallback }

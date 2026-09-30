@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <title>FilmBox</title>
+  <!-- LG "hosted web app": this launcher only opens FilmBox from the home server.
+       Installed apps get every remote key (arrows, OK, Back), unlike the TV browser. -->
+  <style>
+    html, body { margin: 0; height: 100%; background: #07070a; color: #a1a1aa;
+      font: 28px/1.4 sans-serif; display: flex; align-items: center; justify-content: center; }
+  </style>
+</head>
+<body>
+  <p id="msg">Připojuji k FilmBoxu…</p>
+  <script>
+    // Home server address on the local network (change if the Pi gets a new IP).
+    var SERVER = 'http://192.168.0.186:3000/'
+    location.replace(SERVER + '?tv=1')
+    setTimeout(function () {
+      document.getElementById('msg').textContent = 'FilmBox server (' + SERVER + ') neodpovídá — je Raspberry Pi zapnuté?'
+    }, 8000)
+  </script>
+</body>
+</html>

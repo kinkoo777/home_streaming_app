@@ -9,3 +9,6 @@ data/
 
 # "What's new" video (~65 MB) — kept out of git, see README
 src/media/*.mp4
+
+# Built LG webOS package
+*.ipk
