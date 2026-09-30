@@ -911,6 +911,12 @@ app.delete('/api/profiles/:id/data', (req, res) => {
 // ====================
 // START SERVER
 // ====================
-app.listen(PORT, '0.0.0.0', () => {
+// Express 5 hands listen errors (e.g. port already in use) to this callback;
+// exit non-zero so systemd / the terminal shows the failure instead of a silent exit.
+app.listen(PORT, '0.0.0.0', err => {
+    if (err) {
+        console.error(`Server nelze spustit na portu ${PORT}: ${err.message}`);
+        process.exit(1);
+    }
     console.log(`Server běží na portu ${PORT}`);
 });
