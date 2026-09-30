@@ -10,10 +10,13 @@
   const SRC = 'media/whats-new.mp4'
 
   const $ = id => document.getElementById(id)
+  const log = (ev, data) => { if (window.clientLog) window.clientLog('whatsnew.' + ev, data) }
+  const FORCE = /[?&]whatsnew\b/.test(location.search)       // ?whatsnew → show again (testing)
   let open = false
+  let watchdog = null
 
   function hasSeen(profile) {
-    return !!(profile && profile.settings && profile.settings.seenWhatsNew === VERSION)
+    return !FORCE && !!(profile && profile.settings && profile.settings.seenWhatsNew === VERSION)
   }
 
   // The video isn't in git — only show the overlay when the file is actually there.
@@ -39,6 +42,7 @@
   function close(profile, seen) {
     if (!open) return
     open = false
+    clearTimeout(watchdog)
     const modal = $('whatsnew-modal'), video = $('whatsnew-video')
     video.pause()
     closeModal(modal)
@@ -64,18 +68,30 @@
     video.src = SRC
     openModal(modal, () => close(profile, true))
 
-    video.onended = () => close(profile, true)
-    video.onerror = () => close(profile, false)
+    const state = () => ({ t: +video.currentTime.toFixed(1), ready: video.readyState, net: video.networkState,
+      w: video.videoWidth, h: video.videoHeight, muted: video.muted, paused: video.paused, err: video.error && video.error.code })
+    video.onended = () => { log('ended', state()); close(profile, true) }
+    video.onerror = () => { log('error', state()); close(profile, false) }
+    video.onloadedmetadata = () => log('metadata', state())
+    video.onplaying = () => log('playing', state())
+    let reportedProgress = false
     video.ontimeupdate = () => {
       if (video.duration) bar.style.width = (video.currentTime / video.duration * 100) + '%'
+      if (!reportedProgress && video.currentTime > 1) { reportedProgress = true; log('progress', state()) }
     }
+    // Never leave anyone on a black screen: no real playback within 10 s → give up (not marked seen).
+    watchdog = setTimeout(() => {
+      if (open && video.currentTime < 0.5) { log('stalled', state()); close(profile, false) }
+    }, 10000)
     $('whatsnew-skip').onclick = () => close(profile, true)
     soundBtn.onclick = () => { video.muted = false; soundBtn.classList.add('hidden'); $('whatsnew-skip').focus() }
 
     // Autoplay with sound may be refused; fall back to muted with an "unmute" button.
+    log('open', { ua: navigator.userAgent })
     const p = video.play()
     if (p && p.catch) {
-      p.catch(() => {
+      p.catch(err => {
+        log('play-rejected', { name: err && err.name })
         if (!open) return
         video.muted = true
         soundBtn.classList.remove('hidden')

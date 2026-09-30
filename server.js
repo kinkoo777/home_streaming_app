@@ -265,6 +265,24 @@ app.get('/tmdb/collection', async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Client diagnostics (TV debugging): the page posts small event batches, which
+// only end up in the server log. Size- and rate-limited per IP.
+const clientLogHits = new Map();   // ip → { minute, count }
+app.post('/api/client-log', (req, res) => {
+    const ip = req.ip || '';
+    const minute = Math.floor(Date.now() / 60000);
+    const hit = clientLogHits.get(ip);
+    if (hit && hit.minute === minute && hit.count >= 30) return res.status(429).end();
+    clientLogHits.set(ip, hit && hit.minute === minute ? { minute, count: hit.count + 1 } : { minute, count: 1 });
+    const events = req.body && Array.isArray(req.body.events) ? req.body.events.slice(0, 50) : [];
+    const page = String(req.body && req.body.page || '').slice(0, 40);
+    for (const ev of events) {
+        const line = JSON.stringify({ event: String(ev && ev.event || '').slice(0, 40), t: ev && ev.t, data: ev && ev.data });
+        console.log(`[client ${ip}${page}] ${line.slice(0, 600)}`);
+    }
+    res.status(204).end();
+});
+
 app.get('/tmdb/genres', async (req, res) => {
     const type = sec.tmdbType(req.query.type);
     if (!type) return res.status(400).json({ error: 'type musí být movie nebo tv' });

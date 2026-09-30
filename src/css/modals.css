@@ -648,30 +648,29 @@ body:not(.dark) .source-tags .t-subs { color: #a16207; }
 .series-buttons > .btn { margin: 6px 0 6px 8px; }
 
 /* ═════════════ What's new video ═════════════ */
+/* Kept deliberately plain, like player.html: LG TVs draw hardware-decoded video on
+   a plane underneath the page, and opacity animations, a background on the <video>
+   or backdrop-filter above it can leave the picture black. */
 
 .whatsnew {
   position: fixed; top: 0; right: 0; bottom: 0; left: 0;
   background: #000;
-  opacity: 1;
-  -webkit-transition: opacity 0.24s ease;
-  transition: opacity 0.24s ease;
-  -webkit-animation: whatsnew-in 0.5s ease both;
-  animation: whatsnew-in 0.5s ease both;
 }
-.whatsnew.closing { opacity: 0; }
-@-webkit-keyframes whatsnew-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes whatsnew-in { from { opacity: 0; } to { opacity: 1; } }
 .whatsnew video {
   position: absolute; top: 0; left: 0;
   width: 100%; height: 100%;
   object-fit: contain;
-  background: #000;
+  display: block;
 }
 .whatsnew-actions {
   position: absolute; right: 4vw; bottom: 7vh;
   display: -webkit-flex; display: flex;
 }
-.whatsnew-actions .btn { margin-left: 12px; background: rgba(20,20,26,0.6); }
+.whatsnew-actions .btn {
+  margin-left: 12px;
+  background: rgba(20,20,26,0.85);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
 .whatsnew-actions .btn i { margin-right: 8px; }
 #whatsnew-skip i { margin: 0 0 0 8px; }
 .whatsnew-progress {

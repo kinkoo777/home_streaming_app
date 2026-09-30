@@ -2257,14 +2257,29 @@
       // ── Keyboard + TV remote ──
       // Tizen (Samsung) back = 10009, webOS (LG) back = 461.
       const isBackKey = e => e.key === 'GoBack' || e.key === 'BrowserBack' || e.keyCode === 10009 || e.keyCode === 461
-      const IS_TV = /Web0S|webOS|NetCast|SmartTV|SMART-TV|Tizen|HbbTV/i.test(navigator.userAgent) || !!window.PalmSystem
+      // Same TV detection as the main page (tv.js): user agent, or remembered once a
+      // TV-only remote key was pressed there.
+      let storedTv = null
+      try { storedTv = localStorage.getItem('filmbox_tv') } catch (e) {}
+      const IS_TV = storedTv === '1' || (storedTv !== '0' &&
+        (/Web0S|webOS|NetCast|SmartTV|SMART-TV|LG Browser|LGE|WebAppManager|Tizen|HbbTV/i.test(navigator.userAgent) || !!window.PalmSystem))
       if (IS_TV) document.body.classList.add('tv', 'kbd')
       // Remote media buttons often arrive as key "Unidentified" with these codes (webOS / Tizen).
       const MEDIA_CODES = { 415: 'MediaPlay', 19: 'MediaPause', 413: 'MediaStop', 417: 'MediaFastForward', 412: 'MediaRewind', 10252: 'MediaPlayPause', 179: 'MediaPlayPause', 176: 'MediaTrackNext' }
+      // A Magic Remote reports small movements constantly; only a deliberate pointer
+      // move leaves key mode, and once webOS cursor events arrive we trust those alone.
+      let cursorEvents = false, moveSum = 0, moveStart = 0
       document.addEventListener('mousemove', e => {
-        if (Math.abs(e.movementX || 0) + Math.abs(e.movementY || 0) > 1) document.body.classList.remove('kbd')
+        if (cursorEvents) return
+        const d = Math.abs(e.movementX || 0) + Math.abs(e.movementY || 0)
+        if (d < 2) return
+        const now = Date.now()
+        if (now - moveStart > 400) { moveStart = now; moveSum = 0 }
+        moveSum += d
+        if (moveSum >= (IS_TV ? 40 : 4)) document.body.classList.remove('kbd')
       }, { passive: true })
       document.addEventListener('cursorStateChange', e => {
+        cursorEvents = true
         if (e.detail && typeof e.detail.visibility === 'boolean') document.body.classList.toggle('kbd', !e.detail.visibility)
       })
 

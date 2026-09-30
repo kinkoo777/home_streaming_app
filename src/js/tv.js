@@ -10,28 +10,63 @@
 ;(function () {
   'use strict'
 
+  // TV detection. Newer LG browsers can report a plain desktop-Linux user agent,
+  // so besides the UA we remember a device as a TV once a TV-only remote key
+  // (colour buttons, webOS Back) is pressed. ?tv=1 / ?tv=0 forces it.
   const UA = navigator.userAgent || ''
-  const IS_TV = /Web0S|webOS|NetCast|SmartTV|SMART-TV|Tizen|HbbTV|BRAVIA|VIDAA|AFTB|AFTS|AFTM|CrKey/i.test(UA) || !!window.PalmSystem
+  const TV_UA = /Web0S|webOS|NetCast|SmartTV|SMART-TV|LG Browser|LGE|WebAppManager|Tizen|HbbTV|BRAVIA|VIDAA|AFTB|AFTS|AFTM|CrKey/i
+  const forced = (location.search.match(/[?&]tv=([01])/) || [])[1]
+  if (forced) lsSet('filmbox_tv', forced)
+  const stored = lsGet('filmbox_tv', null)
+  let IS_TV = stored === '1' || (stored !== '0' && (TV_UA.test(UA) || !!window.PalmSystem))
   window.IS_TV = IS_TV
   if (IS_TV) document.body.classList.add('tv', 'kbd')
+  clientLog('boot', { ua: UA, tv: IS_TV, stored: stored, screen: screen.width + 'x' + screen.height,
+    inner: window.innerWidth + 'x' + window.innerHeight, dpr: window.devicePixelRatio })
+
+  // Short description of an element for the diagnostics log.
+  function desc(el) {
+    if (!el || el === document.body) return 'body'
+    return el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') +
+      (el.classList && el.classList.length ? '.' + [].slice.call(el.classList, 0, 2).join('.') : '') +
+      (el.dataset && el.dataset.title ? '[' + el.dataset.title.slice(0, 30) + ']' : '')
+  }
+  let keyLogs = 0, cursorLogs = 0
 
   const KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down' }
   const BACK_CODES = [461, 10009, 27]   // webOS Back, Tizen Back, Escape
+  const TV_ONLY_KEYS = [461, 10009, 403, 404, 405, 406, 415, 19, 413, 417, 412]
 
   function setKbd(on) { document.body.classList.toggle('kbd', on) }
 
-  // Mouse / Magic Remote pointer → pointer mode. (webOS also fires
-  // cursorStateChange when the pointer appears or hides.)
-  let lastMove = 0
+  function enableTvMode() {
+    if (IS_TV) return
+    IS_TV = window.IS_TV = true
+    if (stored !== '0') lsSet('filmbox_tv', '1')
+    document.body.classList.add('tv', 'kbd')
+    addHints()
+  }
+
+  // Mouse / Magic Remote pointer → pointer mode. webOS fires cursorStateChange
+  // when its pointer appears or hides — once we've seen that, trust it alone:
+  // a Magic Remote reports small movements constantly just from being held,
+  // which used to switch key mode off right after every arrow press.
+  let cursorEvents = false
+  let moveSum = 0, moveStart = 0
   document.addEventListener('mousemove', e => {
+    if (cursorEvents) return
+    const d = Math.abs(e.movementX || 0) + Math.abs(e.movementY || 0)
     // Ignore the synthetic mousemove some browsers fire after scrolling.
-    if (Math.abs(e.movementX || 0) + Math.abs(e.movementY || 0) < 2) return
+    if (d < 2) return
     const now = Date.now()
-    if (now - lastMove < 50) return
-    lastMove = now
-    setKbd(false)
+    if (now - moveStart > 400) { moveStart = now; moveSum = 0 }
+    moveSum += d
+    // On a TV only a deliberate pointer movement counts, not hand tremor.
+    if (moveSum >= (IS_TV ? 40 : 4)) setKbd(false)
   }, { passive: true })
   document.addEventListener('cursorStateChange', e => {
+    cursorEvents = true
+    if (cursorLogs++ < 10) clientLog('cursor', { visible: e.detail && e.detail.visibility })
     if (e.detail && typeof e.detail.visibility === 'boolean') setKbd(!e.detail.visibility)
   })
 
@@ -177,6 +212,11 @@
   }
 
   document.addEventListener('keydown', e => {
+    if (keyLogs < 40) {
+      keyLogs++
+      clientLog('key', { key: e.key, code: e.keyCode, prevented: e.defaultPrevented, active: desc(document.activeElement),
+        kbd: document.body.classList.contains('kbd'), tv: IS_TV })
+    }
     if (e.defaultPrevented) return
     const intro = document.getElementById('intro-screen')
     if (intro && intro.style.display !== 'none') return
@@ -184,6 +224,7 @@
     const code = e.keyCode
     const dir = KEYS[code]
     const target = e.target
+    if (TV_ONLY_KEYS.indexOf(code) >= 0) enableTvMode()
 
     if (e.key === 'Tab') { setKbd(true); return }
 
@@ -195,7 +236,9 @@
         if ((dir === 'left' && !atStart) || (dir === 'right' && !atEnd)) return
       }
       setKbd(true)
-      if (navigate(dir)) e.preventDefault()
+      const moved = navigate(dir)
+      if (keyLogs <= 40) clientLog('nav', { dir: dir, moved: !!moved, active: desc(document.activeElement), scope: desc(scopeRoot()) })
+      if (moved) e.preventDefault()
       return
     }
 
@@ -253,7 +296,8 @@
     action()
   })
 
-  if (IS_TV) {
+  function addHints() {
+    if (document.querySelector('.tv-hints')) return
     const hints = document.createElement('div')
     hints.className = 'tv-hints'
     hints.setAttribute('aria-hidden', 'true')
@@ -263,6 +307,7 @@
       '<span><i class="key yellow"></i>Nastavení</span><span><i class="key blue"></i>Profil</span>'
     document.body.appendChild(hints)
   }
+  if (IS_TV) addHints()
 
   // Give TV users a starting focus once the page is ready.
   window.tvFocusStart = function () {
