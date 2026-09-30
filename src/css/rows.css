@@ -96,13 +96,24 @@ body:not(.dark) .row-arrow.right { background: linear-gradient(270deg, rgba(243,
 .row-arrow:hover i { transform: scale(1.3); }
 .row-arrow.off { pointer-events: none; }
 
-/* Grid (search results, actor works) */
+/* Grid (search results, actor works). Flex-wrap first for engines without CSS
+   grid (webOS 4 apps = Chromium 53), real grid where supported. */
 .card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
-  grid-gap: 26px 16px;
-  gap: 26px 16px;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-wrap: wrap;
+  flex-wrap: wrap;
   padding: 16px var(--gutter) 10px;
+}
+.card-grid > * { margin: 0 16px 26px 0; }
+@supports (display: grid) {
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-w), 1fr));
+    grid-gap: 26px 16px;
+    gap: 26px 16px;
+  }
+  .card-grid > * { margin: 0; }
 }
 
 /* ═════════════ MOVIE CARD ═════════════ */

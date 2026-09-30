@@ -765,7 +765,31 @@
       .no-flexgap .seek-row > * + * { margin-left: 14px; }
       .no-flexgap .controls-left > * + *, .no-flexgap .controls-right > * + * { margin-left: 10px; }
       .no-flexgap .volume-wrap > * + * { margin-left: 6px; }
+    
+      /* Old TV engines (webOS 4–6 = Chromium 53–79) ignore flex `gap`; fall back to margins.
+         `inset` arrived right after flex gap, so it's a good test for "old engine". */
+      @supports not (inset: 0) {
+        #loading-screen > * + * { margin-top: 18px; }
+        #error-screen > * + * { margin-top: 18px; }
+        .player-topbar > * + * { margin-left: 20px; }
+        #player-back > * + * { margin-left: 8px; }
+        .settings-panel h4 > * + * { margin-left: 8px; }
+        .settings-item > * + * { margin-left: 16px; }
+        .settings-item .val > * + * { margin-left: 4px; }
+        .error-actions > * + * { margin-left: 10px; }
+        .seek-row > * + * { margin-left: 14px; }
+        #speed-indicator > * + * { margin-left: 8px; }
+        #shortcuts-help h3 > * + * { margin-left: 8px; }
+        .controls-left > * + * { margin-left: 10px; }
+        .controls-right > * + * { margin-left: 10px; }
+        .volume-wrap > * + * { margin-left: 6px; }
+        .resume-actions > * + * { margin-left: 12px; }
+        .next-ep-actions > * + * { margin-left: 12px; }
+        .resume-yes > * + * { margin-left: 6px; }
+        .next-ep-yes > * + * { margin-left: 6px; }
+      }
     </style>
+    <script src="js/compat.js"></script>
     <script>
       // Flex-gap feature test (absent before Chromium 84, e.g. LG webOS 5/6).
       (function () {

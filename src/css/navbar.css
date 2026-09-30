@@ -230,7 +230,7 @@ body:not(.dark) .navbar.scrolled .profile-chip { color: var(--text); background:
 .search-mode button i { margin-right: 5px; font-size: 13px; }
 .search-mode button:hover { color: #fff; }
 .search-mode button.active { background: #fff; color: #111; }
-.search-mode button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+body.kbd .search-mode button:focus { outline: 2px solid var(--accent); outline-offset: 1px; }   /* :focus-visible voids the rule on old engines */
 
 body:not(.dark) .navbar.scrolled .search-bar { background: var(--glass); border-color: var(--line-2); }
 body:not(.dark) .navbar.scrolled .search-bar:focus-within { background: #fff; }
@@ -337,7 +337,8 @@ body:not(.dark) .navbar.scrolled .search-mode button.active { background: var(--
   padding: 4px 8px; border-radius: 8px;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
-.search-clear:hover, .search-clear:focus-visible { color: #fff; background: rgba(255,255,255,0.08); outline: none; }
+.search-clear:hover { color: #fff; background: rgba(255,255,255,0.08); outline: none; }
+body.kbd .search-clear:focus { color: #fff; background: rgba(255,255,255,0.08); outline: none; }
 .search-recent { padding: 6px 6px 6px 8px; }
 .search-recent .recent-icon {
   display: -webkit-inline-flex; display: inline-flex;
