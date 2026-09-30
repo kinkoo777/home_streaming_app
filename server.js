@@ -17,7 +17,7 @@ function getSystemChromium() {
   }
   return undefined
 }
-const { fetchVideoPage, getMp4Info, handleStream, isAllowedCdnUrl, cleanTrackLabel } = require('./stream');
+const { fetchVideoPage, fetchFastsharePage, fetchSledujtetoPage, getMp4Info, handleStream, isAllowedCdnUrl, cleanTrackLabel } = require('./stream');
 const sec = require('./security');
 const subtitles = require('./subtitles');
 const { srtToVtt } = subtitles;
@@ -348,28 +348,193 @@ async function searchPrehrajto(q) {
             format: text(w, '.video__tag--format'),
             res: res ? parseInt(res, 10) : null,
             dub: /cz\s*dab|dabing|czdab/i.test(title),
-            subs: /titulky|cz\s*tit|\btit\b/i.test(title)
+            subs: /titulky|cz\s*tit|\btit\b/i.test(title),
+            source: 'prehrajto'
         };
     }).filter(r => r && r.url && isAllowedVideoUrl(r.url));
+}
+
+// fastshare.cloud loads results over AJAX (test2.php, base64 term) and returns
+// an empty list to non-browser User-Agents.
+async function searchFastshare(q) {
+    const term = Buffer.from(q, 'utf8').toString('base64');
+    const params = new URLSearchParams({
+        u: '', term, search_purpose: '0', search_resolution: '0', plain_search: '0',
+        limit: '1', order: '', type: 'video', step: '4', view: 'cz'
+    });
+    const response = await fetch(`https://fastshare.cloud/test2.php?${params}`, {
+        headers: { 'User-Agent': UA, 'X-Requested-With': 'XMLHttpRequest', Referer: 'https://fastshare.cloud/' },
+        signal: AbortSignal.timeout(15000)
+    });
+    if (!response.ok) throw new Error('FastShare neodpovědělo');
+
+    const doc = new JSDOM(await response.text()).window.document;
+    const items = [...doc.querySelectorAll('li.search_item')];
+    makeAbsolute(items, 'https://fastshare.cloud');
+    const text = el => el ? el.textContent.replace(/\s+/g, ' ').trim() : null;
+    // jsdom's querySelector() misses descendant matches on every item after the
+    // first in this markup; querySelectorAll() finds them reliably.
+    const one = (root, sel) => root.querySelectorAll(sel)[0] || null;
+
+    return items.map(li => {
+        const url = li.getAttribute('data-file-url') || one(li, '.video_detail a[href]')?.getAttribute('href');
+        if (!url) return null;
+        // Fallback: ".../11331345/matrix-1-1999-cz-dabing.mkv" → "matrix 1 1999 cz dabing mkv"
+        const title = text(one(li, '.video_detail p a'))
+            || decodeURIComponent(url.split('/').pop() || '').replace(/[-_.]+/g, ' ').trim();
+        const thumb = one(li, 'img.videoThumbnail');
+        const times = [...li.querySelectorAll('.vd_view .video_time')];
+        const duration = text(times.find(t => t.querySelectorAll('.fa-clock-o').length));
+        const size = text(one(li, '.vd_view .video_time.pull-right'));
+        // "1920x800" → 1080, else fall back to a "1080p" tag in the file name
+        const dims = times.map(text).map(t => t && t.match(/^(\d{3,4})x(\d{3,4})$/)).find(Boolean);
+        const w = dims ? parseInt(dims[1], 10) : 0;
+        const nameRes = (title.match(/(2160|1080|720|480)p/i) || [])[1];
+        const res = w >= 3200 ? 2160 : w >= 1600 ? 1080 : w >= 1100 ? 720 : w > 0 ? 480 : nameRes ? parseInt(nameRes, 10) : null;
+        const ext = (url.match(/\.([a-z0-9]{2,4})(?:$|\?)/i) || [])[1];
+        return {
+            title,
+            url,
+            thumb: thumb ? thumb.getAttribute('src') : null,
+            duration,
+            size,
+            format: ext ? ext.toUpperCase() : null,
+            res,
+            dub: /cz\s*dab|dabing|czdab/i.test(title),
+            subs: /titulky|cz\s*tit|\btit\b/i.test(title),
+            source: 'fastshare'
+        };
+    }).filter(r => r && r.url && isAllowedVideoUrl(r.url));
+}
+
+// sledujteto.cz has a JSON search API (the page itself is an empty Vue shell).
+async function searchSledujteto(q) {
+    const response = await fetch(`https://www.sledujteto.cz/api/web/videos?${new URLSearchParams({ query: q, page: '1' })}`, {
+        headers: { 'User-Agent': UA, 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+        signal: AbortSignal.timeout(15000)
+    });
+    if (!response.ok) throw new Error('Sledujteto neodpovědělo');
+    const files = ((await response.json()).data || {}).files || [];
+
+    // "2h 9m 15s" → "02:09:15" (same shape as the other sources)
+    const hms = t => {
+        const m = String(t || '').match(/(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?\s*(?:(\d+)\s*s)?/i);
+        if (!m || !m[0].trim()) return null;
+        return [m[1], m[2], m[3]].map(n => String(+n || 0).padStart(2, '0')).join(':');
+    };
+
+    return files.filter(f => f && !f.is_nsfw && f.is_processed !== false).map(f => {
+        const title = String(f.name || f.filename || '').trim();
+        const w = parseInt(String(f.movie_resolution || f.resolution || '').split('*')[0], 10) || 0;
+        const nameRes = (title.match(/(2160|1080|720|480)p/i) || [])[1];
+        const res = w >= 3200 ? 2160 : w >= 1600 ? 1080 : w >= 1100 ? 720 : w > 0 ? 480 : nameRes ? parseInt(nameRes, 10) : null;
+        return {
+            title,
+            url: f.full_url || (f.url ? 'https://www.sledujteto.cz' + f.url : null),
+            thumb: f.preview || null,
+            duration: hms(f.movie_duration || f.duration),
+            size: f.filesize || null,
+            format: f.movie_codec ? String(f.movie_codec).toUpperCase() : null,
+            res,
+            dub: /cz\s*dab|dabing|czdab/i.test(title),
+            subs: /titulky|cz\s*tit|\btit\b/i.test(title),
+            source: 'sledujteto'
+        };
+    }).filter(r => r.url && isAllowedVideoUrl(r.url));
+}
+
+const SEARCHERS = { prehrajto: searchPrehrajto, fastshare: searchFastshare, sledujteto: searchSledujteto };
+
+// ?sources=prehrajto,fastshare → only those sites; missing/empty → all of them.
+function pickSources(raw) {
+    const list = typeof raw === 'string' ? raw.split(',').map(s => s.trim()).filter(s => SEARCHERS[s]) : [];
+    return list.length ? [...new Set(list)] : Object.keys(SEARCHERS);
 }
 
 app.get('/search', async (req, res) => {
     const q = req.query.q;
     if (!q) return res.status(400).json({ error: 'Chybí query parameter "q"' });
     if (typeof q !== 'string' || q.length > 200) return res.status(400).json({ error: 'Neplatný dotaz' });
+    const sources = pickSources(req.query.sources);
+    const norm = q.toLowerCase().trim();
 
-    const cacheKey = 'search2:' + q.toLowerCase().trim();   // v2 = structured results
-    const cached = getCache(cacheKey);
-    if (cached) return res.json(cached);
+    // Cached per site, so toggling a source on/off doesn't refetch the others.
+    const settled = await Promise.allSettled(sources.map(async name => {
+        const key = `search5:${name}:${norm}`;
+        const cached = getCache(key);
+        if (cached) return cached;
+        const results = await SEARCHERS[name](q);
+        setCache(key, results);
+        return results;
+    }));
+    // One site being down shouldn't hide the others' results.
+    const failed = settled.filter(s => s.status === 'rejected');
+    failed.forEach(f => console.error('SEARCH ERROR:', f.reason && f.reason.message));
+    if (failed.length === settled.length) return res.status(500).json({ error: failed[0].reason.message });
+    res.json(settled.flatMap(s => s.status === 'fulfilled' ? s.value : []));
+});
 
-    try {
-        const results = await searchPrehrajto(q);
-        setCache(cacheKey, results);
-        res.json(results);
-    } catch (err) {
-        console.error('SEARCH ERROR:', err);
-        res.status(500).json({ error: err.message });
+// ── Search suggestions (each site's own "našeptávač") ──
+
+const SUGGESTERS = {
+    prehrajto: async q => {
+        const r = await fetch(`https://prehrajto.cz/api/v1/public/suggest/${encodeURIComponent(q)}`, {
+            headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(4000)
+        });
+        return ((await r.json()).items || []).map(i => i && i.name);
+    },
+    fastshare: async q => {
+        const r = await fetch(`https://fastshare.cloud/search.php?${new URLSearchParams({ term: q })}`, {
+            headers: { 'User-Agent': UA, 'X-Requested-With': 'XMLHttpRequest' }, signal: AbortSignal.timeout(4000)
+        });
+        const list = await r.json();
+        return Array.isArray(list) ? list.map(i => typeof i === 'string' ? i : i && (i.value || i.label)) : [];
+    },
+    sledujteto: async q => {
+        const r = await fetch(`https://www.sledujteto.cz/api/web/search/suggestions?${new URLSearchParams({ query: q })}`, {
+            headers: { 'User-Agent': UA, 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' }, signal: AbortSignal.timeout(4000)
+        });
+        const terms = ((await r.json()).data || {}).terms || [];
+        return Array.isArray(terms) ? terms : Object.values(terms);
     }
+};
+
+// Short-lived and in-memory only — suggestions would bloat the persisted cache.
+const suggestCache = new Map();
+async function cachedSuggest(name, q) {
+    const key = name + ':' + q;
+    const hit = suggestCache.get(key);
+    if (hit && Date.now() - hit.ts < 10 * 60 * 1000) return hit.data;
+    const data = (await SUGGESTERS[name](q)).filter(t => typeof t === 'string' && t.trim()).map(t => t.trim());
+    suggestCache.set(key, { data, ts: Date.now() });
+    if (suggestCache.size > 500) suggestCache.delete(suggestCache.keys().next().value);
+    return data;
+}
+
+// → [{ term, sources: ['fastshare', …] }], interleaved by each site's own ranking.
+app.get('/suggest', async (req, res) => {
+    const q = typeof req.query.q === 'string' ? req.query.q.trim().toLowerCase() : '';
+    if (q.length < 2 || q.length > 100) return res.json([]);
+    const sources = pickSources(req.query.sources);
+    const lists = await Promise.all(sources.map(name => cachedSuggest(name, q).catch(err => {
+        console.error('SUGGEST ERROR:', name, err.message);
+        return [];
+    })));
+
+    const key = t => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ');
+    const merged = new Map();
+    const longest = Math.max(0, ...lists.map(l => l.length));
+    for (let i = 0; i < longest; i++) {
+        lists.forEach((list, s) => {
+            const term = list[i];
+            if (!term) return;
+            const k = key(term);
+            if (!merged.has(k)) merged.set(k, { term, sources: [] });
+            const entry = merged.get(k);
+            if (!entry.sources.includes(sources[s])) entry.sources.push(sources[s]);
+        });
+    }
+    res.json([...merged.values()].slice(0, 10));
 });
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/117.0.0.0 Safari/537.36';
@@ -449,16 +614,30 @@ async function getVideoPrehrajto(url) {
     });
 }
 
-// Only allow scraping prehraj.to hosts — prevents SSRF via attacker-supplied url
-function isAllowedVideoUrl(raw) {
+function hostOf(raw) {
     try {
         const u = new URL(raw);
-        if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
-        const host = u.hostname.toLowerCase();
-        return host === 'prehrajto.cz' || host.endsWith('.prehrajto.cz');
+        return (u.protocol === 'https:' || u.protocol === 'http:') ? u.hostname.toLowerCase() : null;
     } catch {
-        return false;
+        return null;
     }
+}
+
+function isFastshareUrl(raw) {
+    const host = hostOf(raw);
+    return !!host && (host === 'fastshare.cloud' || host === 'www.fastshare.cloud');
+}
+
+function isSledujtetoUrl(raw) {
+    const host = hostOf(raw);
+    return !!host && (host === 'sledujteto.cz' || host === 'www.sledujteto.cz');
+}
+
+// Only allow scraping prehraj.to / fastshare / sledujteto hosts — prevents SSRF via attacker-supplied url
+function isAllowedVideoUrl(raw) {
+    const host = hostOf(raw);
+    if (!host) return false;
+    return host === 'prehrajto.cz' || host.endsWith('.prehrajto.cz') || isFastshareUrl(raw) || isSledujtetoUrl(raw);
 }
 
 
@@ -503,15 +682,23 @@ app.get('/get_video', async (req, res) => {
     try {
         console.log(`Fetching video from: ${url}`);
         let video = null;
-        // Fast path: sources are listed in the page's inline script.
-        try {
-            video = await fetchVideoPage(url);
-            if (!video.qualities.length) video = null;
-        } catch (err) {
-            console.error('Page extraction failed, falling back to browser:', err.message);
-        }
-        if (!video) {
-            video = await getVideoViaBrowser(url);
+        if (isFastshareUrl(url)) {
+            // Free stream is a plain <video><source> on the file page.
+            video = await fetchFastsharePage(url);
+        } else if (isSledujtetoUrl(url)) {
+            // Stream link is issued per play via services/add-file-link.
+            video = await fetchSledujtetoPage(url);
+        } else {
+            // Fast path: sources are listed in the page's inline script.
+            try {
+                video = await fetchVideoPage(url);
+                if (!video.qualities.length) video = null;
+            } catch (err) {
+                console.error('Page extraction failed, falling back to browser:', err.message);
+            }
+            if (!video) {
+                video = await getVideoViaBrowser(url);
+            }
         }
         if (!video.qualities.length) throw new Error('Nepodařilo se získat odkaz na video');
 

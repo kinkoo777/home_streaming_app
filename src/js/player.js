@@ -1,4 +1,4 @@
-// ================= SOURCE PICKER (prehraj.to) =================
+// ================= SOURCE PICKER (prehraj.to + fastshare.cloud + sledujteto.cz) =================
 
 const prehrajModal         = document.getElementById('prehraj-modal')
 const prehrajModalTitle    = document.getElementById('prehraj-modal-title')
@@ -6,6 +6,8 @@ const prehrajModalSubtitle = document.getElementById('prehraj-modal-subtitle')
 const prehrajModalContent  = document.getElementById('prehraj-modal-content')
 const prehrajQuery         = document.getElementById('prehraj-query')
 const prehrajFilters       = document.getElementById('prehraj-filters')
+const prehrajSites         = document.getElementById('prehraj-sites')
+const prehrajSuggest       = document.getElementById('prehraj-suggest')
 
 let _prehrajCtx = { title: '', baseTitle: '', tmdbId: null, mediaType: null, posterPath: null, episode: null }
 let _prehrajResults = []     // what's shown (relevant only, unless "show all")
@@ -16,6 +18,7 @@ let _prehrajSeq = 0          // ignore responses from superseded searches
 
 function closePrehrajModal() {
   _prehrajSeq++
+  closeSuggest()
   closeModal(prehrajModal)
 }
 
@@ -29,6 +32,49 @@ const FILTERS = [
 ]
 
 // Czech household defaults: dubbed first, then quality, then subtitles.
+const SOURCE_NAMES = { prehrajto: 'prehraj.to', fastshare: 'FastShare', sledujteto: 'Sledujteto' }
+const SOURCE_KEYS = Object.keys(SOURCE_NAMES)
+
+// ── Which sites to search (remembered per browser, shared with player.html) ──
+function loadSites() {
+  try {
+    const list = JSON.parse(lsGet('filmbox_sources', 'null'))
+    const valid = Array.isArray(list) ? list.filter(k => SOURCE_KEYS.indexOf(k) >= 0) : []
+    return valid.length ? valid : SOURCE_KEYS.slice()
+  } catch (e) { return SOURCE_KEYS.slice() }
+}
+let _sites = loadSites()
+
+function sitesParam() {
+  return _sites.length === SOURCE_KEYS.length ? '' : '&sources=' + encodeURIComponent(_sites.join(','))
+}
+
+function sitesLabel() {
+  return _sites.map(k => SOURCE_NAMES[k]).join(', ').replace(/, ([^,]*)$/, ' a $1')
+}
+
+function renderSites() {
+  prehrajSites.innerHTML = '<span class="sites-label">Hledat na:</span>' + SOURCE_KEYS.map(k => {
+    const on = _sites.indexOf(k) >= 0
+    return `<button class="chip${on ? ' active' : ''}" data-site="${k}" aria-pressed="${on}"><i class="bi ${on ? 'bi-check-lg' : 'bi-plus-lg'}"></i>${SOURCE_NAMES[k]}</button>`
+  }).join('')
+}
+
+prehrajSites.addEventListener('click', e => {
+  const chip = e.target.closest('[data-site]')
+  if (!chip) return
+  const k = chip.dataset.site
+  const on = _sites.indexOf(k) >= 0
+  if (on && _sites.length === 1) return             // keep at least one site
+  _sites = on ? _sites.filter(x => x !== k) : SOURCE_KEYS.filter(x => x === k || _sites.indexOf(x) >= 0)
+  lsSet('filmbox_sources', JSON.stringify(_sites))
+  renderSites()
+  const btn = prehrajSites.querySelector(`[data-site="${k}"]`)
+  if (btn && document.body.classList.contains('kbd')) btn.focus()
+  const q = prehrajQuery.value.trim() || _prehrajCtx.title
+  if (q) runSourceSearch(q)
+})
+
 function sourceScore(r) {
   return (r.dub ? 30 : 0) + (r.res === 1080 ? 12 : r.res === 2160 ? 10 : r.res === 720 ? 6 : 0) + (r.subs ? 3 : 0)
 }
@@ -97,6 +143,7 @@ function renderSources() {
             ${r.dub ? '<span class="t-dub"><i class="bi bi-mic-fill"></i>CZ dabing</span>' : ''}
             ${r.subs ? '<span class="t-subs"><i class="bi bi-badge-cc-fill"></i>Titulky</span>' : ''}
             ${r.size ? `<span><i class="bi bi-hdd"></i>${escapeHtml(r.size)}</span>` : ''}
+            <span class="t-src">${SOURCE_NAMES[r.source] || 'prehraj.to'}</span>
           </div>
         </div>
         <i class="bi bi-chevron-right source-go"></i>
@@ -124,6 +171,9 @@ function openPrehrajSearch(title, tmdbId, mediaType, posterPath, episode) {
   }
   prehrajModalTitle.textContent = title
   prehrajQuery.value = title
+  _sites = loadSites()                               // may have changed in another tab
+  renderSites()
+  closeSuggest()
   openModal(prehrajModal, closePrehrajModal)
   runSourceSearch(title)
 }
@@ -135,11 +185,11 @@ async function runSourceSearch(query) {
   _prehrajShowAll = false
   _prehrajFilter = 'all'
   prehrajFilters.innerHTML = ''
-  prehrajModalSubtitle.textContent = 'Hledání na prehraj.to…'
+  prehrajModalSubtitle.textContent = `Hledání na ${sitesLabel()}…`
   renderSourceSkeletons()
 
   try {
-    const response = await fetch(`/search?q=${encodeURIComponent(query)}`)
+    const response = await fetch(`/search?q=${encodeURIComponent(query)}${sitesParam()}`)
     if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || 'Server neodpověděl')
     const results = await response.json()
     if (seq !== _prehrajSeq) return
@@ -158,7 +208,7 @@ async function runSourceSearch(query) {
     }
 
     prehrajModalSubtitle.textContent = relevant.length
-      ? `${relevant.length} ${relevant.length >= 5 ? 'zdrojů' : relevant.length === 1 ? 'zdroj' : 'zdroje'} na prehraj.to`
+      ? `${relevant.length} ${relevant.length >= 5 ? 'zdrojů' : relevant.length === 1 ? 'zdroj' : 'zdroje'}`
       : 'Nic neodpovídá přesně — zobrazeny všechny výsledky'
     renderFilters()
     renderSources()
@@ -240,8 +290,99 @@ prehrajFilters.addEventListener('click', e => {
   renderSources()
 })
 function submitSourceQuery() {
+  closeSuggest()
   const q = prehrajQuery.value.trim()
   if (q) runSourceSearch(q)
 }
 document.getElementById('prehraj-query-btn').addEventListener('click', submitSourceQuery)
-prehrajQuery.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitSourceQuery() } })
+
+// ── Suggestions dropdown: the selected sites' own search hints ──
+let _suggestSeq = 0
+let _suggestIdx = -1
+let _suggestTimer = null
+
+function suggestOpen() { return prehrajSuggest.classList.contains('active') }
+function closeSuggest() {
+  clearTimeout(_suggestTimer)
+  _suggestSeq++
+  _suggestIdx = -1
+  prehrajSuggest.classList.remove('active')
+  prehrajQuery.setAttribute('aria-expanded', 'false')
+}
+
+function setSuggestFocus(idx) {
+  const items = prehrajSuggest.querySelectorAll('.suggest-item')
+  if (!items.length) return
+  _suggestIdx = Math.max(-1, Math.min(idx, items.length - 1))
+  items.forEach((el, i) => el.classList.toggle('focused', i === _suggestIdx))
+  if (_suggestIdx >= 0) items[_suggestIdx].scrollIntoView({ block: 'nearest' })
+}
+
+// Bold the part of the hint that goes beyond what was typed.
+function highlightTerm(term, typed) {
+  const t = typed.trim().toLowerCase()
+  if (t && term.toLowerCase().indexOf(t) === 0) return escapeHtml(term.slice(0, t.length)) + '<b>' + escapeHtml(term.slice(t.length)) + '</b>'
+  return escapeHtml(term)
+}
+
+async function loadSuggestions() {
+  const q = prehrajQuery.value.trim()
+  if (q.length < 2) { closeSuggest(); return }
+  const seq = ++_suggestSeq
+  try {
+    const res = await fetch(`/suggest?q=${encodeURIComponent(q)}${sitesParam()}`)
+    const list = res.ok ? await res.json() : []
+    if (seq !== _suggestSeq || document.activeElement !== prehrajQuery) return
+    if (!list.length) { closeSuggest(); return }
+    const showSrc = _sites.length > 1
+    _suggestIdx = -1
+    prehrajSuggest.innerHTML = list.map(s => `
+      <div class="suggest-item" role="option" data-term="${escapeHtml(s.term)}">
+        <i class="bi bi-search"></i>
+        <span class="term">${highlightTerm(s.term, q)}</span>
+        ${showSrc ? s.sources.map(k => `<span class="src">${escapeHtml(SOURCE_NAMES[k] || k)}</span>`).join('') : ''}
+      </div>`).join('')
+    prehrajSuggest.classList.add('active')
+    prehrajQuery.setAttribute('aria-expanded', 'true')
+  } catch (e) {
+    if (seq === _suggestSeq) closeSuggest()
+  }
+}
+
+function pickSuggestion(term) {
+  prehrajQuery.value = term
+  closeSuggest()
+  runSourceSearch(term)
+}
+
+prehrajQuery.addEventListener('input', () => {
+  clearTimeout(_suggestTimer)
+  if (prehrajQuery.value.trim().length < 2) { closeSuggest(); return }
+  _suggestTimer = setTimeout(loadSuggestions, 220)
+})
+
+prehrajQuery.addEventListener('keydown', e => {
+  const items = prehrajSuggest.querySelectorAll('.suggest-item')
+  if (e.key === 'ArrowDown' && suggestOpen() && items.length) {
+    e.preventDefault()
+    setSuggestFocus(_suggestIdx + 1)
+  } else if (e.key === 'ArrowUp' && suggestOpen() && _suggestIdx >= 0) {
+    e.preventDefault()
+    setSuggestFocus(_suggestIdx - 1)
+  } else if (e.key === 'Enter') {
+    e.preventDefault()
+    if (suggestOpen() && _suggestIdx >= 0 && items[_suggestIdx]) pickSuggestion(items[_suggestIdx].dataset.term)
+    else submitSourceQuery()
+  } else if (e.key === 'Escape' && suggestOpen()) {
+    e.preventDefault()                               // close the dropdown, not the whole picker
+    closeSuggest()
+  }
+})
+
+// mousedown keeps focus in the field; click picks the hint.
+prehrajSuggest.addEventListener('mousedown', e => e.preventDefault())
+prehrajSuggest.addEventListener('click', e => {
+  const item = e.target.closest('.suggest-item')
+  if (item) pickSuggestion(item.dataset.term)
+})
+prehrajQuery.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== prehrajQuery) closeSuggest() }, 120))

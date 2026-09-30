@@ -404,3 +404,6 @@ body.kbd .movie-card:hover:not(:focus) .movie-poster > img { transform: none; }
 .browse-more { text-align: center; padding: 8px var(--gutter) 0; }
 .browse-empty { grid-column: 1 / -1; padding: 30px 0; text-align: center; color: var(--dim); }
 .row-error button { margin-left: 10px; }
+
+.row-actions { display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap; -webkit-justify-content: flex-end; justify-content: flex-end; }
+.row-actions .btn + .btn { margin-left: 6px; }

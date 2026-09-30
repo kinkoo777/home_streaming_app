@@ -366,7 +366,48 @@ body:not(.dark) .detail-actions .btn-glass.is-on.good { color: var(--good); }
   padding: 16px 10px 4px; color: var(--muted); font-size: 13px; text-align: center;
 }
 .source-note .btn { margin-left: 10px; }
-.source-header, .source-search, .source-filters { -webkit-flex-shrink: 0; flex-shrink: 0; }
+.source-header, .source-search, .source-filters, .source-sites { -webkit-flex-shrink: 0; flex-shrink: 0; }
+/* Which sites to search */
+.source-sites { padding: 0 26px 10px; -webkit-align-items: center; align-items: center; }
+.source-sites .sites-label { color: var(--muted); font-size: 13px; font-weight: 600; margin-right: 10px; }
+.source-sites .chip { height: 30px; padding: 0 12px; font-size: 12px; }
+.source-sites .chip i { margin-right: 5px; }
+
+/* Suggestions dropdown under the search field (styled like the navbar search) */
+.source-suggest {
+  position: absolute;
+  top: calc(100% - 8px);
+  left: 26px;
+  right: 26px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgb(18,18,24);
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: var(--shadow-lg);
+  color: #fff;
+  z-index: 20;
+  opacity: 0;
+  visibility: hidden;
+  -webkit-transform: translateY(-6px);
+  transform: translateY(-6px);
+  transition: opacity 0.18s ease, transform 0.18s var(--ease), visibility 0.18s;
+}
+.source-suggest.active { opacity: 1; visibility: visible; -webkit-transform: none; transform: none; }
+.suggest-item {
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  padding: 9px 10px; border-radius: 10px; cursor: pointer; font-size: 14px;
+  transition: background-color 0.15s ease;
+}
+.suggest-item:hover, .suggest-item.focused { background: rgba(255,255,255,0.08); }
+.suggest-item > i { color: #71717a; margin-right: 10px; }
+.suggest-item .term { -webkit-flex: 1; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.suggest-item .term b { color: #fff; font-weight: 700; }
+.suggest-item .term { color: #d4d4d8; }
+.suggest-item .src { margin-left: 6px; padding: 1px 7px; border-radius: 6px; background: rgba(255,255,255,0.1); font-size: 10px; font-weight: 600; color: #a1a1aa; -webkit-flex-shrink: 0; flex-shrink: 0; }
+.source-suggest .suggest-empty { padding: 10px; color: #a1a1aa; font-size: 13px; }
+
 .source-list {
   -webkit-flex: 1;
   flex: 1;
@@ -457,6 +498,7 @@ body:not(.dark) .detail-actions .btn-glass.is-on.good { color: var(--good); }
 .source-tags .q-hd   { background: rgba(34,197,94,0.16); color: #86efac; }
 .source-tags .t-dub  { background: rgba(244,63,94,0.16); color: #fda4af; }
 .source-tags .t-subs { background: rgba(251,191,36,0.16); color: #fcd34d; }
+.source-tags .t-src  { font-weight: 600; opacity: 0.8; }
 body:not(.dark) .source-tags .q-4k { color: #7e22ce; }
 body:not(.dark) .source-tags .q-fhd { color: #1d4ed8; }
 body:not(.dark) .source-tags .q-hd { color: #15803d; }

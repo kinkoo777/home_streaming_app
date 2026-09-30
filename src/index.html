@@ -87,8 +87,14 @@
 
       <div class="actions">
         <div class="search-wrapper" id="search-wrapper">
-          <i class="bi bi-search search-icon"></i>
-          <input type="text" id="search-input" placeholder="Hledat filmy a seriály" autocomplete="off" spellcheck="false" />
+          <div class="search-bar">
+            <i class="bi bi-search search-icon"></i>
+            <input type="text" id="search-input" placeholder="Filmy a seriály" autocomplete="off" spellcheck="false" />
+            <div class="search-mode" id="search-mode" role="group" aria-label="Kde hledat">
+              <button type="button" data-mode="tmdb" class="active" aria-pressed="true" title="Hledat filmy a seriály (TMDB)">TMDB</button>
+              <button type="button" data-mode="sources" aria-pressed="false" title="Hledat přímo na prehraj.to, FastShare a Sledujteto"><i class="bi bi-collection-play"></i>Zdroje</button>
+            </div>
+          </div>
           <button id="search-close-mobile" class="icon-btn" aria-label="Zavřít hledání"><i class="bi bi-x-lg"></i></button>
           <div id="search-results" class="search-results" role="listbox"></div>
         </div>
@@ -134,7 +140,10 @@
           <h3 id="search-results-title">Výsledky hledání</h3>
           <p id="search-results-sub"></p>
         </div>
-        <button id="clear-search-movies" class="btn btn-ghost btn-sm"><i class="bi bi-x-lg"></i> Zavřít</button>
+        <div class="row-actions">
+          <button id="direct-search-movies" class="btn btn-ghost btn-sm"><i class="bi bi-collection-play"></i> Hledat přímo na zdrojích</button>
+          <button id="clear-search-movies" class="btn btn-ghost btn-sm"><i class="bi bi-x-lg"></i> Zavřít</button>
+        </div>
       </div>
       <div class="card-grid" id="search-movies"></div>
     </section>
@@ -297,6 +306,8 @@
           <a href="#" data-target="top">Zpět nahoru</a>
           <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a>
           <a href="https://prehrajto.cz" target="_blank" rel="noopener">prehraj.to</a>
+          <a href="https://fastshare.cloud" target="_blank" rel="noopener">FastShare</a>
+          <a href="https://www.sledujteto.cz" target="_blank" rel="noopener">Sledujteto</a>
         </div>
       </nav>
     </div>
@@ -357,7 +368,7 @@
     </div>
   </div>
 
-  <!-- ── Source picker (prehraj.to) ── -->
+  <!-- ── Source picker (prehraj.to + fastshare.cloud + sledujteto.cz) ── -->
   <div id="prehraj-modal" class="overlay-modal hidden" role="dialog" aria-modal="true" aria-labelledby="prehraj-modal-title">
     <div class="overlay-backdrop" data-close></div>
     <div class="overlay-card source-card">
@@ -365,14 +376,17 @@
         <div>
           <span class="eyebrow">Vyberte zdroj</span>
           <h3 id="prehraj-modal-title">Výsledky</h3>
-          <p id="prehraj-modal-subtitle">Hledání na prehraj.to…</p>
+          <p id="prehraj-modal-subtitle">Hledání na prehraj.to, FastShare a Sledujteto…</p>
         </div>
         <button class="sheet-close static" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
       </div>
+      <div class="chip-row source-sites" id="prehraj-sites" role="group" aria-label="Hledat na"></div>
       <div class="source-search">
         <i class="bi bi-search"></i>
-        <input type="text" id="prehraj-query" class="field" placeholder="Upravit hledání…" />
+        <input type="text" id="prehraj-query" class="field" placeholder="Upravit hledání…" autocomplete="off"
+               role="combobox" aria-autocomplete="list" aria-controls="prehraj-suggest" aria-expanded="false" />
         <button id="prehraj-query-btn" class="btn btn-primary btn-sm">Hledat</button>
+        <div id="prehraj-suggest" class="source-suggest" role="listbox"></div>
       </div>
       <div class="chip-row source-filters" id="prehraj-filters"></div>
       <div id="prehraj-modal-content" class="source-list"></div>

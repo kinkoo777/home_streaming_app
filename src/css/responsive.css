@@ -19,7 +19,7 @@
 
 /* ── TV mode (set by tv.js on webOS / Tizen / other smart-TV browsers) ── */
 body.tv .row-arrow { display: none; }
-body.tv .search-results { width: 460px; }
+body.tv .search-results { min-width: 460px; }
 body.tv .movie-card:focus { transform: translateY(-8px) scale(1.1); }
 body.tv .movie-card:hover:not(:focus) { transform: none; }
 body.tv .movie-card:hover:not(:focus) .card-overlay { opacity: 0; }
@@ -86,8 +86,8 @@ body.tv .cast-item:focus img { border-color: #fff; box-shadow: 0 0 0 5px rgba(24
 /* ── Laptop ── */
 @media (max-width: 1280px) {
   .nav-link { margin-right: 20px; font-size: 14px; }
-  .search-wrapper input { width: 200px; }
-  .search-wrapper input:focus { width: 260px; }
+  .search-wrapper input { width: 170px; }
+  .search-wrapper input:focus { width: 230px; }
   .profile-chip-name { display: none; }
   .hero-content { width: 56%; }
 }
@@ -123,9 +123,15 @@ body.tv .cast-item:focus img { border-color: #fff; box-shadow: 0 0 0 5px rgba(24
   }
   body:not(.dark) .search-wrapper { background: rgba(255,255,255,0.98); }
   .search-wrapper.mobile-open { display: -webkit-flex; display: flex; }
-  .search-wrapper input, .search-wrapper input:focus { width: 100%; -webkit-flex: 1; flex: 1; }
-  body:not(.dark) .search-wrapper input { color: var(--text); background: var(--glass); border-color: var(--line-2); }
-  .search-icon { left: 28px; }
+  .search-bar { -webkit-flex: 1; flex: 1; min-width: 0; }
+  .search-wrapper input, .search-wrapper input:focus { width: auto; min-width: 0; -webkit-flex: 1; flex: 1; }
+  body:not(.dark) .search-bar { background: var(--glass); border-color: var(--line-2); }
+  body:not(.dark) .search-wrapper input { color: var(--text); }
+  body:not(.dark) .search-icon { color: var(--dim); }
+  .search-mode button { padding: 0 9px; }
+  body:not(.dark) .search-mode { background: rgba(0,0,0,0.05); }
+  body:not(.dark) .search-mode button { color: var(--muted); }
+  body:not(.dark) .search-mode button.active { background: var(--text); color: var(--bg); }
   #search-close-mobile { display: -webkit-inline-flex; display: inline-flex; margin-left: 8px; -webkit-flex-shrink: 0; flex-shrink: 0; }
   body:not(.dark) #search-close-mobile { color: var(--text); }
   .search-results { top: var(--nav-h); left: 8px; right: 8px; width: auto; max-height: 75vh; }
@@ -194,7 +200,8 @@ body.tv .cast-item:focus img { border-color: #fff; box-shadow: 0 0 0 5px rgba(24
   .overlay-card { max-width: none; border-radius: 22px 22px 0 0; max-height: 92vh; }
   .source-card { height: 92vh; }
   .source-thumb { width: 112px; height: 63px; margin-right: 12px; }
-  .source-header, .source-search, .source-filters { padding-left: 16px; padding-right: 16px; }
+  .source-header, .source-search, .source-filters, .source-sites { padding-left: 16px; padding-right: 16px; }
+  .source-suggest { left: 16px; right: 16px; }
   .source-search > i { left: 32px; }
   .source-list { padding: 4px 8px 20px; }
   .source-go { display: none; }

@@ -11,14 +11,16 @@ const { Readable, Transform, pipeline } = require('stream');
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/117.0.0.0 Safari/537.36';
 
-// Video/subtitle files live on prehraj.to's CDN.
+// Video/subtitle files live on prehraj.to's CDN, fastshare's or sledujteto's stream servers.
 function isAllowedCdnUrl(raw) {
     try {
         const u = new URL(raw);
         if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
         const host = u.hostname.toLowerCase();
         return host === 'premiumcdn.net' || host.endsWith('.premiumcdn.net')
-            || host === 'prehrajto.cz' || host.endsWith('.prehrajto.cz');
+            || host === 'prehrajto.cz' || host.endsWith('.prehrajto.cz')
+            || host === 'fastshare.cloud' || host.endsWith('.fastshare.cloud')
+            || host === 'sledujteto.cz' || host.endsWith('.sledujteto.cz');
     } catch {
         return false;
     }
@@ -98,6 +100,127 @@ async function fetchVideoPage(pageUrl) {
     const r = await fetch(pageUrl, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(15000) });
     if (!r.ok) throw new Error('Prehrajto neodpovědělo (' + r.status + ')');
     return parseVideoPage(await r.text());
+}
+
+// ── fastshare.cloud file page ──
+// A single free stream: <video id="player"><source src="https://streamN.fastshare.cloud/download_free_stream.php?..."></video>
+
+function attr(tag, name) {
+    const m = tag.match(new RegExp('\\b' + name + `\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i'));
+    return m ? decodeEntities(m[1] != null ? m[1] : m[2]) : null;
+}
+
+function decodeEntities(s) {
+    return s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+}
+
+// 8177.5 → "02:16:17" (same shape as prehraj.to's duration meta)
+function hms(secs) {
+    const t = Math.floor(secs);
+    return [Math.floor(t / 3600), Math.floor(t / 60) % 60, t % 60].map(n => String(n).padStart(2, '0')).join(':');
+}
+
+// pageUrl resolves relative srcs (subtitles are "/api/get_subtitles.php?key=get&id=…").
+function parseFastsharePage(html, pageUrl = 'https://fastshare.cloud/') {
+    const abs = src => { try { return new URL(src, pageUrl).href; } catch { return null; } };
+    const video = (html.match(/<video\b[^>]*\bid=["']?player["']?[^>]*>[\s\S]*?<\/video>/i) || [])[0] || '';
+    const qualities = [];
+    for (const m of video.matchAll(/<source\b[^>]*>/gi)) {
+        const src = abs(attr(m[0], 'src'));
+        if (src && !qualities.some(q => q.src === src)) qualities.push({ src, label: 'Auto', res: null });
+    }
+    const subtitles = [];
+    for (const m of video.matchAll(/<track\b[^>]*>/gi)) {
+        const src = abs(attr(m[0], 'src'));
+        if (!src) continue;
+        const lang = attr(m[0], 'srclang') || '';
+        subtitles.push({ src, lang, label: cleanTrackLabel(attr(m[0], 'label'), lang), default: /\bdefault\b/i.test(m[0]) });
+    }
+
+    let duration = null;
+    const cfg = attr((video.match(/<video\b[^>]*>/i) || [''])[0], 'data-plyr-config');
+    if (cfg) {
+        try { const secs = JSON.parse(cfg).duration; if (secs > 0) duration = hms(secs); } catch {}
+    }
+    const h1 = html.match(/<h1\b[^>]*class="[^"]*video_title[^"]*"[^>]*>([\s\S]*?)<\/h1>/i);
+    const og = html.match(/<meta\s+property="og:image"\s+content="([^"]*)"/i);
+
+    return {
+        name:      h1 ? decodeEntities(h1[1].replace(/<[^>]+>/g, '')).trim() : null,
+        duration,
+        thumbnail: og ? decodeEntities(og[1]) : null,
+        width:     null,
+        height:    null,
+        qualities,
+        subtitles
+    };
+}
+
+async function fetchFastsharePage(pageUrl) {
+    const r = await fetch(pageUrl, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error('FastShare neodpovědělo (' + r.status + ')');
+    return parseFastsharePage(await r.text(), pageUrl);
+}
+
+// ── sledujteto.cz file page ──
+// The page only carries init(playerId, playerUrl, dlUrl, mirror) and setTracks([...]);
+// the stream link is issued by POST mirror/services/add-file-link → { hash, video_url }.
+
+// "2h 27m 54s" → "02:27:54"
+function hmsText(t) {
+    const m = String(t || '').match(/(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?\s*(?:(\d+)\s*s)?/i);
+    if (!m || !m[0].trim()) return null;
+    return hms((+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0));
+}
+
+function parseSledujtetoPage(html, pageUrl = 'https://www.sledujteto.cz/') {
+    const init = html.match(/init\(\s*(\d+)\s*,\s*'([^']*)'\s*,\s*'[^']*'\s*,\s*'([^']*)'\s*\)/);
+    let subtitles = [];
+    const tracks = html.match(/setTracks\((\[[\s\S]*?\])\);/);
+    if (tracks) {
+        try {
+            const list = JSON.parse(decodeEntities(tracks[1]));
+            // Labels are upload file names ("thefateofthefurious0000286370"), not languages.
+            subtitles = list.filter(t => t && t.file).map((t, i) => ({
+                src: new URL(t.file, pageUrl).href,
+                lang: '',
+                label: list.length > 1 ? 'Titulky ' + (i + 1) : 'Titulky',
+                default: i === 0 && /auto_subtitles\s*=\s*true/.test(html)
+            }));
+        } catch {}
+    }
+    const og = p => { const m = html.match(new RegExp(`<meta\\s+property="og:${p}"\\s+content="([^"]*)"`, 'i')); return m ? decodeEntities(m[1]) : null; };
+    const image = html.match(/player_options\.image_url\s*=\s*'([^']*)'/);
+    const dur = html.match(/bi-clock"><\/i>\s*Trvání<\/td>\s*<td>([^<]*)<\/td>/);
+    return {
+        playerId:  init ? parseInt(init[1], 10) : null,
+        playerUrl: init ? init[2] : null,
+        mirror:    init ? init[3] : null,
+        name:      (og('title') || '').replace(/\s*\|\s*Sledujteto\s*$/i, '').replace(/\s+[\d.,]+\s*[KMGT]B$/i, '') || null,
+        duration:  dur ? hmsText(dur[1]) : null,
+        thumbnail: image ? image[1] : og('image'),
+        width:     null,
+        height:    null,
+        subtitles
+    };
+}
+
+async function fetchSledujtetoPage(pageUrl) {
+    const r = await fetch(pageUrl, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error('Sledujteto neodpovědělo (' + r.status + ')');
+    const { playerId, playerUrl, mirror, ...video } = parseSledujtetoPage(await r.text(), pageUrl);
+    if (!playerId || !mirror) throw new Error('Video na Sledujteto nebylo nalezeno');
+
+    const lr = await fetch(new URL('/services/add-file-link', mirror).href, {
+        method: 'POST',
+        headers: { 'User-Agent': UA, 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', Referer: pageUrl },
+        body: JSON.stringify({ params: { id: playerId } }),
+        signal: AbortSignal.timeout(15000)
+    });
+    const link = await lr.json().catch(() => ({}));
+    if (!link.hash) throw new Error(link.msg || 'Sledujteto nevydalo odkaz na video');
+    const src = link.video_url || playerUrl + link.hash;
+    return { ...video, qualities: isAllowedCdnUrl(src) ? [{ src, label: 'Auto', res: null }] : [] };
 }
 
 // ── MP4 probing ──
@@ -301,9 +424,16 @@ async function probeMp4(url) {
 }
 
 // Signed CDN URLs change per page load but point at the same file, so key the
-// cache by path (without the query string).
+// cache by path (without the query string). fastshare serves every file from the
+// same script path, so its file id has to be part of the key.
 const probeCache = new Map();
-function probeKey(url) { try { const u = new URL(url); return u.host + u.pathname; } catch { return url; } }
+function probeKey(url) {
+    try {
+        const u = new URL(url);
+        const id = u.hostname.endsWith('fastshare.cloud') ? u.searchParams.get('id') : null;
+        return u.host + u.pathname + (id ? '?id=' + id : '');
+    } catch { return url; }
+}
 
 function getMp4Info(url) {
     const key = probeKey(url);
@@ -376,6 +506,6 @@ async function handleStream(req, res) {
     });
 }
 
-module.exports = { UA, isAllowedCdnUrl, parseVideoPage, fetchVideoPage, getMp4Info, handleStream, cleanTrackLabel };
+module.exports = { UA, isAllowedCdnUrl, parseVideoPage, fetchVideoPage, parseFastsharePage, fetchFastsharePage, parseSledujtetoPage, fetchSledujtetoPage, getMp4Info, handleStream, cleanTrackLabel };
 // Internals, exported for the unit tests (test-unit/).
-module.exports._internals = { unescapeNal, findSpsColour, patchSps, patchTransform };
+module.exports._internals = { unescapeNal, findSpsColour, patchSps, patchTransform, probeKey };

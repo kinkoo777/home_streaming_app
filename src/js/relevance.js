@@ -1,5 +1,5 @@
 // ================= SOURCE RELEVANCE =================
-// Keeps real films / episodes from a prehraj.to result list and drops
+// Keeps real films / episodes from a prehraj.to / fastshare / sledujteto result list and drops
 // gameplay, clips, trailers, wrong episodes, etc. Pure functions — loaded by
 // the page (window.FilmBoxRelevance) and by the Node unit tests (require).
 

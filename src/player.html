@@ -1141,7 +1141,7 @@
         } catch { return false }
       }
 
-      // Re-scrape the prehraj.to page for fresh links (same file, new signature).
+      // Re-scrape the source page (prehraj.to / fastshare / sledujteto) for fresh links (same file, new signature).
       async function refreshSource() {
         if (!source.pageUrl) return false
         _refreshedAt = Date.now()
@@ -1896,7 +1896,10 @@
         const base = (d.title || '').replace(/\s*S\d{2}E\d{2}.*$/i, '').trim()
         const query = `${base} S${sNum}E${eNum}`
         try {
-          const r = await fetch(`/search?q=${encodeURIComponent(query)}`)
+          // Same sites the source picker is set to search.
+          let sites = ''
+          try { const l = JSON.parse(localStorage.getItem('filmbox_sources')); if (Array.isArray(l) && l.length) sites = '&sources=' + encodeURIComponent(l.join(',')) } catch (e) {}
+          const r = await fetch(`/search?q=${encodeURIComponent(query)}${sites}`)
           if (!r.ok) return false
           const results = await r.json()
           if (!results.length) return false
