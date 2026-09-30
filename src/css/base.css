@@ -321,16 +321,22 @@ body:not(.dark) .skeleton {
 /* ═════════════ Focus (keyboard / TV remote) ═════════════ */
 
 :focus { outline: none; }
+/* Rings are box-shadows, not outlines: outlines ignore border-radius before
+   Chromium 94, which drew sharp rectangles around rounded controls on TVs. */
 body.kbd button:focus,
 body.kbd a:focus,
 body.kbd input:focus,
 body.kbd [tabindex]:focus {
-  outline: 3px solid #fff;
-  outline-offset: 3px;
+  outline: none;
+  box-shadow: 0 0 0 3px #fff;
 }
 body.kbd:not(.dark) button:focus,
 body.kbd:not(.dark) a:focus,
-body.kbd:not(.dark) [tabindex]:focus { outline-color: #111; }
+body.kbd:not(.dark) [tabindex]:focus { box-shadow: 0 0 0 3px #111; }
+/* Components that ring a rounded inner part instead of their square box. */
+body.kbd .movie-card:focus, body.kbd .profile-card:focus, body.kbd .cast-item:focus { box-shadow: none; }
+body.kbd .profile-card:focus .profile-avatar { box-shadow: 0 0 0 4px #fff, 0 0 0 10px rgba(244,63,94,0.45); }
+body.kbd .cast-item:focus img { box-shadow: 0 0 0 3px #fff; }
 body.kbd .btn:focus, body.kbd .icon-btn:focus { transform: scale(1.06); }
 
 /* Reveal-on-scroll */

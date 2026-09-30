@@ -86,7 +86,7 @@
 }
 .settings-toggle input:checked + .switch { background: var(--accent); }
 .settings-toggle input:checked + .switch::after { transform: translateX(20px); }
-body.kbd .settings-toggle input:focus + .switch { outline: 3px solid #fff; outline-offset: 3px; }
+body.kbd .settings-toggle input:focus + .switch { box-shadow: 0 0 0 3px #fff; }
 
 .settings-danger { padding-bottom: 0; }
 .settings-danger .btn { width: 100%; }

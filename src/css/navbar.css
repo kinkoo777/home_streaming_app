@@ -230,7 +230,7 @@ body:not(.dark) .navbar.scrolled .profile-chip { color: var(--text); background:
 .search-mode button i { margin-right: 5px; font-size: 13px; }
 .search-mode button:hover { color: #fff; }
 .search-mode button.active { background: #fff; color: #111; }
-body.kbd .search-mode button:focus { outline: 2px solid var(--accent); outline-offset: 1px; }   /* :focus-visible voids the rule on old engines */
+body.kbd .search-mode button:focus { box-shadow: 0 0 0 2px var(--accent); }   /* :focus-visible voids the rule on old engines */
 
 body:not(.dark) .navbar.scrolled .search-bar { background: var(--glass); border-color: var(--line-2); }
 body:not(.dark) .navbar.scrolled .search-bar:focus-within { background: #fff; }

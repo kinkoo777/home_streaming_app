@@ -183,4 +183,4 @@ body:not(.dark) .hero-shade {
 .hero-dot.active::after { -webkit-animation: fb-dot-fill var(--hero-interval, 8s) linear forwards; animation: fb-dot-fill var(--hero-interval, 8s) linear forwards; }
 .hero.paused .hero-dot.active::after { -webkit-animation-play-state: paused; animation-play-state: paused; }
 @keyframes fb-dot-fill { from { width: 0; } to { width: 100%; } }
-body.kbd .hero-dot:focus { outline-offset: 4px; }
+body.kbd .hero-dot:focus { box-shadow: 0 0 0 3px #fff; }

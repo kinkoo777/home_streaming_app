@@ -34,10 +34,10 @@ body.tv .sheet-backdrop, body.tv .overlay-backdrop { background: rgba(0,0,0,0.8)
 body.tv .movie-poster::after { display: none; }
 body.tv .ambient { display: none; }
 body.tv .btn:focus, body.tv .icon-btn:focus, body.tv .chip:focus, body.tv .genre-chip:focus, body.tv .sort-tab:focus, body.tv .wl-tab:focus {
-  outline: 3px solid #fff;
-  outline-offset: 3px;
+  outline: none;
+  box-shadow: 0 0 0 3px #fff;
 }
-body.tv .source-item:focus, body.tv .episode-item:focus, body.tv .wl-list-item:focus { outline: 3px solid #fff; outline-offset: 2px; }
+body.tv .source-item:focus, body.tv .episode-item:focus, body.tv .wl-list-item:focus, body.tv .guide-item:focus { outline: none; box-shadow: 0 0 0 3px #fff; }
 
 /* Remote hint strip (created by tv.js on TVs) */
 .tv-hints {
@@ -76,11 +76,10 @@ body.tv .movie-card:focus .movie-info h4 { color: #fff; font-size: 17px; }
 body:not(.dark).tv .movie-card:focus .movie-info h4 { color: var(--text); }
 body.tv.kbd .btn:focus, body.tv.kbd .icon-btn:focus, body.tv.kbd .chip:focus, body.tv.kbd .genre-chip:focus,
 body.tv.kbd .sort-tab:focus, body.tv.kbd .wl-tab:focus, body.tv.kbd .nav-link:focus, body.tv.kbd .profile-chip:focus {
-  outline: 3px solid #fff;
-  outline-offset: 3px;
-  box-shadow: 0 0 0 7px rgba(244,63,94,0.45);
+  outline: none;
+  box-shadow: 0 0 0 3px #fff, 0 0 0 8px rgba(244,63,94,0.45);
 }
-body.tv .nav-link { padding: 8px 6px; }
+body.tv .nav-link { padding: 8px 12px; border-radius: 12px; }   /* rounded so its focus ring is too */
 body.tv .cast-item:focus img { border-color: #fff; box-shadow: 0 0 0 5px rgba(244,63,94,0.5); }
 
 /* ── Laptop ── */

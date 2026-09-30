@@ -274,8 +274,8 @@
       body.kbd .resume-yes:focus, body.kbd .resume-no:focus,
       body.kbd .next-ep-yes:focus, body.kbd .next-ep-no:focus,
       body.kbd #error-screen button:focus {
-        outline: 3px solid #fff;
-        outline-offset: 2px;
+        /* box-shadow, not outline: outlines ignore border-radius before Chromium 94 */
+        box-shadow: 0 0 0 3px #fff;
       }
 
       .error-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
@@ -661,7 +661,7 @@
       .next-ep-mini .go { background: #fff; color: #111; border: none; border-radius: 10px; padding: 10px 16px; font-weight: 700; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; }
       .next-ep-mini .go i { margin-right: 6px; }
       .next-ep-mini .x { margin-left: 8px; width: 34px; height: 34px; border-radius: 10px; border: none; background: rgba(255,255,255,0.1); color: #fff; cursor: pointer; }
-      body.kbd .next-ep-mini .go:focus, body.kbd .next-ep-mini .x:focus { outline: 3px solid #f43f5e; outline-offset: 2px; }
+      body.kbd .next-ep-mini .go:focus, body.kbd .next-ep-mini .x:focus { box-shadow: 0 0 0 3px #f43f5e; }
       body.tv .next-ep-mini { right: 56px; bottom: 170px; padding: 14px 14px 14px 22px; }
       body.tv .next-ep-mini .label { font-size: 16px; }
       body.tv .next-ep-mini .label b { font-size: 19px; }
