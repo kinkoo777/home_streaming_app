@@ -3,7 +3,7 @@
 /* ── Large screens / TVs (webOS renders at 1920×1080 CSS px) ── */
 @media (min-width: 1600px) {
   :root { --card-w: 210px; --nav-h: 84px; }
-  .brand-word { font-size: 24px; }
+  .navbar .brand-mark { width: 52px; height: 52px; }
   .nav-link { font-size: 17px; margin-right: 32px; }
   .row-header h3 { font-size: 27px; }
   .row-header p { font-size: 15px; }
@@ -135,7 +135,6 @@ body.tv .cast-item:focus img { border-color: #fff; box-shadow: 0 0 0 5px rgba(24
 /* ── Phone ── */
 @media (max-width: 600px) {
   :root { --card-w: 118px; --gutter: 16px; }
-  .brand-word { display: none; }
   #theme-toggle { display: none; }
   .profile-chip { padding-right: 4px; }
   .profile-chip .bi-chevron-down { display: none; }

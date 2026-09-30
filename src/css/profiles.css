@@ -109,7 +109,7 @@
   color: rgba(255,255,255,0.8);
   margin-bottom: 26px;
 }
-.chooser-brand .brand-mark { margin-right: 10px; width: 34px; height: 34px; }
+.chooser-brand .brand-mark { width: 64px; height: 64px; }
 #profile-chooser h1 {
   font-size: 48px;
   font-weight: 800;
