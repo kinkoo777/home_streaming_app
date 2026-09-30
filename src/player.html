@@ -1782,7 +1782,8 @@
           posterPath:   d.posterPath || null,
           mediaType:    d.mediaType || 'movie',
           tmdbId:       d.tmdbId != null ? d.tmdbId : null,
-          episodeLabel: d.episodeLabel || null
+          episodeLabel: d.episodeLabel || null,
+          finished:     !!(d.episode && _watchedFired)
         }
       }
 
@@ -1830,7 +1831,11 @@
           _watchedFired = true
           const _d  = _playerData
           const pid = _profileId()
-          if (_d && _d.tmdbId && pid !== 'default') {
+          // Episodes: keep the entry, flagged finished, so the episode list can show
+          // what's been watched (Continue Watching skips finished entries).
+          if (_d && _d.episode && pid !== 'default') {
+            _saveProgressToApi()
+          } else if (_d && _d.tmdbId && pid !== 'default') {
             fetch(`/api/profiles/${pid}/watched`, {
               method:  'POST',
               headers: { 'Content-Type': 'application/json' },

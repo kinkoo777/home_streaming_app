@@ -141,7 +141,19 @@ window.openDetailModal = async function (id, type, title) {
           ${nums.map(n => `<button class="chip season-tab" data-season="${n}" data-id="${id}">${n}. řada</button>`).join('')}
         </div>
         <div id="episodes-list" class="episodes-list"></div>`
-      loadSeason(id, nums[0], movieTitle, d.poster_path || null)
+      detailModal._seasonCounts = {}
+      seasons.forEach(se => { detailModal._seasonCounts[se.season_number] = se.episode_count || 0 })
+      // Open the season with the most recently watched episode, else the first.
+      let startSeason = nums[0]
+      let latest = ''
+      const progress = window._profileProgress || {}
+      Object.keys(progress).forEach(k => {
+        const m = new RegExp('^' + id + ':S(\\d+)E').exec(k)
+        const v = progress[k]
+        if (m && v && (v.updatedAt || '') >= latest && nums.indexOf(parseInt(m[1], 10)) >= 0) { latest = v.updatedAt || ''; startSeason = parseInt(m[1], 10) }
+      })
+      renderSeasonTabs(id)
+      loadSeason(id, startSeason, movieTitle, d.poster_path || null)
     }
 
     // ── Similar titles ──
@@ -162,6 +174,40 @@ window.openDetailModal = async function (id, type, title) {
 
 // ── Season episodes ──
 
+// ── Episode watch state (from the profile's progress map) ──
+// Keys are "tvId:S02E03". Finished = flagged by the player / marked by hand,
+// or watched past 90 %.
+function episodeKey(tvId, s, e) {
+  return `${tvId}:S${String(s).padStart(2, '0')}E${String(e).padStart(2, '0')}`
+}
+function episodeState(tvId, s, e) {
+  const p = (window._profileProgress || {})[episodeKey(tvId, s, e)]
+  if (!p || typeof p !== 'object') return { status: 'none', pct: 0 }
+  const pct = p.duration ? Math.min(100, (p.seconds / p.duration) * 100) : 0
+  if (p.finished || pct >= 90) return { status: 'done', pct: 100 }
+  if (pct > 0 || p.seconds > 30) return { status: 'partial', pct, left: p.duration ? Math.max(1, Math.round((p.duration - p.seconds) / 60)) : null, at: p.updatedAt || '' }
+  return { status: 'none', pct: 0 }
+}
+function seasonWatchedCount(tvId, s) {
+  const prefix = `${tvId}:S${String(s).padStart(2, '0')}E`
+  const progress = window._profileProgress || {}
+  return Object.keys(progress).filter(k => k.indexOf(prefix) === 0)
+    .filter(k => { const e = parseInt(k.slice(prefix.length), 10); return episodeState(tvId, s, e).status === 'done' }).length
+}
+
+// Season tabs: "2. řada ✓" when every episode is watched, "3/10" when started.
+function renderSeasonTabs(tvId) {
+  const counts = detailModal._seasonCounts || {}
+  document.querySelectorAll('.season-tab').forEach(t => {
+    const n = parseInt(t.dataset.season, 10)
+    const total = counts[n] || 0
+    const done = seasonWatchedCount(tvId, n)
+    const mark = total && done >= total ? ' <i class="bi bi-check-circle-fill" style="color:var(--good);margin-left:6px"></i>'
+      : done ? ` <span style="opacity:.6;margin-left:6px">${done}/${total || '?'}</span>` : ''
+    t.innerHTML = `${n}. řada${mark}`
+  })
+}
+
 async function loadSeason(tvId, seasonNum, showTitle, showPoster) {
   const list = $d('episodes-list')
   if (!list) return
@@ -171,37 +217,111 @@ async function loadSeason(tvId, seasonNum, showTitle, showPoster) {
   list.dataset.show = showTitle || ''
   list.dataset.poster = showPoster || ''
   list.dataset.tv = tvId
+  list.dataset.season = seasonNum
 
   try {
     const res  = await fetch(`/tmdb/season?id=${tvId}&season=${seasonNum}`)
     const data = await res.json()
     const eps  = data.episodes || []
-    const sNum = String(seasonNum).padStart(2, '0')
-    const progress = window._profileProgress || {}
-
+    if (parseInt(list.dataset.season, 10) !== seasonNum) return      // another season was picked meanwhile
     if (!eps.length) { list.innerHTML = '<div class="row-empty">Epizody nejsou k dispozici.</div>'; return }
-
-    list.innerHTML = eps.map(ep => {
-      const eNum = String(ep.episode_number).padStart(2, '0')
-      const p = progress[`${tvId}:S${sNum}E${eNum}`]
-      const pct = p && typeof p === 'object' && p.duration ? Math.min(100, (p.seconds / p.duration) * 100) : 0
-      return `
-        <button class="episode-item" data-season="${seasonNum}" data-episode="${ep.episode_number}">
-          <div class="episode-thumb">
-            ${ep.still_path ? `<img src="${tmdbImg(ep.still_path, 'w300')}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
-            <span class="ep-play"><i class="bi bi-play-circle-fill"></i></span>
-            ${pct ? `<span class="ep-progress" style="width:${pct.toFixed(0)}%"></span>` : ''}
-          </div>
-          <div class="episode-info">
-            <div class="episode-num">S${sNum}E${eNum}</div>
-            <strong>${escapeHtml(ep.name || 'Epizoda ' + ep.episode_number)}</strong>
-            <span>${escapeHtml(ep.overview || '')}</span>
-          </div>
-          ${ep.runtime ? `<span class="episode-runtime">${ep.runtime} min</span>` : ''}
-        </button>`
-    }).join('')
+    list._episodes = eps
+    renderEpisodes(tvId, seasonNum)
   } catch (e) {
     list.innerHTML = '<div class="row-empty">Nepodařilo se načíst epizody.</div>'
+  }
+}
+
+function renderEpisodes(tvId, seasonNum) {
+  const list = $d('episodes-list')
+  const eps = list._episodes || []
+  const sNum = String(seasonNum).padStart(2, '0')
+  const states = eps.map(ep => episodeState(tvId, seasonNum, ep.episode_number))
+  const done = states.filter(st => st.status === 'done').length
+
+  // Next up: the most recently started unfinished episode, else the first one
+  // after the last finished episode (or the first episode).
+  let next = -1
+  let latest = ''
+  states.forEach((st, i) => { if (st.status === 'partial' && st.at >= latest) { latest = st.at; next = i } })
+  if (next < 0) {
+    let last = -1
+    states.forEach((st, i) => { if (st.status === 'done') last = i })
+    next = last + 1 < eps.length ? last + 1 : -1
+  }
+
+  const focusedEp = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.episode : null
+  const focusedMark = document.activeElement && document.activeElement.classList.contains('ep-mark')
+
+  const summary = `
+    <div class="season-summary">
+      <div class="season-summary-bar"><span style="width:${eps.length ? (done / eps.length * 100).toFixed(0) : 0}%"></span></div>
+      <span>${done ? `Zhlédnuto <b>${done} z ${eps.length}</b>` : `${eps.length} ${eps.length >= 5 ? 'epizod' : 'epizody'}`}</span>
+      ${next >= 0 ? `<button class="btn btn-primary btn-sm" data-play-episode="${eps[next].episode_number}"><i class="bi bi-play-fill"></i> ${states[next].status === 'partial' ? 'Pokračovat' : done ? 'Další' : 'Přehrát'} S${sNum}E${String(eps[next].episode_number).padStart(2, '0')}</button>` : done === eps.length ? '<span class="season-done"><i class="bi bi-check-circle-fill"></i> Řada zhlédnuta</span>' : ''}
+    </div>`
+
+  list.innerHTML = summary + eps.map((ep, i) => {
+    const eNum = String(ep.episode_number).padStart(2, '0')
+    const st = states[i]
+    const cls = st.status === 'done' ? ' watched' : ''
+    return `
+      <div class="episode-item${cls}${i === next ? ' next-up' : ''}" role="button" tabindex="0" data-season="${seasonNum}" data-episode="${ep.episode_number}">
+        <div class="episode-thumb">
+          ${ep.still_path ? `<img src="${tmdbImg(ep.still_path, 'w300')}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+          <span class="ep-play"><i class="bi bi-play-circle-fill"></i></span>
+          ${st.status === 'done' ? '<span class="ep-status done"><i class="bi bi-check-lg"></i> Zhlédnuto</span>' : ''}
+          ${st.status === 'partial' ? `<span class="ep-status partial">${st.left ? 'Zbývá ' + st.left + ' min' : 'Rozkoukáno'}</span>` : ''}
+          ${st.pct ? `<span class="ep-progress${st.status === 'done' ? ' done' : ''}" style="width:${st.pct.toFixed(0)}%"></span>` : ''}
+        </div>
+        <div class="episode-info">
+          <div class="episode-num">S${sNum}E${eNum}${i === next ? ' <span class="ep-next">Další na řadě</span>' : ''}</div>
+          <strong>${escapeHtml(ep.name || 'Epizoda ' + ep.episode_number)}</strong>
+          <span>${escapeHtml(ep.overview || '')}</span>
+        </div>
+        ${ep.runtime ? `<span class="episode-runtime">${ep.runtime} min</span>` : ''}
+        <button class="ep-mark${st.status === 'done' ? ' on' : ''}" data-mark="${ep.episode_number}" data-runtime="${ep.runtime || ''}"
+                title="${st.status === 'done' ? 'Označit jako nezhlédnuté' : 'Označit jako zhlédnuté'}" aria-label="${st.status === 'done' ? 'Označit jako nezhlédnuté' : 'Označit jako zhlédnuté'}">
+          <i class="bi ${st.status === 'done' ? 'bi-check-circle-fill' : 'bi-check-circle'}"></i>
+        </button>
+      </div>`
+  }).join('')
+  renderSeasonTabs(tvId)
+
+  if (focusedEp) {
+    const again = list.querySelector(focusedMark ? `.ep-mark[data-mark="${focusedEp}"]` : `.episode-item[data-episode="${focusedEp}"]`)
+    if (again) again.focus({ preventScroll: true })
+  }
+}
+
+// Mark / unmark one episode as watched (stored in the profile's progress map).
+async function toggleEpisodeWatched(tvId, seasonNum, epNum, runtime) {
+  const pid = getActiveProfileId()
+  if (pid === 'default') { showToast('Nejprve vyberte profil'); return }
+  const key = episodeKey(tvId, seasonNum, epNum)
+  const url = `/api/profiles/${pid}/progress/${encodeURIComponent(key)}`
+  const wasDone = episodeState(tvId, seasonNum, epNum).status === 'done'
+  const list = $d('episodes-list')
+  try {
+    if (wasDone) {
+      const r = await fetch(url, { method: 'DELETE' })
+      if (!r.ok) throw new Error()
+      delete window._profileProgress[key]
+    } else {
+      const secs = (parseInt(runtime, 10) || 45) * 60
+      const label = key.split(':')[1]
+      const entry = {
+        seconds: secs, duration: secs, finished: true, mediaType: 'tv', tmdbId: tvId, episodeLabel: label,
+        title: `${list.dataset.show} ${label}`, posterPath: list.dataset.poster || null
+      }
+      const r = await fetch(url, jsonBody('PUT', entry))
+      if (!r.ok) throw new Error()
+      window._profileProgress[key] = Object.assign({ updatedAt: new Date().toISOString() }, entry)
+    }
+    renderEpisodes(tvId, seasonNum)
+    if (window.reloadContinueWatching) window.reloadContinueWatching()
+    showToast(wasDone ? 'Epizoda označena jako nezhlédnutá' : 'Epizoda označena jako zhlédnutá ✓')
+  } catch (e) {
+    showToast('Nepodařilo se uložit')
   }
 }
 
@@ -212,11 +332,18 @@ detailModal.addEventListener('click', e => {
     loadSeason(parseInt(tab.dataset.id, 10), parseInt(tab.dataset.season, 10), list ? list.dataset.show : '', list ? list.dataset.poster : null)
     return
   }
-  const ep = e.target.closest('.episode-item')
-  if (ep) {
-    const list = $d('episodes-list')
-    const s = parseInt(ep.dataset.season, 10)
-    const n = parseInt(ep.dataset.episode, 10)
+  const list = $d('episodes-list')
+  const mark = e.target.closest('[data-mark]')
+  if (mark && list) {
+    e.stopPropagation()
+    toggleEpisodeWatched(parseInt(list.dataset.tv, 10), parseInt(list.dataset.season, 10), parseInt(mark.dataset.mark, 10), mark.dataset.runtime)
+    return
+  }
+  const playBtn = e.target.closest('[data-play-episode]')
+  const ep = playBtn || e.target.closest('.episode-item')
+  if (ep && list) {
+    const s = parseInt(list.dataset.season, 10)
+    const n = parseInt(playBtn ? playBtn.dataset.playEpisode : ep.dataset.episode, 10)
     const query = `${list.dataset.show} S${String(s).padStart(2, '0')}E${String(n).padStart(2, '0')}`
     openPrehrajSearch(query, parseInt(list.dataset.tv, 10), 'tv', list.dataset.poster || null, { season: s, number: n })
     return

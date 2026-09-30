@@ -20,6 +20,7 @@ async function renderContinueWatching() {
     // Hide finished movies, but never hide an in-progress episode just because the show is "watched".
     if (!episodeLabel && isWatched(tmdbId, mediaType)) return
     if (duration && (seconds / duration) >= 0.9) return
+    if (isObj && val.finished) return                 // episode marked watched
 
     // Prefer device-independent server metadata; fall back to this browser's localStorage cache.
     let meta = null

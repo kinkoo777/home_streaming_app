@@ -91,6 +91,7 @@ function progress(key, b) {
         mediaType:    mediaType(b.mediaType) || 'movie',
         tmdbId:       b.tmdbId == null ? null : toId(b.tmdbId),
         episodeLabel: typeof b.episodeLabel === 'string' && EPISODE_LABEL.test(b.episodeLabel) ? b.episodeLabel : null,
+        finished:     b.finished === true,          // episode watched to the end (kept for the episode list)
         updatedAt:    new Date().toISOString()
     };
 }

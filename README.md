@@ -18,6 +18,7 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 - **Doporučeno pro vás** — a row built from TMDB recommendations for what the profile recently watched, liked or has in progress (already-seen titles are left out)
 - **Procházet** — browse films or series by genre, decade (last 5 years … older) and sort (popular / rating / newest), with "load more"
 - **Online subtitles** — optional OpenSubtitles search inside the player (see *Configure*)
+- **Per-episode watch state** — each episode in the detail view shows *Zhlédnuto* (watched), a progress bar with minutes left, or *Další na řadě* (next up); a season summary ("Zhlédnuto 3 z 10" + Pokračovat) and ✓ on fully watched seasons; episodes can be marked watched/unwatched by hand. Finished episodes stay in the progress store flagged `finished` (Continue Watching skips them)
 - **Next episode during the credits** — a "Další epizoda" card with a countdown in the last 45 s of an episode
 - **Search** — live TMDB search with dropdown and search history; <kbd>Enter</kbd> shows a full results grid
 - **Detail modal** — backdrop header, poster, genres, cast (with characters), overview, trailer, season/episode browser with episode stills and per-episode progress, similar titles

@@ -45,6 +45,8 @@ test('progress: validates key and numbers', () => {
     assert.strictEqual(sec.progress('1', { seconds: 'abc' }), null);
     assert.strictEqual(sec.progress('1', { seconds: -5 }), null);
     assert.strictEqual(sec.progress('1', { seconds: 5, episodeLabel: '<b>' }).episodeLabel, null);
+    assert.strictEqual(sec.progress('2316:S01E04', { seconds: 60, finished: true }).finished, true);
+    assert.strictEqual(sec.progress('2316:S01E04', { seconds: 60, finished: 'yes' }).finished, false, 'only a real boolean counts');
 });
 
 test('profileChanges: name, theme, picture and settings rules', () => {
