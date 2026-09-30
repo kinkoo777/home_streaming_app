@@ -160,6 +160,8 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 
 ## API Endpoints
 
+**PIN-protected profiles:** every `/api/profiles/:id…` route below (except listing) needs the session token returned by `POST /api/profiles/:id/pin/verify` `{ pin }` → `{ ok, token }`, sent as the `X-Profile-Token` header (or `?t=` for `navigator.sendBeacon`). Tokens live in server memory for 12 h (a restart asks for the PIN again). Wrong PINs are limited to 5 per 5 minutes. All request bodies are validated; unknown fields are dropped.
+
 ### Profiles & Favorites
 
 | Method | Endpoint | Description |
@@ -167,7 +169,9 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 | `GET` | `/api/profiles` | List all profiles |
 | `POST` | `/api/profiles` | Create profile `{ name, theme }` |
 | `GET` | `/api/profiles/:id` | Get profile by id |
-| `PUT` | `/api/profiles/:id` | Update profile (name, theme) |
+| `PUT` | `/api/profiles/:id` | Update profile (name, theme, picture data URL, settings) |
+| `POST` | `/api/profiles/:id/pin` | Set `{ pin: "1234" }` or clear `{ pin: null }` the PIN → `{ hasPin, token }` |
+| `POST` | `/api/profiles/:id/pin/verify` | Check a PIN → `{ ok, token }` (429 after 5 wrong attempts) |
 | `DELETE` | `/api/profiles/:id` | Delete profile — cascades to its favorites, watched, watchlists and progress |
 | `GET` | `/api/profiles/:id/favorites` | List favorites for a profile |
 | `POST` | `/api/profiles/:id/favorites` | Add favorite `{ tmdbId, mediaType, title, posterPath }` |
@@ -193,7 +197,7 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/profiles/:id/progress` | Get playback progress map, keyed by `tmdbId` (or `tmdbId:S01E05` per episode) |
-| `PUT` | `/api/profiles/:id/progress/:key` | Save position + metadata `{ seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }` |
+| `PUT`/`POST` | `/api/profiles/:id/progress/:key` | Save position + metadata `{ seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }` (POST = page-close beacon) |
 | `DELETE` | `/api/profiles/:id/progress/:key` | Remove a single Continue Watching entry |
 
 ### Data export / wipe
@@ -223,8 +227,9 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 | `GET /search?q=<query>` | Title search |
 | `GET /get_video?url=<url>` | Read the video page → `{ name, duration, pageUrl, qualities: [{ src, label, res, hdr, transfer }], subtitles: [{ src, label, lang, default }] }` (Puppeteer fallback) |
 | `GET /stream?url=<cdn url>` | Range-aware video proxy that rewrites HDR colour tags to BT.709 (used for HDR-tagged files) |
+| `GET /get_subtitle?url=<url>` | Proxy + normalize a subtitle file to WebVTT (SRT auto-converted) |
 
-TMDB responses are cached in memory for 5 minutes.
+TMDB and search responses are cached for 5 minutes (in memory and in `data/tmdb-cache.json`, so they survive restarts). The headless browser used as a fallback for `/get_video` starts on first use, restarts if it crashes, runs at most 2 tabs and closes after 10 minutes idle.
 
 ## Browser Support
 

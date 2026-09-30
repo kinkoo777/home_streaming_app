@@ -23,10 +23,55 @@ const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchl
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 3000;
 
-let browser;
-let page;
-let isBusy = false; // lock pro frontu
-const queue = [];   // fronta requestů
+// ── Headless browser (fallback video extraction) ──
+// Launched on first use, relaunched if Chromium dies, closed after 10 min idle,
+// and at most 2 tabs at a time so parallel requests can't exhaust memory.
+let browser = null;
+let browserLaunch = null;
+let browserIdleTimer = null;
+const MAX_PAGES = 2;
+let openPages = 0;
+const pageWaiters = [];
+
+async function getBrowser() {
+    if (browser && browser.connected !== false) return browser;
+    if (!browserLaunch) {
+        browserLaunch = puppeteer.launch({
+            headless: true,
+            executablePath: getSystemChromium() || undefined,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        }).then(b => {
+            browser = b;
+            b.on('disconnected', () => {
+                if (browser === b) browser = null;
+                console.log('Headless prohlížeč ukončen — při další potřebě se spustí znovu');
+            });
+            return b;
+        }).finally(() => { browserLaunch = null; });
+    }
+    return browserLaunch;
+}
+
+// Run fn(page) in a fresh tab, respecting the tab limit.
+async function withPage(fn) {
+    if (openPages >= MAX_PAGES) await new Promise(r => pageWaiters.push(r));
+    openPages++;
+    clearTimeout(browserIdleTimer);
+    let p = null;
+    try {
+        p = await (await getBrowser()).newPage();
+        return await fn(p);
+    } finally {
+        if (p) await p.close().catch(() => {});
+        openPages--;
+        const next = pageWaiters.shift();
+        if (next) next();
+        if (!openPages) {
+            browserIdleTimer = setTimeout(() => { if (!openPages && browser) browser.close().catch(() => {}); }, 10 * 60 * 1000);
+            if (browserIdleTimer.unref) browserIdleTimer.unref();
+        }
+    }
+}
 
 
 app.use(cors());
@@ -181,37 +226,6 @@ app.get('/tmdb/movies', async (req, res) => {
 
 
 
-// --- Fronta requestů ---
-function enqueueRequest(fn) {
-    return new Promise((resolve, reject) => {
-        queue.push({ fn, resolve, reject });
-        processQueue();
-    });
-}
-
-async function processQueue() {
-    if (isBusy) return;
-    if (queue.length === 0) return;
-
-    const { fn, resolve, reject } = queue.shift();
-    isBusy = true;
-
-    try {
-        const result = await fn();
-        resolve(result);
-    } catch (err) {
-        reject(err);
-    } finally {
-        isBusy = false;
-        processQueue(); // zpracuj další request ve frontě
-    }
-}
-
-
-
-
-// ── Search helpers ──
-
 function makeAbsolute(elements, base) {
     elements.forEach(v => {
         v.querySelectorAll('a[href]').forEach(a => {
@@ -291,8 +305,7 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/
 const BLOCK_TYPES = ['image', 'stylesheet', 'font'];
 
 async function getVideoPrehrajto(url) {
-    const p = await browser.newPage();
-    try {
+    return withPage(async p => {
         await p.setUserAgent(UA);
 
         // Capture video stream URLs from network traffic — fires before DOM update
@@ -362,9 +375,7 @@ async function getVideoPrehrajto(url) {
                 .filter((s, idx, arr) => arr.findIndex(x => x.src === s.src) === idx);
             return { ...meta, videoSrc: src, subtitles };
         });
-    } finally {
-        await p.close();
-    }
+    });
 }
 
 // Only allow scraping prehraj.to hosts — prevents SSRF via attacker-supplied url
@@ -437,7 +448,6 @@ app.get('/get_video', async (req, res) => {
             console.error('Page extraction failed, falling back to browser:', err.message);
         }
         if (!video) {
-            if (!browser) return res.status(503).json({ error: 'Browser není připraven, zkuste znovu' });
             video = await getVideoViaBrowser(url);
         }
         if (!video.qualities.length) throw new Error('Nepodařilo se získat odkaz na video');
@@ -472,74 +482,6 @@ app.get('/stream', (req, res) => handleStream(req, res).catch(err => {
     if (!res.headersSent) res.status(500).json({ error: err.message });
 }));
 
-
-
-async function initBrowser() {
-    const executablePath = getSystemChromium()
-    browser = await puppeteer.launch({
-        headless: true,
-        executablePath: executablePath || undefined,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-    });
-    page = await browser.newPage();
-
-    await page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/117.0.0.0 Safari/537.36'
-    );
-
-    await page.setRequestInterception(true);
-    page.on('request', req => {
-        const type = req.resourceType();
-        if (['image', 'stylesheet', 'font'].includes(type)) req.abort();
-        else req.continue();
-    });
-
-    await page.goto('https://prehrajto.cz', { waitUntil: 'domcontentloaded' });
-    console.log('Browser a stránka připraveny!');
-}
-
-initBrowser().catch(console.error);
-
-// --- Endpoint autocomplete ---
-app.get('/autocomplete_data', async (req, res) => {
-    const q = req.query.q;
-    if (!q) return res.status(400).json({ error: 'Chybí query parameter "q"' });
-    if (typeof q !== 'string' || q.length > 200) return res.status(400).json({ error: 'Neplatný dotaz' });
-    if (q == "none") {
-        // sentinel value — nothing to autocomplete; reply with an empty list
-        // rather than leaving the request hanging.
-        return res.json([]);
-    }
-
-
-    try {
-        const results = await enqueueRequest(async () => {
-            // vymažeme předchozí input
-            await page.evaluate(() => {
-                const input = document.querySelector('.video-search-phrase');
-                if (input) input.value = '';
-            });
-
-            // vyplníme nový text
-            await page.type('.video-search-phrase', q, { delay: 0 });
-
-            // čekáme max 5s na autocomplete
-            await page.waitForSelector('.autocomplete-list li', { timeout: 5000 }).catch(() => []);
-
-            // získáme výsledky
-            const res = await page.evaluate(() => {
-                return [...document.querySelectorAll('.autocomplete-list li')].map(el => el.textContent.trim());
-            });
-
-            return res;
-        });
-
-        res.json(results);
-    } catch (err) {
-        console.error('AUTOCOMPLETE ERROR:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
 
 
 // ====================
