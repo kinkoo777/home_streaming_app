@@ -111,7 +111,7 @@ home_streaming_app/
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20.19+ (22 LTS recommended)
 - A free TMDB API key from [themoviedb.org](https://www.themoviedb.org/settings/api)
 
 ### Install
