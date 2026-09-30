@@ -122,6 +122,12 @@ cd home_streaming_app
 npm install
 ```
 
+The server uses a headless Chrome for prehraj.to. On Linux it picks up a system `chromium` / `google-chrome` automatically; elsewhere (or without one) download puppeteer's Chrome once — newer npm versions no longer run that step during `npm install`:
+
+```bash
+npx puppeteer browsers install chrome
+```
+
 ### Configure
 
 The TMDB credential is read from an environment variable — it is **not** stored in the source. Copy the example env file and paste your TMDB **API v4 read access token**:
