@@ -3,7 +3,6 @@ const express = require('express');
 const { JSDOM } = require('jsdom');
 const puppeteer = require('puppeteer');
 const path = require('path');
-const cors = require('cors');
 const fs = require('fs');
 const { execSync } = require('child_process');
 
@@ -21,7 +20,8 @@ const { fetchVideoPage, fetchFastsharePage, fetchSledujtetoPage, getMp4Info, han
 const sec = require('./security');
 const subtitles = require('./subtitles');
 const { srtToVtt } = subtitles;
-const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB, sanitizeProfile } = require('./db');
+const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB, sanitizeProfile, DATA_DIR } = require('./db');
+const { createCache, tmdbTtl } = require('./cache');
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 3000;
 
@@ -76,50 +76,26 @@ async function withPage(fn) {
 }
 
 
-app.use(cors());
+// No CORS: only pages served from here may use the API. Browsers also send an Origin
+// header with cross-site POST/PUT/DELETE — refuse those, so another website open on
+// the home network can't change or delete profiles (CORS alone doesn't stop simple
+// text/plain or form posts).
+function sameOrigin(req) {
+    const origin = req.get('origin');
+    if (!origin) return true;                    // same-origin GETs, curl, old engines
+    try { return new URL(origin).host === req.get('host'); } catch { return false; }
+}
+app.use((req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || sameOrigin(req)) return next();
+    res.status(403).json({ error: 'Požadavek z cizí stránky byl odmítnut' });
+});
 app.use(express.static(path.join(__dirname, 'src')));
 app.use(express.json());
 
-// ── Cache (5 min TTL, persisted to disk so it survives restarts) ──
-const cache = new Map();
-const CACHE_TTL = 5 * 60 * 1000;
-const CACHE_FILE = path.join(__dirname, 'data', 'tmdb-cache.json');
-
-// Load any non-expired entries left over from a previous run.
-(function loadCache() {
-    try {
-        const raw = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
-        const now = Date.now();
-        for (const [key, e] of Object.entries(raw)) {
-            if (e && now - e.ts < CACHE_TTL) cache.set(key, e);
-        }
-    } catch { /* no cache file yet — fine */ }
-})();
-
-let cacheSaveTimer = null;
-function persistCache() {
-    if (cacheSaveTimer) return;            // debounce: at most one write per 10 s
-    cacheSaveTimer = setTimeout(() => {
-        cacheSaveTimer = null;
-        try {
-            if (!fs.existsSync(path.dirname(CACHE_FILE))) fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true });
-            const now = Date.now();
-            const obj = {};
-            for (const [key, e] of cache) if (now - e.ts < CACHE_TTL) obj[key] = e;
-            const tmp = CACHE_FILE + '.' + process.pid + '.tmp';
-            fs.writeFileSync(tmp, JSON.stringify(obj), 'utf8');
-            fs.renameSync(tmp, CACHE_FILE);
-        } catch (err) { console.error('Cache persist selhalo:', err.message); }
-    }, 10000);
-    if (cacheSaveTimer.unref) cacheSaveTimer.unref();   // don't keep the process alive
-}
-
-function getCache(key) {
-    const e = cache.get(key);
-    if (e && Date.now() - e.ts < CACHE_TTL) return e.data;
-    cache.delete(key); return null;
-}
-function setCache(key, data) { cache.set(key, { data, ts: Date.now() }); persistCache(); }
+// ── Cache (persisted to disk so it survives restarts; lifetimes in cache.js) ──
+const cache = createCache(path.join(DATA_DIR, 'tmdb-cache.json'));
+const getCache = key => cache.get(key);
+const setCache = (key, data, ttl) => cache.set(key, data, ttl);
 
 // ── TMDB helper ──
 const TMDB_READ_TOKEN = process.env.TMDB_READ_TOKEN;
@@ -136,7 +112,7 @@ async function tmdbFetch(path) {
     });
     if (!res.ok) throw new Error('TMDB neodpovědělo');
     const data = await res.json();
-    setCache('tmdb:' + path, data);
+    setCache('tmdb:' + path, data, tmdbTtl(path));
     return data;
 }
 

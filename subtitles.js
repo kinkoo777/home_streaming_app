@@ -11,7 +11,7 @@ const path = require('path');
 
 const API = 'https://api.opensubtitles.com/api/v1';
 const APP_UA = 'FilmBox v1.0';
-const CACHE_DIR = path.join(__dirname, 'data', 'subtitles');
+const CACHE_DIR = path.join(process.env.FILMBOX_DATA_DIR || path.join(__dirname, 'data'), 'subtitles');
 
 // Convert a SubRip (.srt) document to WebVTT so <track> can render it.
 function srtToVtt(srt) {

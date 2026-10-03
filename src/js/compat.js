@@ -103,11 +103,24 @@
 })()
 
 // ── Client diagnostics → server log (journalctl -u filmbox) ──
-// Temporary aid for TV-only problems that can't be reproduced on a PC.
+// Errors (script, playback) are always reported. The detailed trace (keys, focus, scrolling,
+// playback) is only for chasing TV-only problems: open the app once with ?debug
+// to switch it on for that device, ?debug=0 to switch it off again.
 // At most 150 small events per page, sent in batches.
+const CLIENT_DEBUG = (function () {
+  const m = /[?&]debug(?:=([^&]*))?/.exec(location.search)
+  try {
+    if (m) {
+      if (m[1] === '0') localStorage.removeItem('filmbox_debug')
+      else localStorage.setItem('filmbox_debug', '1')
+    }
+    return localStorage.getItem('filmbox_debug') === '1'
+  } catch (e) { return !!m && m[1] !== '0' }
+})()
 const _clientLogQ = []
 let _clientLogN = 0, _clientLogTimer = null
 function clientLog(event, data) {
+  if (!CLIENT_DEBUG && !/(^|[.-])error$/.test(event)) return   // js-error, player.error…
   if (_clientLogN++ >= 150) return
   _clientLogQ.push({ t: Math.round(performance.now()), event: event, data: data || null })
   if (!_clientLogTimer) _clientLogTimer = setTimeout(_flushClientLog, 1500)

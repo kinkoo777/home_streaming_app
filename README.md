@@ -54,6 +54,7 @@ home_streaming_app/
 ├── server.js           # Express server — TMDB proxy, profiles/favorites/watched/watchlists/progress API, prehraj.to scraping
 ├── stream.js           # prehraj.to page parsing, MP4 colour-tag probing, /stream proxy
 ├── security.js         # API input validation, PIN sessions, wrong-PIN rate limit
+├── cache.js            # Response cache (TMDB 30 min for lists, 6 h for details), kept on disk
 ├── subtitles.js        # SRT→WebVTT + OpenSubtitles search/download
 ├── tools/
 │   ├── guides.spec.js  # Hand-written watch guides (film lists, chronological order) + TMDB collection ids
@@ -188,7 +189,7 @@ node tools/build-guides.js
 
 ### Test
 
-Unit tests (no server or network needed) cover the HDR colour-tag patching, prehraj.to page parsing, API input validation / PIN limits and the film/series source filter:
+Unit tests (no TMDB token or network needed) cover the HDR colour-tag patching, prehraj.to page parsing, API input validation / PIN limits, the film/series source filter, the response cache, and the progress API (saving, page-close beacons, PIN-protected profiles, requests from other websites) on a throwaway server with a temp data folder:
 
 ```bash
 npm run test:unit
@@ -202,6 +203,12 @@ npm test                          # or BASE=http://localhost:3100 npm test
 ```
 
 To access from other devices on the same network use your machine's local IP — e.g. `http://192.168.1.x:3000`.
+
+The API only accepts changes from FilmBox's own pages: another website open on the same network can't edit or delete profiles.
+
+### TV diagnostics
+
+Script and playback errors from TVs always end up in the server log (`[client …]` lines). For a detailed trace (remote keys, focus moves, scrolling, playback events), open the app once with `?debug` — e.g. change the launcher address in `webos/index.html` to `?tv=1&debug` — and it stays on for that device until it is opened with `?debug=0`.
 
 ### Linux
 
