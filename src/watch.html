@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!-- The link is the invitation — never send it to other sites in a Referer. -->
+  <meta name="referrer" content="no-referrer" />
+  <meta name="theme-color" content="#07070a" />
+  <title>Sledujeme společně — FilmBox</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="/css/watch.css" />
+</head>
+<body>
+
+  <!-- ── Join: name first (also the tap that lets the video start with sound) ── -->
+  <div id="join" class="join">
+    <div class="join-card">
+      <img id="join-poster" class="join-poster" alt="" style="display:none">
+      <div class="join-body">
+        <span class="eyebrow"><i class="bi bi-people-fill"></i> Sledujeme společně</span>
+        <h1 id="join-title">Načítám místnost…</h1>
+        <p id="join-sub" class="muted"></p>
+        <form id="join-form" class="join-form" autocomplete="on" style="display:none">
+          <input id="join-name" class="field" name="nickname" maxlength="24" placeholder="Vaše jméno" autocomplete="nickname" required />
+          <button class="btn btn-primary" type="submit"><i class="bi bi-play-fill"></i> Připojit se</button>
+        </form>
+        <p id="join-error" class="join-error"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Room ── -->
+  <div id="app" class="app" style="display:none">
+    <header class="topbar">
+      <img class="brand" src="/icons/icon-192.png" alt="FilmBox">
+      <div class="now">
+        <b id="title"></b>
+        <span id="room-status" class="muted"></span>
+      </div>
+      <button id="next-btn" class="btn btn-glass btn-sm" style="display:none"><i class="bi bi-skip-end-fill"></i><span> Další díl</span></button>
+      <button id="invite-btn" class="btn btn-glass btn-sm"><i class="bi bi-person-plus-fill"></i><span> Pozvat</span></button>
+      <button id="leave-btn" class="btn btn-ghost btn-sm"><i class="bi bi-box-arrow-right"></i><span> Odejít</span></button>
+    </header>
+
+    <main class="layout">
+      <div class="main-col">
+        <section class="stage" id="stage">
+          <video id="video" playsinline preload="auto"></video>
+          <div class="reactions-layer" id="reactions-layer" aria-hidden="true"></div>
+          <div class="stage-chat" id="stage-chat" aria-hidden="true"></div>
+          <div class="stage-msg" id="stage-msg" role="status"></div>
+          <div class="spinner" id="spinner"><i class="bi bi-arrow-repeat"></i></div>
+          <div class="tap-play" id="tap-play" style="display:none">
+            <button id="tap-play-btn" class="btn btn-primary btn-lg"><i class="bi bi-play-fill"></i> Spustit</button>
+            <p>Prohlížeč potřebuje jedno klepnutí, než pustí video se zvukem.</p>
+          </div>
+          <div class="controls" id="controls">
+            <div class="seek" id="seek" role="slider" tabindex="0" aria-label="Časová osa">
+              <div class="seek-buf" id="seek-buf"></div>
+              <div class="seek-fill" id="seek-fill"></div>
+            </div>
+            <div class="controls-row">
+              <button class="ctrl" id="play-btn" aria-label="Přehrát / pozastavit"><i class="bi bi-play-fill"></i></button>
+              <button class="ctrl" id="back-btn" aria-label="Zpět o 10 sekund"><i class="bi bi-arrow-counterclockwise"></i></button>
+              <button class="ctrl" id="fwd-btn" aria-label="Vpřed o 10 sekund"><i class="bi bi-arrow-clockwise"></i></button>
+              <span class="time" id="time">0:00 / 0:00</span>
+              <span class="spacer"></span>
+              <span class="control-note" id="control-note"></span>
+              <button class="ctrl" id="mute-btn" aria-label="Ztlumit"><i class="bi bi-volume-up-fill"></i></button>
+              <div class="menu-wrap">
+                <button class="ctrl" id="gear-btn" aria-label="Kvalita a titulky" aria-haspopup="menu"><i class="bi bi-gear-fill"></i></button>
+                <div class="menu" id="gear-menu" role="menu"></div>
+              </div>
+              <button class="ctrl" id="fs-btn" aria-label="Celá obrazovka"><i class="bi bi-fullscreen"></i></button>
+            </div>
+          </div>
+        </section>
+        <div class="react-bar" id="react-bar" aria-label="Reakce"></div>
+      </div>
+
+      <aside class="side">
+        <nav class="tabs" role="tablist">
+          <button data-tab="chat" class="active" role="tab">Chat <span class="badge" id="chat-unread"></span></button>
+          <button data-tab="people" role="tab">Lidé <span class="count" id="people-count"></span></button>
+          <button data-tab="settings" id="settings-tab" role="tab" style="display:none">Oprávnění</button>
+        </nav>
+        <div class="panel" id="panel-chat">
+          <div class="chat-list" id="chat-list" aria-live="polite"></div>
+          <form class="chat-form" id="chat-form">
+            <input id="chat-input" class="field" maxlength="500" placeholder="Napište zprávu…" autocomplete="off" />
+            <button class="btn btn-primary" type="submit" aria-label="Odeslat"><i class="bi bi-send-fill"></i></button>
+          </form>
+        </div>
+        <div class="panel" id="panel-people" style="display:none"><ul class="people" id="people"></ul></div>
+        <div class="panel" id="panel-settings" style="display:none"></div>
+      </aside>
+    </main>
+  </div>
+
+  <!-- ── Invite ── -->
+  <div id="invite" class="modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="invite-title">
+    <div class="modal-card">
+      <h3 id="invite-title"><i class="bi bi-person-plus-fill"></i> Pozvat do místnosti</h3>
+      <p class="muted">Kdo dostane tento odkaz, může se připojit. Hostitel může místnost zamknout v záložce Oprávnění.</p>
+      <div class="invite-row">
+        <input id="invite-link" class="field" readonly />
+        <button id="invite-copy" class="btn btn-primary"><i class="bi bi-clipboard"></i> Kopírovat</button>
+      </div>
+      <button id="invite-share" class="btn btn-glass" style="display:none"><i class="bi bi-share-fill"></i> Sdílet…</button>
+      <p id="invite-note" class="invite-note"></p>
+      <div class="modal-actions"><button id="invite-close" class="btn btn-ghost">Zavřít</button></div>
+    </div>
+  </div>
+
+  <!-- ── Room ended / left / removed ── -->
+  <div id="ended" class="join" style="display:none">
+    <div class="join-card">
+      <div class="join-body">
+        <span class="eyebrow"><i class="bi bi-people-fill"></i> Sledujeme společně</span>
+        <h1 id="ended-title">Místnost skončila</h1>
+        <p id="ended-sub" class="muted"></p>
+        <a id="ended-home" class="btn btn-glass" href="/" style="display:none"><i class="bi bi-house"></i> Zpět do FilmBoxu</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/js/watch.js"></script>
+</body>
+</html>

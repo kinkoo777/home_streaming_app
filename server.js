@@ -23,9 +23,15 @@ const { srtToVtt } = subtitles;
 const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB, intros: introsDB, history: historyDB, sanitizeProfile, DATA_DIR } = require('./db');
 const { computeStats, PERIODS } = require('./stats');
 const cast = require('./cast');
+const rooms = require('./rooms');
 const { createCache, tmdbTtl } = require('./cache');
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 3000;
+// Watch-together guests: a second, minimal server (room page + room API only) — the
+// one to expose to the internet. GUEST_PORT=0 turns it off. PUBLIC_URL = its public
+// address (e.g. https://pi.tailnet-name.ts.net from Tailscale Funnel), used in links.
+const GUEST_PORT = process.env.GUEST_PORT !== undefined && process.env.GUEST_PORT !== '' ? parseInt(process.env.GUEST_PORT, 10) || 0 : PORT + 1;
+const PUBLIC_URL = (process.env.PUBLIC_URL || '').trim().replace(/\/+$/, '');
 
 // ── Headless browser (fallback video extraction) ──
 // Launched on first use, relaunched if Chromium dies, closed after 10 min idle,
@@ -654,20 +660,28 @@ function isAllowedVideoUrl(raw) {
 
 
 // Proxy + normalize subtitle files (avoids cross-origin <track> failures).
+// A subtitle file from the CDN (or an OpenSubtitles download) as WebVTT.
+async function loadSubtitle(src) {
+    const online = /^\/subs\/file\/(\d+)$/.exec(src);
+    if (online) return subtitles.download(online[1]);
+    // Subtitle files live on prehraj.to's CDN (premiumcdn.net), not prehrajto.cz itself.
+    if (!isAllowedCdnUrl(src)) throw Object.assign(new Error('Nepovolená URL'), { code: 400 });
+    const r = await fetch(src, { signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw Object.assign(new Error('Titulky se nepodařilo načíst'), { code: 502 });
+    const text = await r.text();
+    return /\.srt(\?|$)/i.test(src) || !/^\s*WEBVTT/.test(text) ? srtToVtt(text) : text;
+}
+
 app.get('/get_subtitle', async (req, res) => {
     const url = req.query.url;
     if (!url) return res.status(400).json({ error: 'Chybí query parameter "url"' });
-    // Subtitle files live on prehraj.to's CDN (premiumcdn.net), not prehrajto.cz itself.
     if (!isAllowedCdnUrl(url)) return res.status(400).json({ error: 'Nepovolená URL' });
     try {
-        const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
-        if (!r.ok) return res.status(502).json({ error: 'Titulky se nepodařilo načíst' });
-        const text = await r.text();
-        const vtt = /\.srt(\?|$)/i.test(url) || !/^\s*WEBVTT/.test(text) ? srtToVtt(text) : text;
+        const vtt = await loadSubtitle(url);
         res.set('Content-Type', 'text/vtt; charset=utf-8');
         res.send(vtt);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(err.code === 502 ? 502 : 500).json({ error: err.message });
     }
 });
 
@@ -686,46 +700,52 @@ async function getVideoViaBrowser(url) {
 
 // Returns { name, duration, thumbnail, width, height, pageUrl,
 //           qualities: [{ src, label, res, hdr, transfer }], subtitles: [{ src, label, lang, default }] }
+// Page URL (prehraj.to / fastshare / sledujteto) → { name, duration, …, qualities, subtitles, pageUrl }.
+// Shared by /get_video and the watch-together rooms (refreshing expired links).
+async function resolveVideo(url) {
+    console.log(`Fetching video from: ${url}`);
+    let video = null;
+    if (isFastshareUrl(url)) {
+        // Free stream is a plain <video><source> on the file page.
+        video = await fetchFastsharePage(url);
+    } else if (isSledujtetoUrl(url)) {
+        // Stream link is issued per play via services/add-file-link.
+        video = await fetchSledujtetoPage(url);
+    } else {
+        // Fast path: sources are listed in the page's inline script.
+        try {
+            video = await fetchVideoPage(url);
+            if (!video.qualities.length) video = null;
+        } catch (err) {
+            console.error('Page extraction failed, falling back to browser:', err.message);
+        }
+        if (!video) {
+            video = await getVideoViaBrowser(url);
+        }
+    }
+    if (!video.qualities.length) throw new Error('Nepodařilo se získat odkaz na video');
+
+    // Flag HDR-tagged files so the player can route them through /stream.
+    await Promise.all(video.qualities.map(async q => {
+        const info = await Promise.race([
+            getMp4Info(q.src),
+            new Promise(r => setTimeout(() => r(null), 6000))
+        ]);
+        q.transfer = info ? info.transfer : 'unknown';
+        q.hdr = !!(info && info.hdr);
+    }));
+
+    console.log(`Found ${video.qualities.length} quality variant(s): ${video.qualities.map(q => q.label + (q.hdr ? ' HDR' : '')).join(', ')}`);
+    return { ...video, pageUrl: url };
+}
+
 app.get('/get_video', async (req, res) => {
     const url = req.query.url;
     if (!url) return res.status(400).json({ error: 'Chybí query parameter "url"' });
     if (!isAllowedVideoUrl(url)) return res.status(400).json({ error: 'Nepovolená URL' });
 
     try {
-        console.log(`Fetching video from: ${url}`);
-        let video = null;
-        if (isFastshareUrl(url)) {
-            // Free stream is a plain <video><source> on the file page.
-            video = await fetchFastsharePage(url);
-        } else if (isSledujtetoUrl(url)) {
-            // Stream link is issued per play via services/add-file-link.
-            video = await fetchSledujtetoPage(url);
-        } else {
-            // Fast path: sources are listed in the page's inline script.
-            try {
-                video = await fetchVideoPage(url);
-                if (!video.qualities.length) video = null;
-            } catch (err) {
-                console.error('Page extraction failed, falling back to browser:', err.message);
-            }
-            if (!video) {
-                video = await getVideoViaBrowser(url);
-            }
-        }
-        if (!video.qualities.length) throw new Error('Nepodařilo se získat odkaz na video');
-
-        // Flag HDR-tagged files so the player can route them through /stream.
-        await Promise.all(video.qualities.map(async q => {
-            const info = await Promise.race([
-                getMp4Info(q.src),
-                new Promise(r => setTimeout(() => r(null), 6000))
-            ]);
-            q.transfer = info ? info.transfer : 'unknown';
-            q.hdr = !!(info && info.hdr);
-        }));
-
-        console.log(`Found ${video.qualities.length} quality variant(s): ${video.qualities.map(q => q.label + (q.hdr ? ' HDR' : '')).join(', ')}`);
-        res.json({ ...video, pageUrl: url });
+        res.json(await resolveVideo(url));
     } catch (err) {
         console.error('VIDEO ERROR:', err);
         if (err.name === 'TimeoutError') {
@@ -761,25 +781,29 @@ app.post('/api/cast/:id/state', express.json({ type: 'text/plain' }), (req, res)
     res.status(204).end();
 });
 
-// What a phone may tell the TV to play: the same payload the source picker hands the
-// player, with every link checked, plus the profile (looked up here — a PIN profile
-// needs the phone's own session, which is then passed on to the TV).
+// A player payload (what the source picker hands the player) from another device:
+// every link must point at the allowed video sites. Returns an error message or null.
+function checkPlayer(p) {
+    const src = p && p.source;
+    if (!p || typeof p !== 'object' || !src || !Array.isArray(src.qualities) || !src.qualities.length || src.qualities.length > 12) return 'Chybí video';
+    if (!src.qualities.every(q => q && typeof q.src === 'string' && isAllowedCdnUrl(q.src))) return 'Nepovolený odkaz na video';
+    const subsOk = s => s && typeof s.src === 'string' && (isAllowedCdnUrl(s.src) || /^\/subs\/file\/\d+$/.test(s.src));
+    if (src.subtitles != null && !(Array.isArray(src.subtitles) && src.subtitles.every(subsOk))) return 'Nepovolené titulky';
+    if (src.pageUrl != null && !isAllowedVideoUrl(src.pageUrl)) return 'Nepovolená stránka videa';
+    if (p.alternatives != null && !(Array.isArray(p.alternatives) && p.alternatives.every(a => a && isAllowedVideoUrl(a.url)))) return 'Nepovolený záložní zdroj';
+    return null;
+}
+
+// What a phone may tell the TV to play: a checked player payload plus the profile
+// (looked up here — a PIN profile needs the phone's own session, which is then
+// passed on to the TV).
 function castPlayCommand(req, b) {
     const profile = profilesDB.get(String(b.profileId || ''));
     if (!profile) return { status: 404, error: 'Profil nenalezen' };
     if (profile.pinHash && !sec.hasSession(req, profile.id)) return { status: 401, error: 'Vyžadován PIN' };
     const p = b.player;
-    const src = p && p.source;
-    if (!p || typeof p !== 'object' || !src || !Array.isArray(src.qualities) || !src.qualities.length || src.qualities.length > 12) {
-        return { status: 400, error: 'Chybí video' };
-    }
-    if (!src.qualities.every(q => q && typeof q.src === 'string' && isAllowedCdnUrl(q.src))) return { status: 400, error: 'Nepovolený odkaz na video' };
-    const subsOk = s => s && typeof s.src === 'string' && (isAllowedCdnUrl(s.src) || /^\/subs\/file\/\d+$/.test(s.src));
-    if (src.subtitles != null && !(Array.isArray(src.subtitles) && src.subtitles.every(subsOk))) return { status: 400, error: 'Nepovolené titulky' };
-    if (src.pageUrl != null && !isAllowedVideoUrl(src.pageUrl)) return { status: 400, error: 'Nepovolená stránka videa' };
-    if (p.alternatives != null && !(Array.isArray(p.alternatives) && p.alternatives.every(a => a && isAllowedVideoUrl(a.url)))) {
-        return { status: 400, error: 'Nepovolený záložní zdroj' };
-    }
+    const bad = checkPlayer(p);
+    if (bad) return { status: 400, error: bad };
     const startAt = Number(b.startAt);
     return {
         command: {
@@ -818,6 +842,16 @@ app.post('/api/cast/:id/command', (req, res) => {
     if (!cast.send(req.params.id, command)) return res.status(404).json({ error: 'Televize není připojená' });
     res.json({ ok: true });
 });
+
+// ── Watch together (rooms.js) ──
+// Links point at the guest server: its public address when PUBLIC_URL is set,
+// otherwise the address the host reached us on (home network / Tailscale only).
+function roomLinks(req, id) {
+    if (PUBLIC_URL) return { link: `${PUBLIC_URL}/r/${id}`, public: true };
+    return { link: `http://${req.hostname}:${GUEST_PORT || PORT}${GUEST_PORT ? '/r/' + id : '/watch.html?room=' + id}`, public: false };
+}
+const roomOpts = { checkPlayer, resolveVideo, handleStream, loadSubtitle, linkFor: roomLinks };
+app.use('/api/rooms', rooms.router(Object.assign({ canCreate: true }, roomOpts)));
 
 // ── Intros (skip-intro marks per show + season, shared by all profiles) ──
 app.get('/api/intros/:tmdbId', (req, res) => {
@@ -1063,3 +1097,32 @@ app.listen(PORT, '0.0.0.0', err => {
     }
     console.log(`Server běží na portu ${PORT}`);
 });
+
+// ── Guest server for watch-together links ──
+// Only the room page, its own assets and the room API (joining, not creating).
+// Nothing else of FilmBox — profiles, search, the library — exists on this port,
+// so it's the one to expose to the internet (Tailscale Funnel, Cloudflare Tunnel…).
+if (GUEST_PORT) {
+    const guest = express();
+    guest.disable('x-powered-by');
+    guest.set('trust proxy', 'loopback');       // Funnel / tunnels connect from localhost
+    guest.use((req, res, next) => {
+        // The link is the invitation: never leak it in a Referer.
+        res.set({ 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY' });
+        if (req.method === 'GET' || req.method === 'HEAD' || sameOrigin(req)) return next();
+        res.status(403).json({ error: 'Požadavek z cizí stránky byl odmítnut' });
+    });
+    guest.use(express.json({ limit: '200kb' }));
+    const page = path.join(__dirname, 'src', 'watch.html');
+    guest.get('/r/:id', (req, res) => res.sendFile(page));
+    for (const file of ['css/watch.css', 'js/watch.js', 'icons/favicon-32.png', 'icons/favicon-16.png', 'icons/icon-192.png', 'icons/apple-touch-icon.png']) {
+        guest.get('/' + file, (req, res) => res.sendFile(path.join(__dirname, 'src', file)));
+    }
+    guest.use('/api/rooms', rooms.router(Object.assign({ canCreate: false }, roomOpts)));
+    guest.use((req, res) => res.status(404).type('text').send('Nenalezeno'));
+    guest.listen(GUEST_PORT, '0.0.0.0', err => {
+        // The main app keeps running without it.
+        if (err) return console.error(`Server pro hosty nelze spustit na portu ${GUEST_PORT}: ${err.message}`);
+        console.log(`Server pro hosty (Sledovat společně) běží na portu ${GUEST_PORT}${PUBLIC_URL ? ' — veřejně ' + PUBLIC_URL : ''}`);
+    });
+}

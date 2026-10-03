@@ -33,7 +33,8 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
   - **Reliability** — Auto quality follows screen size and steps down on repeated buffering; expired CDN links are refreshed automatically; a broken quality falls back to the next one; stuck streams are reloaded at the same position
   - **TV remote friendly** — arrow/OK navigation in menus and prompts, Samsung/LG back keys, media keys, Media Session
 - **Export / wipe my data** — from a profile's settings, download everything (favorites, watched, watchlists, progress) as one JSON file, or wipe the library while keeping the profile
-- **Pustit na TV** — pick a film or episode on your phone and play it on the TV: the cast button in the navbar lists every TV with FilmBox open, *Přehrát* then sends the video there (your phone asks *Pokračovat od 12:34 / Od začátku*), plays as your profile (PIN profiles included) and turns the phone into a remote — play/pause, ±10/30 s, tap the timeline to jump, subtitles, next episode, stop. Any device can be a receiver: TVs are automatically, other browsers after opening FilmBox once with `?receiver=1`
+- **Sledovat společně** — watch with friends anywhere by sending a link: *Společně* in the player opens a room for what you're watching, at the same second. Everyone in the room sees the same picture at the same moment (play, pause and seeks apply to all, drift is corrected continuously), with **chat**, **emoji reactions** floating over the video and a **who's watching** list (incl. who's buffering). **Roles and permissions**: you're the host; others join as *Divák* or *Moderátor* and you tick what each role may do — control playback, chat, react, remove people — change anyone's role, remove people, lock the room or end it. Friends only need the link and a name (no FilmBox profile); they reach a separate, minimal guest server that offers nothing but the room. The host can switch the room to the next episode; the host's progress and watched time are saved as usual
+- **Pustit na TV** — pick a film or episode on your phone and play it on the TV: the cast button in the navbar lists every TV with FilmBox open, *Přehrát* then sends the video there (your phone asks *Pokračovat od 12:34 / Od začátku*), plays as your profile (PIN profiles included) and turns the phone into a remote — play/pause, ±10/30 s, tap the timeline to jump, subtitles, next episode, stop. Any device can be a receiver: TVs are automatically, other browsers after opening FilmBox once with `?receiver=1`. Already watching on the phone? *Na TV* in the player hands the video over to the TV at the same second and the phone switches to the remote
 - **Nové díly** — a row with the series you follow (episodes in progress, series marked watched, favourite series) that aired episodes you haven't seen: "Nový díl S02E05", "3 nové díly", "Nová řada", plus the date of the next one
 - **Brzy vyjde + calendar** — a row and a month-by-month calendar of what's coming from your lists and favourites: Czech cinema and digital premieres (US when there's no Czech date), series premieres and the next episodes of followed series
 - **Co pustit?** — the shuffle button in the navbar picks something at random from your lists and recommendations (or this week's trending titles for a new profile), filtered by films/series, genre and length (up to 1 h 40 / 2 h); *Jiný tip* rerolls without repeating itself
@@ -66,6 +67,7 @@ home_streaming_app/
 ├── cache.js            # Response cache (TMDB 30 min for lists, 6 h for details), kept on disk
 ├── stats.js            # Watching stats from the watch history (hours, finished titles, months, streaks)
 ├── cast.js             # "Pustit na TV": TV receivers (Server-Sent Events), commands, playback state
+├── rooms.js            # "Sledovat společně": rooms, roles + permissions, sync, chat, reactions (Server-Sent Events)
 ├── subtitles.js        # SRT→WebVTT + OpenSubtitles search/download
 ├── tools/
 │   ├── guides.spec.js  # Hand-written watch guides (film lists, chronological order) + TMDB collection ids
@@ -86,6 +88,7 @@ home_streaming_app/
     ├── media/whats-new.mp4 # "What's new" video (not in git — copy it in manually)
     ├── guides/guides.json # Generated watch guides + collections (node tools/build-guides.js)
     ├── player.html       # Video player (quality, subtitles, HDR fix, remote controls)
+    ├── watch.html        # "Sledovat společně" room page (js/watch.js, css/watch.css) — also served by the guest server
     ├── css/
     │   ├── base.css      # Design tokens, buttons, fields, chips, focus rings
     │   ├── navbar.css
@@ -208,7 +211,7 @@ node tools/build-guides.js
 
 ### Test
 
-Unit tests (no TMDB token or network needed) cover the HDR colour-tag patching, prehraj.to page parsing, API input validation / PIN limits, the film/series source filter and source ranking by preferences, the response cache, the stats maths, and — on a throwaway server with a temp data folder — the progress API (saving, page-close beacons, PIN-protected profiles, requests from other websites), playback preferences, skip-intro marks, watched time → stats, and casting (receiver ownership, remote commands, link and PIN checks on *play*):
+Unit tests (no TMDB token or network needed) cover the HDR colour-tag patching, prehraj.to page parsing, API input validation / PIN limits, the film/series source filter and source ranking by preferences, the response cache, the stats maths, and — on a throwaway server with a temp data folder — the progress API (saving, page-close beacons, PIN-protected profiles, requests from other websites), playback preferences, skip-intro marks, watched time → stats, casting (receiver ownership, remote commands, link and PIN checks on *play*), and watch-together rooms (what the guest server exposes — and doesn't, joining, sync, chat/reaction limits, roles and permissions, kicking, locking, video changes, room-only video/subtitle proxies):
 
 ```bash
 npm run test:unit
@@ -224,6 +227,30 @@ npm test                          # or BASE=http://localhost:3100 npm test
 To access from other devices on the same network use your machine's local IP — e.g. `http://192.168.1.x:3000`.
 
 The API only accepts changes from FilmBox's own pages: another website open on the same network can't edit or delete profiles.
+
+### Sledovat společně (watch with friends)
+
+FilmBox runs a second, small **guest server** next to the main one (port `PORT + 1`, i.e. 3001; set `GUEST_PORT`, or `GUEST_PORT=0` to turn it off). It serves only the room page, its own CSS/JS and the room API for joining — no profiles, library, search or anything else — and a room's video and subtitles only to people in that room. **Only this port should ever be reachable from the internet; keep 3000 at home.**
+
+Without anything else, room links work for people on your home Wi-Fi or your Tailscale network. For friends anywhere, publish the guest port — with Tailscale (already on the Pi) that's **Funnel**:
+
+```bash
+sudo tailscale funnel --bg 3001     # prints https://<pi-name>.<tailnet>.ts.net
+```
+
+The first time, Tailscale may ask you to allow HTTPS / Funnel for your tailnet — follow the link it prints. Then put that address in `.env` and restart FilmBox, so room links use it:
+
+```ini
+PUBLIC_URL=https://<pi-name>.<tailnet>.ts.net
+```
+
+(`sudo tailscale funnel reset` takes it offline again. A Cloudflare Tunnel to `http://localhost:3001` works the same way.)
+
+In the player press **Společně** (or *Settings → Sledovat společně*), then **Pozvat** to copy or share the link. Notes:
+
+- The link is the invitation — anyone who has it can join until you **lock** the room (*Oprávnění*) or end it. Rooms live in memory: restarting the server ends them; they also close after 30 min with nobody connected, or after 12 h.
+- Video plays straight from the video site where possible; if a friend's browser can't, it goes through the guest server — then it uses your home upload (≈ 5–8 Mbit/s per person in 1080p, 720p is picked on phones).
+- Up to 20 people per room, 20 rooms at once. Chat, reactions and joining are rate-limited.
 
 ### Pustit na TV
 

@@ -134,6 +134,17 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      .top-actions { margin-left: auto; display: flex; align-items: center; flex-shrink: 0; }
+      .top-btn {
+        display: flex; align-items: center; margin-left: 8px; padding: 9px 14px; border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.08); color: #fff;
+        font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+      }
+      .top-btn i { margin-right: 6px; font-size: 15px; }
+      .top-btn:hover { background: rgba(255,255,255,0.16); }
+      body.kbd .top-btn:focus { box-shadow: 0 0 0 3px #fff; outline: none; }
+      body.tv .top-actions { display: none; }
+      @media (max-width: 600px) { .top-btn span { display: none; } .top-btn i { margin-right: 0; } .top-btn { padding: 9px 11px; } }
 
       /* ── HDR CANVAS ── */
       #hdr-canvas {
@@ -910,6 +921,10 @@
           <i class="bi bi-arrow-left"></i> Zpět
         </button>
         <span id="player-title"></span>
+        <div class="top-actions">
+          <button class="top-btn" id="handoff-btn" style="display:none" title="Pustit na TV" aria-label="Pustit na TV"><i class="bi bi-cast"></i><span>Na TV</span></button>
+          <button class="top-btn" id="together-btn" title="Sledovat společně — pozvat přátele odkazem" aria-label="Sledovat společně"><i class="bi bi-people-fill"></i><span>Společně</span></button>
+        </div>
         <div class="tv-remote-hints" aria-hidden="true">
           <span><i class="key red"></i>Titulky</span>
           <span><i class="key green"></i>Nastavení</span>
@@ -1764,6 +1779,8 @@
             add(menuItem({ label: 'Jas HDR', sub: true, value: cur ? cur[1] : hdrExposure + '×', onClick: () => openSettingsPage('exposure') }))
           }
           add(menuItem({ label: 'Časovač vypnutí', sub: true, value: sleepLabel(), onClick: () => openSettingsPage('sleep') }))
+          if (!IS_TV) add(menuItem({ label: 'Sledovat společně', hint: 'Pozvat přátele odkazem', onClick: () => { closeSettings(); startTogether() } }))
+          if (_tvs.length && !IS_TV) add(menuItem({ label: 'Pustit na TV', sub: true, value: _tvs.length === 1 ? _tvs[0].name : _tvs.length + ' TV', onClick: () => openSettingsPage('handoff') }))
           if (_isEpisode()) {
             const intro = currentIntro()
             add(menuItem({ label: 'Úvod seriálu', sub: true, value: intro ? fmt(intro.start) + '–' + fmt(intro.end) : 'Neoznačen', onClick: () => openSettingsPage('intro') }))
@@ -1850,6 +1867,11 @@
           }))
           if (own) add(menuItem({ label: 'Smazat úvod ' + (season ? season + '. řady' : 'speciálů'), hint: fmt(own.start) + '–' + fmt(own.end), onClick: deleteIntro }))
           else if (currentIntro()) add(menuItem({ label: 'Teď se používá úvod z ' + currentIntro().season + '. řady', hint: 'Označte ho znovu, pokud v této řadě sedí jinak', onClick: () => {} }))
+        }
+
+        if (_settingsPage === 'handoff') {
+          add(backItem('Pustit na TV'))
+          _tvs.forEach(t => add(menuItem({ label: t.name, hint: 'Pokračovat tam od ' + fmt(video.currentTime), onClick: () => { closeSettings(); handOff(t) } })))
         }
 
         if (_settingsPage === 'sleep') {
@@ -2848,7 +2870,7 @@
 
       // Buttons in the top bar + control bar, in visual order, for Left/Right on a remote.
       function barButtons() {
-        return [...playerWrap.querySelectorAll('#player-back, .player-controls .ctrl-btn')]
+        return [...playerWrap.querySelectorAll('#player-back, .top-btn, .player-controls .ctrl-btn')]
           .filter(b => b.offsetParent !== null && getComputedStyle(b).display !== 'none')
       }
 
@@ -3039,6 +3061,71 @@
       }
       ;['play', 'pause', 'seeked', 'loadedmetadata', 'volumechange', 'ended'].forEach(t => video.addEventListener(t, () => setTimeout(castReport, 50)))
       setInterval(() => { if (!video.paused && Date.now() - _castReportT > 4500) castReport() }, 5000)
+
+      // ── Sledovat společně: a room for this video, at this second (rooms.js, watch.html) ──
+      const togetherBtn = document.getElementById('together-btn')
+      togetherBtn.addEventListener('click', e => { e.stopPropagation(); startTogether() })
+      function startTogether() {
+        if (!_playerData || !source) return
+        let name = null
+        try { name = JSON.parse(sessionStorage.getItem('filmbox_active_profile') || 'null').name } catch (e) {}
+        togetherBtn.disabled = true
+        toast('Zakládám místnost…')
+        fetch('/api/rooms', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ player: Object.assign({}, _playerData, { source }), name, position: video.currentTime || 0, playing: !video.paused })
+        }).then(r => r.json().then(b => {
+          if (!r.ok) throw new Error(b.error || 'Místnost se nepodařilo založit')
+          try { localStorage.setItem('filmbox_room_' + b.id, JSON.stringify(b.member)) } catch (e) {}
+          _saveProgressToApi()
+          video.pause()
+          location.href = 'watch.html?room=' + encodeURIComponent(b.id)
+        })).catch(err => { togetherBtn.disabled = false; toast(err.message, 5000) })
+      }
+
+      // ── Pustit na TV: hand this video over to a TV at the current second (cast.js) ──
+      // The phone then shows the remote (cast-sender.js on the home page).
+      let _tvs = []
+      const handoffBtn = document.getElementById('handoff-btn')
+      const _isReceiver = () => !!window.castReceiver
+      function loadTvs() {
+        if (IS_TV) return
+        fetch('/api/cast/devices').then(r => (r.ok ? r.json() : [])).then(list => {
+          const own = window.castReceiver ? window.castReceiver.id : null
+          _tvs = list.filter(d => d.online && d.id !== own)
+          handoffBtn.style.display = _tvs.length && !_isReceiver() ? '' : 'none'
+        }).catch(() => {})
+      }
+      loadTvs()
+      setInterval(() => { if (document.visibilityState !== 'hidden') loadTvs() }, 20000)
+      handoffBtn.addEventListener('click', e => {
+        e.stopPropagation()
+        if (_tvs.length === 1) handOff(_tvs[0])
+        else { openSettings(); openSettingsPage('handoff') }
+      })
+      function handOff(tv) {
+        if (!_playerData || !source) return
+        const pid = _profileId()
+        const headers = { 'Content-Type': 'application/json' }
+        const token = _profileToken(pid)
+        if (token) headers['X-Profile-Token'] = token
+        const at = video.currentTime || 0
+        toast('Posílám na ' + tv.name + '…')
+        fetch(`/api/cast/${encodeURIComponent(tv.id)}/command`, {
+          method: 'POST', headers,
+          body: JSON.stringify({ type: 'play', player: Object.assign({}, _playerData, { source, castStart: undefined }), profileId: pid, startAt: at })
+        }).then(r => r.json().then(b => {
+          if (!r.ok) throw new Error(r.status === 404 ? tv.name + ' teď není připojená' : (b.error || 'Nepodařilo se poslat na televizi'))
+          video.pause()
+          _saveProgressToApi()
+          try {
+            sessionStorage.setItem('filmbox_cast_target', JSON.stringify({ id: tv.id, name: tv.name }))
+            sessionStorage.setItem('filmbox_open_remote', '1')
+          } catch (e) {}
+          // Back home, where the remote opens (cast-sender.js).
+          leavePlayer()
+        })).catch(err => toast(err.message, 5000))
+      }
 
       // ── Start ── (last, so every const above is initialised)
       async function boot() {

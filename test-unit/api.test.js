@@ -3,43 +3,17 @@
 // cross-site request guard.
 const test = require('node:test');
 const assert = require('node:assert');
-const { spawn } = require('child_process');
-const fs = require('fs');
-const os = require('os');
-const net = require('net');
-const path = require('path');
+const { startServer, sse, waitFor } = require('./server-harness');
 
 let server, base, host;
 
-function freePort() {
-    return new Promise((resolve, reject) => {
-        const s = net.createServer().listen(0, '127.0.0.1', () => {
-            const { port } = s.address();
-            s.close(() => resolve(port));
-        }).on('error', reject);
-    });
-}
-
 test.before(async () => {
-    const port = await freePort();
-    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'filmbox-api-'));
-    server = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
-        env: { ...process.env, PORT: String(port), TMDB_READ_TOKEN: 'test', FILMBOX_DATA_DIR: dataDir },
-        stdio: ['ignore', 'pipe', 'pipe']
-    });
-    host = '127.0.0.1:' + port;
-    base = 'http://' + host;
-    await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('server did not start')), 15000);
-        let out = '';
-        const onData = d => { out += d; if (out.includes(String(port))) { clearTimeout(timer); resolve(); } };
-        server.stdout.on('data', onData);
-        server.stderr.on('data', onData);
-        server.on('exit', code => reject(new Error('server exited ' + code + ': ' + out)));
-    });
+    server = await startServer();
+    base = server.base;
+    host = server.host;
 });
 
-test.after(() => { if (server) server.kill(); });
+test.after(() => { if (server) server.stop(); });
 
 const json = (method, url, body, headers = {}) => fetch(base + url, {
     method, headers: { 'Content-Type': 'application/json', ...headers }, body: body && JSON.stringify(body)
@@ -187,35 +161,8 @@ test('watch time adds up into stats; export and wipe include it', async () => {
 });
 
 // ── Casting ──
-// Opens a receiver connection and collects the commands it gets.
-async function receiver(id, key, name = 'Testovací TV') {
-    const ctl = new AbortController();
-    const res = await fetch(`${base}/api/cast/receiver?id=${id}&key=${key}&name=${encodeURIComponent(name)}`, { signal: ctl.signal });
-    const got = [];
-    if (res.status === 200) {
-        const reader = res.body.getReader();
-        const dec = new TextDecoder();
-        let buf = '';
-        (async () => {
-            try {
-                for (;;) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    buf += dec.decode(value, { stream: true });
-                    let i;
-                    while ((i = buf.indexOf('\n\n')) >= 0) {
-                        const block = buf.slice(0, i);
-                        buf = buf.slice(i + 2);
-                        const data = block.split('\n').filter(l => l.startsWith('data: ')).map(l => l.slice(6)).join('\n');
-                        if (data) got.push(JSON.parse(data));
-                    }
-                }
-            } catch { /* aborted */ }
-        })();
-    }
-    return { status: res.status, got, close: () => ctl.abort() };
-}
-const waitFor = async (fn, ms = 2000) => { const t = Date.now(); while (!fn()) { if (Date.now() - t > ms) throw new Error('timeout'); await new Promise(r => setTimeout(r, 20)); } };
+// A TV receiver connection collecting the commands it gets.
+const receiver = (id, key, name = 'Testovací TV') => sse(`${base}/api/cast/receiver?id=${id}&key=${key}&name=${encodeURIComponent(name)}`);
 
 const playerPayload = (over = {}) => ({
     title: 'Interstellar', tmdbId: 157336, mediaType: 'movie', progressKey: '157336',
