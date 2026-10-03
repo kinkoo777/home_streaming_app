@@ -74,7 +74,8 @@ test('join, snapshot, sync, chat and reactions', async () => {
         assert.strictEqual(hello.you.name, 'Anna b');
         assert.strictEqual(hello.you.role, 'viewer');
         assert.deepStrictEqual(hello.you.perms, { control: false, chat: true, react: true, kick: false });
-        assert.strictEqual(hello.room.link, undefined, 'only the host gets the invite link from the server');
+        assert.ok(hello.room.link.endsWith('/r/' + room.id), 'everyone can pass the link on');
+        assert.strictEqual(hello.room.publicLink, false);
         assert.strictEqual(hello.video.qualities.length, 2);
         assert.strictEqual(hello.video.subtitles[0].src, undefined, 'subtitles go through the room');
         assert.ok(hello.state.playing && hello.state.position >= 120);

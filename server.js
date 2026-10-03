@@ -23,6 +23,7 @@ const { srtToVtt } = subtitles;
 const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB, intros: introsDB, history: historyDB, sanitizeProfile, DATA_DIR } = require('./db');
 const { computeStats, PERIODS } = require('./stats');
 const cast = require('./cast');
+const { normalizeUrl, detectFunnel } = require('./funnel');
 const rooms = require('./rooms');
 const { createCache, tmdbTtl } = require('./cache');
 const app = express();
@@ -31,7 +32,19 @@ const PORT = parseInt(process.env.PORT, 10) || 3000;
 // one to expose to the internet. GUEST_PORT=0 turns it off. PUBLIC_URL = its public
 // address (e.g. https://pi.tailnet-name.ts.net from Tailscale Funnel), used in links.
 const GUEST_PORT = process.env.GUEST_PORT !== undefined && process.env.GUEST_PORT !== '' ? parseInt(process.env.GUEST_PORT, 10) || 0 : PORT + 1;
-const PUBLIC_URL = (process.env.PUBLIC_URL || '').trim().replace(/\/+$/, '');
+const PUBLIC_URL = normalizeUrl(process.env.PUBLIC_URL);       // "pi.x.ts.net" works too
+// Without PUBLIC_URL: a Tailscale Funnel to the guest port, if one is on (checked every 30 s).
+let funnelUrl = null;
+function refreshFunnel() {
+    if (PUBLIC_URL || !GUEST_PORT) return;
+    detectFunnel(GUEST_PORT, url => {
+        if (url === funnelUrl) return;
+        funnelUrl = url;
+        console.log(url ? `Tailscale Funnel nalezen — odkazy na místnosti: ${url}` : 'Tailscale Funnel pro hosty už neběží');
+    });
+}
+refreshFunnel();
+setInterval(refreshFunnel, 30 * 1000).unref();
 
 // ── Headless browser (fallback video extraction) ──
 // Launched on first use, relaunched if Chromium dies, closed after 10 min idle,
@@ -844,11 +857,13 @@ app.post('/api/cast/:id/command', (req, res) => {
 });
 
 // ── Watch together (rooms.js) ──
-// Links point at the guest server: its public address when PUBLIC_URL is set,
-// otherwise the address the host reached us on (home network / Tailscale only).
-function roomLinks(req, id) {
-    if (PUBLIC_URL) return { link: `${PUBLIC_URL}/r/${id}`, public: true };
-    return { link: `http://${req.hostname}:${GUEST_PORT || PORT}${GUEST_PORT ? '/r/' + id : '/watch.html?room=' + id}`, public: false };
+// Links point at the guest server: its public address (PUBLIC_URL or a detected
+// Tailscale Funnel), otherwise the address the host reached us on — which only
+// works at home / inside Tailscale.
+function roomLinks(hostname, id) {
+    const pub = PUBLIC_URL || funnelUrl;
+    if (pub) return { link: `${pub}/r/${id}`, public: true };
+    return { link: `http://${hostname}:${GUEST_PORT || PORT}${GUEST_PORT ? '/r/' + id : '/watch.html?room=' + id}`, public: false };
 }
 const roomOpts = { checkPlayer, resolveVideo, handleStream, loadSubtitle, linkFor: roomLinks };
 app.use('/api/rooms', rooms.router(Object.assign({ canCreate: true }, roomOpts)));
