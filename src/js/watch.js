@@ -16,7 +16,7 @@
   const API = '/api/rooms/' + encodeURIComponent(ROOM)
   const CRED_KEY = 'filmbox_room_' + ROOM
   const ROLE_NAMES = { host: 'Hostitel', moderator: 'Moderátor', viewer: 'Divák' }
-  const PERM_NAMES = { control: 'Ovládat přehrávání', chat: 'Psát do chatu', react: 'Posílat reakce', kick: 'Odebírat lidi' }
+  const PERM_NAMES = { control: 'Ovládat přehrávání a pouštět filmy', chat: 'Psát do chatu', react: 'Posílat reakce', suggest: 'Navrhovat filmy', kick: 'Odebírat lidi' }
 
   let creds = null              // { id, secret }
   let es = null
@@ -35,6 +35,8 @@
   let unread = 0
   let activeTab = 'chat'
   let ended = false
+  let poll = { items: [], finding: null, error: null }
+  let lastPollError = null
 
   function lsGet(k) { try { return localStorage.getItem(k) } catch (e) { return null } }
   function lsSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v) } catch (e) {} }
@@ -143,6 +145,7 @@
         $('app').style.display = ''
         $('chat-list').innerHTML = ''
         msg.chat.forEach(m => addChat(m, true))
+        poll = msg.poll || poll
         renderAll()
         if (msg.videoVersion !== videoVersion) loadVideo(msg.video, msg.videoVersion)
         applyState(msg.state)
@@ -154,7 +157,13 @@
       case 'video':
         loadVideo(msg.video, msg.videoVersion)
         applyState(msg.state)
-        if (!msg.refreshed) stageMsg('Hraje: ' + msg.video.title)
+        if (!msg.refreshed && msg.video) stageMsg('Hraje: ' + msg.video.title)
+        break
+      case 'poll':
+        poll = msg.poll
+        renderPoll()
+        if (poll.error && poll.error !== lastPollError) toast(poll.error, 6000)
+        lastPollError = poll.error
         break
       case 'members':
         members = msg.members
@@ -204,9 +213,19 @@
     return viaProxy ? API + '/stream/' + i + '?' + authQuery() : videoInfo.qualities[i].src
   }
   function loadVideo(v, version) {
+    videoVersion = version
+    if (!v) {                                         // no film: choosing one together
+      videoInfo = null
+      video.removeAttribute('src')
+      video.querySelectorAll('track').forEach(t => t.remove())
+      video.load()
+      setLobby(true)
+      return
+    }
     // Fresh links for the same video keep the chosen quality; anything new starts over.
     const keepQuality = videoInfo && videoInfo.title === v.title && videoInfo.qualities.length === v.qualities.length
     videoInfo = v
+    setLobby(false)
     videoVersion = version
     viaProxy = false
     if (!keepQuality) qualityIdx = pickQuality(v.qualities)
@@ -339,7 +358,7 @@
     if (type === 'seek') applyState({ playing: state.playing, position: pos, updatedAt: t })
     api('POST', '/action', { type, position: pos }).catch(err => toast(err.message))
   }
-  function togglePlay() { act(state.playing ? 'pause' : 'play') }
+  function togglePlay() { if (videoInfo) act(state.playing ? 'pause' : 'play') }
   function seekBy(d) {
     const dur = isFinite(video.duration) ? video.duration : Infinity
     act('seek', Math.max(0, Math.min(dur - 1, target() + d)))
@@ -463,6 +482,8 @@
     renderReactBar()
     renderSettings()
     renderNextButton()
+    renderPoll()
+    renderLobbyButton()
     $('chat-form').style.display = me.perms.chat ? '' : 'none'
     $('settings-tab').style.display = me.role === 'host' ? '' : 'none'
     $('leave-btn').innerHTML = me.role === 'host' ? '<i class="bi bi-x-circle"></i><span> Ukončit</span>' : '<i class="bi bi-box-arrow-right"></i><span> Odejít</span>'
@@ -542,7 +563,7 @@
         <span class="set-label">Co smí jednotlivé role</span>
         <table class="perm-table">
           <thead><tr><th></th><th scope="col">Moderátor</th><th scope="col">Divák</th></tr></thead>
-          <tbody>${['control', 'chat', 'react', 'kick'].map(row).join('')}</tbody>
+          <tbody>${['control', 'suggest', 'chat', 'react', 'kick'].map(row).join('')}</tbody>
         </table>
         <p class="muted small">Hostitel smí vždy všechno. Role jednotlivých lidí měníte v záložce Lidé.</p>
       </div>
@@ -567,11 +588,148 @@
     if (e.target.closest('#set-close')) closeRoom()
   })
 
+  // ── Choosing a film together ──
+  // The poll shows big on the stage while there's no film, and in the "Výběr" tab
+  // (for the next film) while one plays. Each place has its own search box.
+  function setLobby(on) {
+    $('app').classList.toggle('lobby-mode', on)
+    $('lobby').style.display = on ? '' : 'none'
+    $('controls').style.display = on ? 'none' : ''
+    $('poll-tab').style.display = on ? 'none' : ''
+    if (on) {
+      $('title').textContent = 'Vybíráme film'
+      document.title = 'Vybíráme film — Sledujeme společně'
+      setBuffering(false)
+      if (activeTab === 'poll') showTab('chat')
+    }
+    renderLobbyButton()
+    renderNextButton()
+    renderGear()
+  }
+  function renderLobbyButton() {
+    $('lobby-btn').style.display = me && me.role === 'host' && videoInfo ? '' : 'none'
+  }
+  $('lobby-btn').addEventListener('click', () => {
+    if (!window.confirm('Zastavit film pro všechny a vybírat jiný?')) return
+    api('POST', '/lobby').catch(err => toast(err.message))
+  })
+
+  const pollBoxes = [$('poll-lobby'), $('poll-side')]
+  pollBoxes.forEach(box => {
+    box.innerHTML = `
+      <div class="poll-head"><h3></h3><p class="muted"></p></div>
+      <div class="poll-status"></div>
+      <div class="poll-search">
+        <div class="poll-search-row">
+          <i class="bi bi-search"></i>
+          <input class="field poll-q" type="search" maxlength="100" placeholder="Navrhnout film — napište název…" autocomplete="off" aria-label="Hledat film k navržení" />
+        </div>
+        <div class="poll-results"></div>
+      </div>
+      <ol class="poll-items"></ol>
+      <div class="poll-foot"></div>`
+    let timer = null, seq = 0
+    const input = box.querySelector('.poll-q')
+    const results = box.querySelector('.poll-results')
+    function search() {
+      const q = input.value.trim()
+      const my = ++seq
+      api('GET', '/search?q=' + encodeURIComponent(q)).then(r => {
+        if (my !== seq) return
+        const inPoll = {}
+        poll.items.forEach(i => { inPoll[i.tmdbId] = true })
+        results.innerHTML = (r.trending ? '<div class="pr-head">Tipy tohoto týdne</div>' : '') + (r.results.length ? r.results.map(f => `
+          <button class="pr" data-tmdb="${f.tmdbId}"${inPoll[f.tmdbId] ? ' disabled' : ''}>
+            ${f.posterPath ? `<img src="https://image.tmdb.org/t/p/w92${esc(f.posterPath)}" alt="" loading="lazy">` : '<span class="pr-noposter"><i class="bi bi-film"></i></span>'}
+            <span class="pr-text"><b>${esc(f.title)}</b><small>${esc([f.year, f.rating ? '★ ' + f.rating : ''].filter(Boolean).join(' · '))}</small></span>
+            <span class="pr-add">${inPoll[f.tmdbId] ? 'V hlasování' : '<i class="bi bi-plus-lg"></i> Navrhnout'}</span>
+          </button>`).join('') : '<div class="pr-none">Nic jsme nenašli</div>')
+      }).catch(err => { if (my === seq) results.innerHTML = '<div class="pr-none">' + esc(err.message) + '</div>' })
+    }
+    input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(search, 300) })
+    input.addEventListener('focus', () => { if (!results.innerHTML) search() })
+    input.addEventListener('keydown', e => { if (e.key === 'Escape') { input.value = ''; results.innerHTML = ''; input.blur() } })
+    results.addEventListener('click', e => {
+      const b = e.target.closest('.pr')
+      if (!b || b.disabled) return
+      b.disabled = true
+      const typed = input.value
+      api('POST', '/poll', { tmdbId: Number(b.dataset.tmdb) }).then(() => {
+        // Clear the search — unless the next one is already being typed.
+        if (input.value !== typed) return
+        input.value = ''
+        results.innerHTML = ''
+      }).catch(err => { b.disabled = false; toast(err.message) })
+    })
+    box.querySelector('.poll-items').addEventListener('click', e => {
+      const b = e.target.closest('button[data-act]')
+      if (!b) return
+      const id = encodeURIComponent(b.dataset.id)
+      if (b.dataset.act === 'vote') api('POST', '/poll/' + id + '/vote').catch(err => toast(err.message))
+      else if (b.dataset.act === 'remove') api('DELETE', '/poll/' + id).catch(err => toast(err.message))
+      else if (b.dataset.act === 'play') startFromPoll(b.dataset.id, b.dataset.title)
+    })
+    box.querySelector('.poll-foot').addEventListener('click', e => {
+      const b = e.target.closest('[data-act="play"]')
+      if (b) startFromPoll(b.dataset.id, b.dataset.title)
+    })
+  })
+
+  function startFromPoll(id, title) {
+    if (videoInfo && !window.confirm('Zastavit „' + videoInfo.title + '“ a pustit „' + title + '“?')) return
+    api('POST', '/poll/' + encodeURIComponent(id) + '/play').catch(err => toast(err.message))
+  }
+
+  function renderPoll() {
+    if (!me) return
+    const items = poll.items
+    const leader = items.length && items[0].votes > 0 ? items[0] : null
+    const top = items.reduce((n, i) => Math.max(n, i.votes), 0)
+    const canPlay = me.perms.control
+    $('poll-count').textContent = items.length ? String(items.length) : ''
+    pollBoxes.forEach(box => {
+      const big = box.id === 'poll-lobby'
+      box.querySelector('.poll-head h3').textContent = big ? 'Co budeme sledovat?' : 'Další film'
+      box.querySelector('.poll-head p').textContent = me.perms.suggest
+        ? 'Navrhněte film a hlasujte — každý má 1 hlas, jde změnit.'
+        : 'Hlasujte pro film — každý má 1 hlas, jde změnit.'
+      box.querySelector('.poll-search').style.display = me.perms.suggest ? '' : 'none'
+      box.querySelector('.poll-status').innerHTML = poll.finding
+        ? `<i class="bi bi-arrow-repeat spin"></i> Hledám video pro „${esc(poll.finding)}“…`
+        : poll.error ? `<i class="bi bi-exclamation-triangle"></i> ${esc(poll.error)}` : ''
+      box.querySelector('.poll-status').className = 'poll-status' + (poll.finding ? ' finding' : poll.error ? ' error' : '')
+      box.querySelector('.poll-items').innerHTML = items.length ? items.map(i => {
+        const mine = i.voters.some(v => v.id === me.id)
+        const removable = me.role === 'host' || i.by.id === me.id
+        return `
+          <li class="poll-item${leader && i.id === leader.id ? ' leader' : ''}${mine ? ' mine' : ''}">
+            ${i.posterPath ? `<img src="https://image.tmdb.org/t/p/w92${esc(i.posterPath)}" alt="" loading="lazy">` : '<span class="pi-noposter"><i class="bi bi-film"></i></span>'}
+            <div class="pi-text">
+              <b>${esc(i.title)}</b>
+              <small>${esc([i.year, i.rating ? '★ ' + i.rating : '', 'navrhl(a) ' + i.by.name].filter(Boolean).join(' · '))}</small>
+              <div class="pi-bar"><span style="width:${top ? (i.votes / top * 100).toFixed(0) : 0}%"></span></div>
+              <small class="pi-voters">${i.voters.length ? esc(i.voters.map(v => v.name).join(', ')) : 'zatím bez hlasů'}</small>
+            </div>
+            <div class="pi-actions">
+              <button class="pi-vote${mine ? ' on' : ''}" data-act="vote" data-id="${esc(i.id)}" aria-pressed="${mine}" title="${mine ? 'Vzít hlas zpět' : 'Hlasovat pro tento film'}">
+                <i class="bi ${mine ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up'}"></i><span>${i.votes}</span>
+              </button>
+              ${canPlay ? `<button class="pi-play" data-act="play" data-id="${esc(i.id)}" data-title="${esc(i.title)}" title="Pustit teď všem"${poll.finding ? ' disabled' : ''}><i class="bi bi-play-fill"></i></button>` : ''}
+              ${removable ? `<button class="pi-remove" data-act="remove" data-id="${esc(i.id)}" title="Odebrat návrh"><i class="bi bi-x-lg"></i></button>` : ''}
+            </div>
+          </li>`
+      }).join('') : `<p class="poll-empty">${me.perms.suggest ? 'Zatím žádné návrhy — vyhledejte film nahoře.' : 'Zatím žádné návrhy.'}</p>`
+      box.querySelector('.poll-foot').innerHTML = canPlay && leader
+        ? `<button class="btn btn-primary poll-winner" data-act="play" data-id="${esc(leader.id)}" data-title="${esc(leader.title)}"${poll.finding ? ' disabled' : ''}><i class="bi bi-trophy-fill"></i> Pustit vítěze: ${esc(leader.title)} (${leader.votes})</button>`
+        : !canPlay && items.length ? '<p class="muted small">Film pustí hostitel' + (room && room.settings.perms.moderator.control ? ' nebo moderátor' : '') + '.</p>' : ''
+    })
+  }
+
   // ── Tabs ──
   function showTab(tab) {
     activeTab = tab
     document.querySelectorAll('.tabs [data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab))
-    ;['chat', 'people', 'settings'].forEach(t => { $('panel-' + t).style.display = t === tab ? '' : 'none' })
+    ;['chat', 'poll', 'people', 'settings'].forEach(t => { $('panel-' + t).style.display = t === tab ? '' : 'none' })
     if (tab === 'chat') { unread = 0; renderUnread(); scrollChat(true) }
   }
   document.querySelector('.tabs').addEventListener('click', e => {

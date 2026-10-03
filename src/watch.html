@@ -40,6 +40,7 @@
         <b id="title"></b>
         <span id="room-status" class="muted"></span>
       </div>
+      <button id="lobby-btn" class="btn btn-glass btn-sm" style="display:none" title="Zastavit film a vybrat jiný"><i class="bi bi-collection-play"></i><span> Jiný film</span></button>
       <button id="next-btn" class="btn btn-glass btn-sm" style="display:none"><i class="bi bi-skip-end-fill"></i><span> Další díl</span></button>
       <button id="invite-btn" class="btn btn-glass btn-sm"><i class="bi bi-person-plus-fill"></i><span> Pozvat</span></button>
       <button id="leave-btn" class="btn btn-ghost btn-sm"><i class="bi bi-box-arrow-right"></i><span> Odejít</span></button>
@@ -49,6 +50,8 @@
       <div class="main-col">
         <section class="stage" id="stage">
           <video id="video" playsinline preload="auto"></video>
+          <!-- No film yet: choose one together (vote) -->
+          <div class="lobby" id="lobby" style="display:none"><div class="poll poll-big" id="poll-lobby"></div></div>
           <div class="reactions-layer" id="reactions-layer" aria-hidden="true"></div>
           <div class="stage-chat" id="stage-chat" aria-hidden="true"></div>
           <div class="stage-msg" id="stage-msg" role="status"></div>
@@ -85,6 +88,7 @@
       <aside class="side">
         <nav class="tabs" role="tablist">
           <button data-tab="chat" class="active" role="tab">Chat <span class="badge" id="chat-unread"></span></button>
+          <button data-tab="poll" id="poll-tab" role="tab">Výběr <span class="count" id="poll-count"></span></button>
           <button data-tab="people" role="tab">Lidé <span class="count" id="people-count"></span></button>
           <button data-tab="settings" id="settings-tab" role="tab" style="display:none">Oprávnění</button>
         </nav>
@@ -95,6 +99,7 @@
             <button class="btn btn-primary" type="submit" aria-label="Odeslat"><i class="bi bi-send-fill"></i></button>
           </form>
         </div>
+        <div class="panel" id="panel-poll" style="display:none"><div class="poll" id="poll-side"></div></div>
         <div class="panel" id="panel-people" style="display:none"><ul class="people" id="people"></ul></div>
         <div class="panel" id="panel-settings" style="display:none"></div>
       </aside>
