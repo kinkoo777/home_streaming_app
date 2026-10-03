@@ -62,6 +62,7 @@ async function renderRecommendations() {
   if (!picks.length) { section.style.display = 'none'; return }
 
   rememberMovies(picks)
+  window._recommendedPicks = picks              // also the pool for "Co pustit?" (random.js)
   track.innerHTML = picks.map((m, i) => buildCard(m, { index: i })).join('')
   track.scrollLeft = 0
   section.style.display = 'block'

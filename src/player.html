@@ -683,6 +683,31 @@
       #buffer-spinner i { display: inline-block; animation: buffer-spin 0.9s linear infinite; }
       @keyframes buffer-spin { to { transform: rotate(360deg); } }
 
+      /* ── SKIP INTRO ── */
+      .skip-intro {
+        position: absolute;
+        right: 32px;
+        bottom: 130px;
+        z-index: 12;
+        display: none;
+        align-items: center;
+        padding: 12px 20px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.35);
+        background: rgba(18,18,22,0.85);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        animation: prompt-fade 0.3s ease;
+      }
+      .skip-intro.show { display: flex; }
+      .skip-intro i { margin-right: 8px; }
+      .skip-intro:hover { background: #fff; color: #111; }
+      body.kbd .skip-intro:focus { outline: none; background: #fff; color: #111; box-shadow: 0 0 0 3px #f43f5e; }
+      body.tv .skip-intro { right: 56px; bottom: 170px; font-size: 20px; padding: 16px 28px; }
+      @media (max-width: 600px) { .skip-intro { right: 16px; bottom: 120px; font-size: 14px; padding: 10px 16px; } }
+
       /* ── RESUME / NEXT-EPISODE PROMPTS ── */
       /* Next-episode card during the credits */
       .next-ep-mini {
@@ -746,6 +771,14 @@
         cursor: pointer; transition: background 0.15s ease;
       }
       .resume-yes:hover, .next-ep-yes:hover { transform: translateY(-1px); }
+      .next-ep-card .prompt-sub { color: #a1a1aa; font-size: 14px; margin-top: -8px; max-width: 420px; line-height: 1.5; }
+      .next-ep-card p i { margin-right: 8px; }
+      /* Sleep timer: a black screen so the TV gives off as little light as possible. */
+      .sleep-prompt { background: #000; -webkit-backdrop-filter: none; backdrop-filter: none; }
+      .sleep-prompt .next-ep-card { background: transparent; border-color: transparent; box-shadow: none; opacity: 0.75; }
+      body.tv .next-ep-card p { font-size: 24px; }
+      body.tv .next-ep-card .prompt-sub { font-size: 18px; max-width: 640px; }
+      body.tv .next-ep-yes, body.tv .next-ep-no { font-size: 20px; padding: 14px 26px; }
       .resume-no:hover, .next-ep-no:hover { background: rgba(255,255,255,0.08); }
 
       /* ── Seek preview OSD ── */
@@ -903,6 +936,9 @@
         <button class="x" id="next-ep-mini-x" aria-label="Skrýt"><i class="bi bi-x-lg"></i></button>
       </div>
 
+      <!-- skip the show's opening titles (marked once per season in Settings → Úvod seriálu) -->
+      <button class="skip-intro" id="skip-intro-btn" type="button"><i class="bi bi-skip-forward-fill"></i> Přeskočit úvod</button>
+
       <!-- seek preview while holding ◀ / ▶ -->
       <div id="seek-osd"><i class="bi bi-fast-forward-fill" id="seek-osd-icon"></i><span id="seek-osd-delta">+0:10</span><small id="seek-osd-time">0:00</small></div>
 
@@ -977,6 +1013,7 @@
     </div>
 
     <script src="js/hdr-renderer.js"></script>
+    <script src="js/relevance.js"></script>
     <script>
       const video        = document.getElementById('video')
       // Same TV detection as the main page (tv.js): user agent, or remembered once a
@@ -1083,6 +1120,13 @@
           const r = sessionStorage.getItem('filmbox_active_profile')
           return r ? (JSON.parse(r).id || 'default') : 'default'
         } catch (e) { return 'default' }
+      }
+      // Profile preferences (Nastavení → Přehrávání): audioPref, qualityPref, subLang, stillWatching.
+      function _profileSettings() {
+        try {
+          const r = sessionStorage.getItem('filmbox_active_profile')
+          return (r && JSON.parse(r).settings) || {}
+        } catch (e) { return {} }
       }
 
       const raw = sessionStorage.getItem('filmbox_player')
@@ -1215,8 +1259,19 @@
         video.load()
         updateHdrPipeline()
         qualityBadge.textContent = qualityBadgeText(q)
-        if (autoplay) video.play().catch(() => {})
+        if (autoplay) video.play().catch(_onAutoplayBlocked)
         renderSettings()
+      }
+
+      // Sent from a phone, nobody pressed a button on the TV, and the browser won't
+      // autoplay with sound: start muted and unmute on the first remote key.
+      let _castMuted = false
+      function _onAutoplayBlocked(err) {
+        if (!_playerData || _playerData.castStart == null || !err || err.name !== 'NotAllowedError' || video.muted) return
+        video.muted = true
+        _castMuted = true
+        video.play().catch(() => {})
+        toast('Zvuk zapnete tlačítkem OK na ovladači televize', 8000)
       }
 
       function setQuality(pref) {
@@ -1547,6 +1602,14 @@
 
       // Stable language key across files: "cze1" / "CZE1" → "cze".
       const subKey = s => ((s.lang || s.label || '').toLowerCase().replace(/[^a-z]/g, '') || 'sub')
+      // Profile subtitle language → track. Keys come from lang codes or labels
+      // ("cs", "CZE1", "Čeština" → "etina"), so match the usual spellings.
+      const SUB_LANGS = {
+        cze: /^(cze|ces|cs|cz|czech|cesky|cestina|esky|etina)/,
+        slo: /^(slo|slk|sk|slovak|sloven)/,
+        eng: /^(eng|en|english|anglick)/
+      }
+      const subInLang = (s, lang) => SUB_LANGS[lang].test(subKey(s)) || SUB_LANGS[lang].test((s.label || '').toLowerCase().replace(/[^a-z]/g, ''))
 
       function buildSubtitleTracks() {
         const keep = activeSub >= 0 && source.subtitles[activeSub] ? subKey(source.subtitles[activeSub]) : null
@@ -1567,11 +1630,14 @@
         })
         ccBtn.style.display = list.length || _onlineSubs.enabled ? '' : 'none'
         activeSub = -1
-        const want = keep || (subPref !== 'off' ? subPref : null)
-        if (want) {
-          const idx = list.findIndex(s => subKey(s) === want)
-          if (idx >= 0) selectSubtitle(idx, false)
-        }
+        // Rebuilt (online subtitles added) → keep the current track. First build → the
+        // profile's language if it has one, else this device's last choice.
+        const profLang = _profileSettings().subLang
+        let idx = -1
+        if (keep) idx = list.findIndex(s => subKey(s) === keep)
+        else if (SUB_LANGS[profLang]) idx = list.findIndex(s => subInLang(s, profLang))
+        else if (profLang !== 'off' && subPref !== 'off') idx = list.findIndex(s => subKey(s) === subPref)
+        if (idx >= 0) selectSubtitle(idx, false)
         renderCues()
       }
 
@@ -1697,6 +1763,11 @@
             const cur = EXPOSURES.find(([x]) => x === hdrExposure)
             add(menuItem({ label: 'Jas HDR', sub: true, value: cur ? cur[1] : hdrExposure + '×', onClick: () => openSettingsPage('exposure') }))
           }
+          add(menuItem({ label: 'Časovač vypnutí', sub: true, value: sleepLabel(), onClick: () => openSettingsPage('sleep') }))
+          if (_isEpisode()) {
+            const intro = currentIntro()
+            add(menuItem({ label: 'Úvod seriálu', sub: true, value: intro ? fmt(intro.start) + '–' + fmt(intro.end) : 'Neoznačen', onClick: () => openSettingsPage('intro') }))
+          }
           if (_alternatives.length) {
             add(menuItem({
               label: 'Přepnout na jiný zdroj',
@@ -1762,6 +1833,36 @@
           }))
           add(menuItem({ label: 'Jednoduché', active: colorMode === 'simple', hint: 'Pro slabší TV — bez fialové, ale bledší', onClick: () => setColorMode('simple') }))
           add(menuItem({ label: 'Originál', active: colorMode === 'original', hint: 'Bez úprav — na TV může být fialový obraz', onClick: () => setColorMode('original') }))
+        }
+
+        if (_settingsPage === 'intro') {
+          add(backItem('Úvod seriálu'))
+          const season = _playerData.episode.season
+          const own = _intros.find(i => i.season === season)
+          const now = fmt(video.currentTime)
+          add(menuItem({
+            label: 'Začátek úvodu je teď', value: _introMark.start != null ? fmt(_introMark.start) : null,
+            hint: 'Stiskněte, když úvod začíná (' + now + ')', onClick: () => markIntro('start')
+          }))
+          add(menuItem({
+            label: 'Konec úvodu je teď', value: _introMark.end != null ? fmt(_introMark.end) : null,
+            hint: 'Stiskněte, když úvod skončí (' + now + ')', onClick: () => markIntro('end')
+          }))
+          if (own) add(menuItem({ label: 'Smazat úvod ' + (season ? season + '. řady' : 'speciálů'), hint: fmt(own.start) + '–' + fmt(own.end), onClick: deleteIntro }))
+          else if (currentIntro()) add(menuItem({ label: 'Teď se používá úvod z ' + currentIntro().season + '. řady', hint: 'Označte ho znovu, pokud v této řadě sedí jinak', onClick: () => {} }))
+        }
+
+        if (_settingsPage === 'sleep') {
+          add(backItem('Časovač vypnutí'))
+          const st = _sleepState()
+          add(menuItem({ label: 'Vypnuto', active: !st, onClick: () => setSleepTimer('off') }))
+          add(menuItem({
+            label: _playerData && _playerData.episode ? 'Na konci této epizody' : 'Na konci filmu',
+            active: !!(st && st.mode === 'end'), onClick: () => setSleepTimer('end')
+          }))
+          // A running countdown shows its time left on the main page and here.
+          SLEEP_MINUTES.forEach(m => add(menuItem({ label: m + ' minut', active: false, onClick: () => setSleepTimer('time', m) })))
+          if (st && st.mode === 'time') add(menuItem({ label: 'Zastaví se', value: sleepLabel(), onClick: () => {} }))
         }
 
         if (_settingsPage === 'exposure') {
@@ -1916,6 +2017,11 @@
         if (activeSub >= 0) selectSubtitle(activeSub, false)
         if (!_initialLoad) return
         _initialLoad = false
+        // Started from a phone ("Pustit na TV"): the phone already asked where to start.
+        if (_playerData.castStart != null) {
+          if (_playerData.castStart > 5 && _playerData.castStart < video.duration - 5) video.currentTime = _playerData.castStart
+          return
+        }
         // Restore saved progress from server
         const pid = _profileId()
         if (_playerKey && pid !== 'default') {
@@ -1956,7 +2062,39 @@
           !(_watchedFired && !(_playerData && _playerData.episode))
       }
 
+      // ── Watched time (for the profile's stats) ──
+      // Media seconds that actually played: small forward steps between timeupdates,
+      // never seeks. Flushed together with every progress save.
+      let _played = 0, _playedAt = null
+      video.addEventListener('timeupdate', () => {
+        const t = video.currentTime
+        if (!video.paused && !video.seeking && _playedAt != null) {
+          const step = t - _playedAt
+          if (step > 0 && step < 3) _played += step
+        }
+        _playedAt = t
+      })
+      video.addEventListener('seeking', () => { _playedAt = null })
+
+      function _flushWatchTime(beacon) {
+        const d = _playerData || {}
+        const pid = _profileId()
+        const seconds = Math.round(_played)
+        if (seconds < 1 || pid === 'default' || !d.tmdbId) return
+        _played -= seconds
+        const body = JSON.stringify({ seconds, tmdbId: d.tmdbId, mediaType: d.mediaType || 'movie', title: d.title || null, posterPath: d.posterPath || null })
+        const token = _profileToken(pid)
+        const url = `/api/profiles/${pid}/watchtime` + (beacon && token ? '?t=' + encodeURIComponent(token) : '')
+        if (beacon) {
+          try { if (navigator.sendBeacon && navigator.sendBeacon(url, new Blob([body], { type: 'text/plain;charset=UTF-8' }))) return } catch (e) {}
+          fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {})
+        } else {
+          fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }).catch(() => {})
+        }
+      }
+
       function _saveProgressToApi() {
+        _flushWatchTime(false)
         if (!_shouldSaveProgress()) return Promise.resolve()
         return fetch(`/api/profiles/${_profileId()}/progress/${encodeURIComponent(_playerKey)}`, {
           method:  'PUT',
@@ -1969,6 +2107,7 @@
       // Sent as text/plain: older Chromium builds (LG webOS TVs among them) throw on a
       // beacon with a JSON content type, and the save was silently lost.
       function _sendProgressBeacon() {
+        _flushWatchTime(true)
         if (!_shouldSaveProgress(5)) return
         const pid   = _profileId()
         const token = _profileToken(pid)
@@ -2024,6 +2163,7 @@
         }
         if (showRemaining) updateTotalLabel()
         updateNextEpisodeMini()
+        updateSkipIntro()
         updateBuffered()
         // Auto-mark watched at 90%
         if (!_watchedFired && video.currentTime / video.duration >= 0.9) {
@@ -2068,7 +2208,8 @@
         playPauseBtn.innerHTML = '<i class="bi bi-arrow-counterclockwise"></i>'
         _hideSpinner()
         nextMini.classList.remove('show')
-        if (_playerData && _playerData.episode) _showNextEpisodePrompt()
+        if (_sleepAtEnd()) _fireSleep()
+        else if (_playerData && _playerData.episode) _showNextEpisodePrompt()
       })
 
       // ── Buffering spinner ──
@@ -2082,7 +2223,9 @@
       video.addEventListener('seeked',   _hideSpinner)
 
       // ── Auto-play next episode (TV only) ──
-      async function _playNextEpisode() {
+      // `auto` = started by the end-of-episode countdown, not by a button. Counts how many
+      // episodes have started on their own in a row, for "Sledujete ještě?".
+      async function _playNextEpisode(auto) {
         const d = _playerData
         if (!d || !d.episode || !d.tmdbId) return false
         const nextNum = d.episode.number + 1
@@ -2098,10 +2241,13 @@
           if (!r.ok) return false
           const results = await r.json()
           if (!results.length) return false
-          // Prefer a Czech-dubbed upload, else the first result.
-          const pick = results.find(r => r && r.dub) || results[0]
-          // Backups: other uploads of the same episode, same dubbing first.
+          // Uploads of exactly this episode, ranked by the profile's preferences
+          // (CZ dub / original, resolution); anything at all if none carry the code.
           const epCode = new RegExp('s0?' + d.episode.season + '\\s*e0?' + nextNum + '(?!\\d)|\\b0?' + d.episode.season + 'x0?' + nextNum + '(?!\\d)', 'i')
+          const exact = results.filter(r => r && r.url && epCode.test(r.title || ''))
+          const pick = FilmBoxRelevance.rankSources(exact.length ? exact : results.filter(r => r && r.url), _profileSettings())[0]
+          if (!pick) return false
+          // Backups: other uploads of the same episode, same dubbing first.
           const alternatives = results
             .filter(r => r && r.url && r !== pick && epCode.test(r.title || ''))
             .sort((a, b) => (b.dub === pick.dub) - (a.dub === pick.dub) || (b.source !== pick.source) - (a.source !== pick.source))
@@ -2123,7 +2269,8 @@
             posterPath:  d.posterPath || null,
             episode:     { season: d.episode.season, number: nextNum },
             episodeLabel: `S${sNum}E${eNum}`,
-            progressKey: `${d.tmdbId}:S${sNum}E${eNum}`
+            progressKey: `${d.tmdbId}:S${sNum}E${eNum}`,
+            autoplayChain: auto ? (_userActive ? 1 : _autoplayChain + 1) : 0
           }))
           window.location.reload()
           return true
@@ -2136,7 +2283,7 @@
       function updateNextEpisodeMini() {
         if (!_playerData || !_playerData.episode || !isFinite(video.duration) || video.duration < 300) return
         const left = video.duration - video.currentTime
-        const show = !_nextMiniDismissed && left <= 45 && left > 0.5
+        const show = !_nextMiniDismissed && !_sleepAtEnd() && left <= 45 && left > 0.5
         if (show !== nextMini.classList.contains('show')) {
           nextMini.classList.toggle('show', show)
           if (show && document.body.classList.contains('kbd')) document.getElementById('next-ep-mini-go').focus()
@@ -2146,7 +2293,7 @@
       document.getElementById('next-ep-mini-go').addEventListener('click', async () => {
         document.getElementById('next-ep-mini-count').textContent = 'hledám…'
         _nextMiniDismissed = true
-        if (!(await _playNextEpisode())) {
+        if (!(await _playNextEpisode(false))) {
           nextMini.classList.add('show')
           document.getElementById('next-ep-mini-count').textContent = 'nenalezena'
         }
@@ -2159,6 +2306,7 @@
       function _showNextEpisodePrompt() {
         const d = _playerData
         if (!d || !d.episode) return
+        if (_shouldAskStillWatching()) { _showStillWatchingPrompt(); return }
         const ov = document.createElement('div')
         ov.className = 'next-ep-prompt'
         ov.innerHTML = `
@@ -2171,14 +2319,185 @@
           </div>`
         playerWrap.appendChild(ov)
         let n = 10, done = false
-        const go = async () => { if (done) return; done = true; clearInterval(t); const ok = await _playNextEpisode(); if (!ok) ov.querySelector('p').textContent = 'Další epizoda nenalezena' }
+        const go = async auto => { if (done) return; done = true; clearInterval(t); const ok = await _playNextEpisode(auto); if (!ok) ov.querySelector('p').textContent = 'Další epizoda nenalezena' }
         const t = setInterval(() => {
           n--
           const c = ov.querySelector('.next-ep-count'); if (c) c.textContent = `(${n})`
-          if (n <= 0) go()
+          if (n <= 0) go(true)
         }, 1000)
-        ov.querySelector('.next-ep-yes').addEventListener('click', go)
+        ov.querySelector('.next-ep-yes').addEventListener('click', () => go(false))
         ov.querySelector('.next-ep-no').addEventListener('click', () => { done = true; clearInterval(t); ov.remove() })
+        ov.querySelector('.next-ep-yes').focus()
+      }
+
+      // ── Skip intro ──
+      // Marks are per show + season (0 = specials) and shared by every profile. A season
+      // nobody has marked yet borrows the nearest marked season — openings rarely move.
+      const skipIntroBtn = document.getElementById('skip-intro-btn')
+      let _intros = []            // [{ season, start, end }] for this show
+      let _introMark = {}         // marks being set in the menu: { start, end }
+      const _isEpisode = () => !!(_playerData && _playerData.episode && _playerData.tmdbId)
+
+      function currentIntro() {
+        if (!_isEpisode() || !_intros.length) return null
+        const s = _playerData.episode.season
+        return _intros.find(i => i.season === s) ||
+          _intros.slice().sort((a, b) => Math.abs(a.season - s) - Math.abs(b.season - s))[0]
+      }
+      function loadIntros() {
+        if (!_isEpisode()) return
+        fetch(`/api/intros/${_playerData.tmdbId}`)
+          .then(r => (r.ok ? r.json() : []))
+          .then(list => { _intros = Array.isArray(list) ? list : []; renderSettings() })
+          .catch(() => {})
+      }
+
+      function updateSkipIntro() {
+        const intro = currentIntro()
+        const t = video.currentTime
+        const show = !!intro && t >= intro.start && t < intro.end - 1 && !playerWrap.querySelector('.next-ep-prompt, .resume-prompt')
+        if (show === skipIntroBtn.classList.contains('show')) return
+        skipIntroBtn.classList.toggle('show', show)
+        if (show && document.body.classList.contains('kbd') && !settingsOpen()) skipIntroBtn.focus()
+        else if (!show && document.activeElement === skipIntroBtn) skipIntroBtn.blur()
+      }
+      skipIntroBtn.addEventListener('click', e => {
+        e.stopPropagation()
+        const intro = currentIntro()
+        if (!intro) return
+        video.currentTime = intro.end
+        skipIntroBtn.classList.remove('show')
+        skipIntroBtn.blur()
+      })
+
+      function markIntro(which) {
+        _introMark[which] = Math.round(video.currentTime * 10) / 10
+        const m = _introMark
+        if (m.start != null && m.end != null) {
+          if (m.end <= m.start) { toast('Konec úvodu musí být až po začátku'); delete m.end; renderSettings(); return }
+          saveIntro(m.start, m.end)
+        } else {
+          toast(which === 'start'
+            ? 'Začátek úvodu: ' + fmt(m.start) + ' — teď ho nechte doběhnout a označte konec'
+            : 'Konec úvodu: ' + fmt(m.end) + ' — ještě označte začátek', 5000)
+          renderSettings()
+        }
+      }
+      function saveIntro(start, end) {
+        const season = _playerData.episode.season
+        fetch(`/api/intros/${_playerData.tmdbId}/${season}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ start, end })
+        }).then(r => r.json().then(b => {
+          if (!r.ok) throw new Error(b.error || 'Nepodařilo se uložit')
+          _intros = _intros.filter(i => i.season !== season).concat([{ season, start: b.start, end: b.end }])
+          _introMark = {}
+          toast('Úvod uložen pro ' + (season ? season + '. řadu' : 'speciály') + ' — v dalších epizodách půjde přeskočit', 5000)
+          renderSettings()
+        })).catch(err => { toast(err.message); _introMark = {}; renderSettings() })
+      }
+      function deleteIntro() {
+        const season = _playerData.episode.season
+        fetch(`/api/intros/${_playerData.tmdbId}/${season}`, { method: 'DELETE' }).catch(() => {})
+        _intros = _intros.filter(i => i.season !== season)
+        _introMark = {}
+        skipIntroBtn.classList.remove('show')
+        toast('Úvod této řady smazán')
+        renderSettings()
+      }
+
+      // ── "Sledujete ještě?" ──
+      // After 3 episodes that started on their own with nobody touching the remote,
+      // stop and ask instead of counting down to the next one (profile setting).
+      const _autoplayChain = (_playerData && _playerData.autoplayChain) || 0
+      let _userActive = false
+      ;['keydown', 'click', 'touchstart'].forEach(type =>
+        document.addEventListener(type, () => { _userActive = true }, { capture: true, passive: true }))
+
+      function _shouldAskStillWatching() {
+        return _profileSettings().stillWatching !== false && !_userActive && _autoplayChain >= 2
+      }
+
+      // Overlay with two buttons in the style of the next-episode prompt.
+      function _promptOverlay(extraClass, html) {
+        const ov = document.createElement('div')
+        ov.className = 'next-ep-prompt ' + extraClass
+        ov.innerHTML = html
+        playerWrap.appendChild(ov)
+        return ov
+      }
+
+      function _showStillWatchingPrompt() {
+        const ov = _promptOverlay('still-watching', `
+          <div class="next-ep-card">
+            <p>Sledujete ještě?</p>
+            <p class="prompt-sub">Přehráli jsme ${_autoplayChain + 1} epizody za sebou. Další pustíme, až potvrdíte.</p>
+            <div class="next-ep-actions">
+              <button class="next-ep-yes"><i class="bi bi-play-fill"></i> Pokračovat</button>
+              <button class="next-ep-no">Skončit</button>
+            </div>
+          </div>`)
+        ov.querySelector('.next-ep-yes').addEventListener('click', async () => {
+          ov.querySelector('p').textContent = 'Hledám další epizodu…'
+          if (!(await _playNextEpisode(false))) ov.querySelector('p').textContent = 'Další epizoda nenalezena'
+        })
+        ov.querySelector('.next-ep-no').addEventListener('click', () => leavePlayer())
+        ov.querySelector('.next-ep-yes').focus()
+      }
+
+      // ── Sleep timer ──
+      // Off, at the end of this episode/film, or after N minutes. Kept in sessionStorage
+      // so it carries over when the next episode loads.
+      const SLEEP_MINUTES = [15, 30, 60, 90]
+      function _sleepState() {
+        try { return JSON.parse(sessionStorage.getItem('filmbox_sleep') || 'null') } catch (e) { return null }
+      }
+      function setSleepTimer(mode, minutes) {
+        try {
+          if (mode === 'off') sessionStorage.removeItem('filmbox_sleep')
+          else sessionStorage.setItem('filmbox_sleep', JSON.stringify(mode === 'end' ? { mode: 'end' } : { mode: 'time', at: Date.now() + minutes * 60000 }))
+        } catch (e) {}
+        _sleepWarned = false
+        toast(mode === 'off' ? 'Časovač vypnut' : mode === 'end' ? 'Přehrávání se zastaví na konci' : 'Přehrávání se zastaví za ' + minutes + ' min')
+        renderSettings()
+      }
+      function sleepLabel() {
+        const st = _sleepState()
+        if (!st) return 'Vypnuto'
+        if (st.mode === 'end') return _playerData && _playerData.episode ? 'Konec epizody' : 'Konec filmu'
+        return 'za ' + Math.max(1, Math.ceil((st.at - Date.now()) / 60000)) + ' min'
+      }
+      const _sleepAtEnd = () => { const st = _sleepState(); return !!(st && st.mode === 'end') }
+
+      let _sleepWarned = false
+      setInterval(() => {
+        const st = _sleepState()
+        if (!st || st.mode !== 'time' || video.paused) return
+        const left = st.at - Date.now()
+        if (left <= 0) _fireSleep()
+        else if (left <= 60000 && !_sleepWarned) { _sleepWarned = true; toast('Časovač: přehrávání se za minutu zastaví', 5000) }
+      }, 5000)
+
+      // Dark screen (less light in the bedroom), playback paused, position saved.
+      function _fireSleep() {
+        try { sessionStorage.removeItem('filmbox_sleep') } catch (e) {}
+        video.pause()
+        closeSettings()
+        if (playerWrap.querySelector('.sleep-prompt')) return
+        const ov = _promptOverlay('sleep-prompt', `
+          <div class="next-ep-card">
+            <p><i class="bi bi-moon-stars"></i> Dobrou noc</p>
+            <p class="prompt-sub">Časovač zastavil přehrávání. Místo, kde jste skončili, je uložené.</p>
+            <div class="next-ep-actions">
+              <button class="next-ep-yes"><i class="bi bi-play-fill"></i> Sledovat dál</button>
+              <button class="next-ep-no">Zpět</button>
+            </div>
+          </div>`)
+        ov.querySelector('.next-ep-yes').addEventListener('click', () => {
+          ov.remove()
+          if (video.ended && _playerData && _playerData.episode) _showNextEpisodePrompt()
+          else video.play().catch(() => {})
+        })
+        ov.querySelector('.next-ep-no').addEventListener('click', () => leavePlayer())
         ov.querySelector('.next-ep-yes').focus()
       }
 
@@ -2537,6 +2856,14 @@
         if (e.target.tagName === 'INPUT') return
         document.body.classList.add('kbd')
         showControls()
+        if (_castMuted) {
+          _castMuted = false
+          video.muted = false
+          updateMuteIcon()
+          toast('Zvuk zapnut')
+          e.preventDefault()
+          return
+        }
         const key = MEDIA_CODES[e.keyCode] || e.key
 
         if (settingsOpen()) { handleSettingsKey(e, key === 'Escape' || key === 'Backspace' || isBackKey(e)); return }
@@ -2621,7 +2948,7 @@
           case 'm':             muteBtn.click(); break
           case 'c':             toggleSubtitles(); break
           case 's':             e.preventDefault(); openSettings(); break
-          case 'MediaTrackNext': if (_playerData && _playerData.episode) _playNextEpisode(); break
+          case 'MediaTrackNext': if (_playerData && _playerData.episode) _playNextEpisode(false); break
         }
       })
 
@@ -2673,6 +3000,46 @@
         if (document.visibilityState === 'hidden') _sendProgressBeacon()
       })
 
+      // ── Phone remote ("Pustit na TV", see js/cast-receiver.js) ──
+      window.castCommand = cmd => {
+        showControls()
+        switch (cmd.type) {
+          case 'toggle': togglePlay(); break
+          case 'pause':  video.pause(); break
+          case 'resume': video.play().catch(() => {}); break
+          case 'seek':   skip(cmd.by); break
+          case 'seekTo': if (isFinite(video.duration)) video.currentTime = Math.max(0, Math.min(video.duration - 1, cmd.to)); break
+          case 'next':   if (_isEpisode()) _playNextEpisode(false); break
+          case 'subs':   toggleSubtitles(); break
+          case 'stop':   leavePlayer(); break
+        }
+        setTimeout(castReport, 300)
+      }
+      // What the phone remote shows: title, position, paused…
+      let _castReportT = 0
+      function castReport() {
+        const r = window.castReceiver
+        if (!r || !_playerData) return
+        _castReportT = Date.now()
+        r.report({
+          page: 'player',
+          title: _playerData.title || '',
+          posterPath: _playerData.posterPath || '',
+          tmdbId: _playerData.tmdbId || 0,
+          mediaType: _playerData.mediaType || 'movie',
+          episodeLabel: _playerData.episodeLabel || '',
+          position: Math.round(video.currentTime || 0),
+          duration: isFinite(video.duration) ? Math.round(video.duration) : 0,
+          paused: video.paused,
+          muted: video.muted,
+          subs: activeSub >= 0,
+          hasSubs: !!(source && source.subtitles && source.subtitles.length),
+          hasNext: _isEpisode()
+        })
+      }
+      ;['play', 'pause', 'seeked', 'loadedmetadata', 'volumechange', 'ended'].forEach(t => video.addEventListener(t, () => setTimeout(castReport, 50)))
+      setInterval(() => { if (!video.paused && Date.now() - _castReportT > 4500) castReport() }, 5000)
+
       // ── Start ── (last, so every const above is initialised)
       async function boot() {
         if (!source || !source.qualities.length) {
@@ -2682,8 +3049,10 @@
         if (linksExpired() && source.pageUrl) await refreshSource()
         buildSubtitleTracks()
         playQuality(pickQuality(), 0, true)
+        loadIntros()
       }
       if (_playerData) boot()
     </script>
+    <script src="js/cast-receiver.js"></script>
   </body>
 </html>

@@ -4,7 +4,8 @@
 // titles with quotes/apostrophes ("Ocean's Eleven") can't break anything.
 //
 // opts: { index, variant: 'continue', remove: 'continue'|'list'|'watched',
-//         removeTitle, note, hideWatchedBadge, order (position in a film series), current }
+//         removeTitle, note, hideWatchedBadge, order (position in a film series), current,
+//         badge (text over the poster's bottom edge, e.g. "Nový díl S02E05") }
 
 function buildCard(movie, opts) {
   opts = opts || {}
@@ -30,7 +31,7 @@ function buildCard(movie, opts) {
   }
   const badgeText = isContinue
     ? [movie._episodeLabel, remainMin != null ? 'Zbývá ' + remainMin + ' min' : null].filter(Boolean).join(' · ')
-    : ''
+    : (opts.badge || '')
 
   let removeBtn = ''
   if (opts.remove) {
@@ -56,7 +57,7 @@ function buildCard(movie, opts) {
         ${opts.order ? `<div class="order-badge">${opts.order}</div>` : ''}
         ${rating && !opts.order ? `<div class="rating${rating >= 8 ? ' high' : ''}"><i class="bi bi-star-fill"></i>${rating.toFixed(1)}</div>` : ''}
         ${watched ? '<div class="watched-badge" title="Zhlédnuto"><i class="bi bi-check-lg"></i></div>' : ''}
-        ${badgeText ? `<div class="remaining-badge">${escapeHtml(badgeText)}</div>` : ''}
+        ${badgeText ? `<div class="remaining-badge${opts.badge ? ' info-badge' : ''}">${escapeHtml(badgeText)}</div>` : ''}
         ${pct != null ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct.toFixed(1)}%"></div></div>` : ''}
         ${removeBtn}
         ${favBtn}

@@ -90,3 +90,23 @@ test('pickTmdbMatch links only convincing matches', () => {
     assert.strictEqual(id('Matrix (2010) fan film'), null);                   // wrong year → no link
     assert.strictEqual(id('Minecraft gameplay part 3'), null);
 });
+
+test('sourceScore / rankSources follow the profile playback preferences', () => {
+    const { sourceScore, rankSources } = require('../src/js/relevance');
+    const dub720 = { url: 'a', dub: true, res: 720 };
+    const orig1080subs = { url: 'b', dub: false, res: 1080, subs: true };
+    const dub4k = { url: 'c', dub: true, res: 2160 };
+    const dub1080 = { url: 'd', dub: true, res: 1080 };
+    const urls = list => list.map(x => x.url);
+
+    // Defaults (no settings) = the old behaviour: dubbed first, 1080p before 4K.
+    assert.deepStrictEqual(urls(rankSources([dub720, orig1080subs, dub4k, dub1080])), ['d', 'c', 'a', 'b']);
+    assert.deepStrictEqual(urls(rankSources([dub720, orig1080subs, dub4k, dub1080], { audioPref: 'original' })), ['b', 'd', 'c', 'a']);
+    assert.deepStrictEqual(urls(rankSources([dub720, orig1080subs, dub4k, dub1080], { qualityPref: '2160' })), ['c', 'd', 'a', 'b']);
+    assert.deepStrictEqual(urls(rankSources([dub720, orig1080subs, dub4k, dub1080], { qualityPref: '720' })), ['a', 'd', 'c', 'b']);
+    // "Nezáleží": resolution decides, subtitles break ties.
+    assert.deepStrictEqual(urls(rankSources([dub720, orig1080subs, dub1080], { audioPref: 'any' })), ['b', 'd', 'a']);
+    // Equal scores keep the site's order.
+    assert.deepStrictEqual(urls(rankSources([{ url: 'x', res: 1080 }, { url: 'y', res: 1080 }])), ['x', 'y']);
+    assert.ok(sourceScore({ res: 480 }, { qualityPref: '720' }) > sourceScore({ res: 480 }));
+});

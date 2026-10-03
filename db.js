@@ -2,7 +2,14 @@ const fs     = require('fs');
 const path   = require('path');
 const bcrypt = require('bcryptjs');
 
-const DEFAULT_SETTINGS = { reduceMotion: false, autoplayTrailers: true };
+// audioPref: 'dub' | 'original' | 'any' — which uploads the source picker ranks first
+// qualityPref: '2160' | '1080' | '720'  — preferred upload resolution
+// subLang: 'device' (last choice on that device) | 'off' | 'cze' | 'slo' | 'eng'
+// stillWatching: ask "Sledujete ještě?" after 3 episodes played in a row
+const DEFAULT_SETTINGS = {
+  reduceMotion: false, autoplayTrailers: true,
+  audioPref: 'dub', qualityPref: '1080', subLang: 'device', stillWatching: true
+};
 
 // Strip pinHash before sending a profile to the client; expose only a boolean.
 function sanitizeProfile(p) {
@@ -18,6 +25,8 @@ const FAVORITES_FILE  = path.join(DATA_DIR, 'favorites.json');
 const WATCHED_FILE    = path.join(DATA_DIR, 'watched.json');
 const WATCHLISTS_FILE = path.join(DATA_DIR, 'watchlists.json');
 const PROGRESS_FILE   = path.join(DATA_DIR, 'progress.json');
+const INTROS_FILE     = path.join(DATA_DIR, 'intros.json');
+const HISTORY_FILE    = path.join(DATA_DIR, 'history.json');
 
 function ensure() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -267,4 +276,61 @@ const progress = {
   }
 };
 
-module.exports = { profiles, favorites, watched, watchlists, progress, sanitizeProfile, DATA_DIR };
+// ── Watch history (for stats) ──
+// Seconds actually played, per profile, day and title:
+// [{ profileId, date: 'YYYY-MM-DD', items: { 'tv:1399': { seconds, tmdbId, mediaType, title, posterPath } } }]
+// Episodes add up under their show.
+
+function localDate(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+
+const history = {
+  add(profileId, { seconds, tmdbId, mediaType, title, posterPath }, when = new Date()) {
+    const all = read(HISTORY_FILE);
+    const date = localDate(when);
+    let day = all.find(d => d.profileId === profileId && d.date === date);
+    if (!day) { day = { profileId, date, items: {} }; all.push(day); }
+    const key = mediaType + ':' + tmdbId;
+    const prev = day.items[key] || { seconds: 0 };
+    day.items[key] = { seconds: prev.seconds + seconds, tmdbId, mediaType, title: title || prev.title || null, posterPath: posterPath || prev.posterPath || null };
+    write(HISTORY_FILE, all);
+  },
+
+  list(profileId) {
+    return read(HISTORY_FILE).filter(d => d.profileId === profileId);
+  },
+
+  deleteByProfile(profileId) {
+    write(HISTORY_FILE, read(HISTORY_FILE).filter(d => d.profileId !== profileId));
+  }
+};
+
+// ── Intros ──
+// Where a show's opening titles start and end, marked once in the player and
+// shared by every profile: [{ tmdbId, season, start, end, updatedAt }].
+
+const intros = {
+  list(tmdbId) {
+    return read(INTROS_FILE)
+      .filter(i => i.tmdbId === tmdbId)
+      .map(({ season, start, end }) => ({ season, start, end }));
+  },
+
+  set(tmdbId, season, { start, end }) {
+    const all = read(INTROS_FILE).filter(i => !(i.tmdbId === tmdbId && i.season === season));
+    all.push({ tmdbId, season, start, end, updatedAt: new Date().toISOString() });
+    write(INTROS_FILE, all);
+  },
+
+  remove(tmdbId, season) {
+    const all = read(INTROS_FILE);
+    const next = all.filter(i => !(i.tmdbId === tmdbId && i.season === season));
+    if (next.length === all.length) return false;
+    write(INTROS_FILE, next);
+    return true;
+  }
+};
+
+module.exports = { profiles, favorites, watched, watchlists, progress, intros, history, localDate, sanitizeProfile, DATA_DIR };

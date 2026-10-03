@@ -23,6 +23,7 @@
   <link rel="stylesheet" href="css/settings.css" />
   <link rel="stylesheet" href="css/watchlist.css" />
   <link rel="stylesheet" href="css/footer.css" />
+  <link rel="stylesheet" href="css/features.css" />
   <link rel="stylesheet" href="css/responsive.css" />
 </head>
 
@@ -99,6 +100,8 @@
           <div id="search-results" class="search-results" role="listbox"></div>
         </div>
         <button id="search-mobile-btn" class="icon-btn" title="Hledat" aria-label="Hledat"><i class="bi bi-search"></i></button>
+        <button id="cast-btn" class="icon-btn" style="display:none" title="Pustit na TV" aria-label="Pustit na TV"><i class="bi bi-cast"></i></button>
+        <button id="random-btn" class="icon-btn" title="Co pustit? — náhodný tip" aria-label="Co pustit? — náhodný tip"><i class="bi bi-shuffle"></i></button>
         <button id="theme-toggle" class="icon-btn" title="Přepnout motiv" aria-label="Přepnout motiv"><i class="bi bi-moon-stars"></i></button>
         <button id="settings-btn" class="icon-btn" title="Nastavení" aria-label="Nastavení"><i class="bi bi-gear"></i></button>
         <button id="profile-btn" class="profile-chip" title="Změnit profil" aria-label="Změnit profil">
@@ -158,6 +161,17 @@
       <div class="row" data-row><div class="row-track" id="continue-watching-movies"></div></div>
     </section>
 
+    <!-- ── New episodes of the series this profile follows (upcoming.js) ── -->
+    <section class="row-section" id="new-episodes-section" style="display:none">
+      <div class="row-header">
+        <div>
+          <h3>Nové díly</h3>
+          <p>Seriály, které sledujete, mají nové epizody</p>
+        </div>
+      </div>
+      <div class="row" data-row><div class="row-track" id="new-episodes-movies"></div></div>
+    </section>
+
     <!-- ── Recommended (from what this profile watched / liked) ── -->
     <section class="row-section" id="recommended-section" style="display:none">
       <div class="row-header">
@@ -167,6 +181,20 @@
         </div>
       </div>
       <div class="row" data-row><div class="row-track" id="recommended-movies"></div></div>
+    </section>
+
+    <!-- ── Coming soon: premieres + next episodes from the profile's lists (upcoming.js) ── -->
+    <section class="row-section" id="upcoming-section" style="display:none" data-nav-controls>
+      <div class="row-header">
+        <div>
+          <h3>Brzy vyjde</h3>
+          <p>Premiéry a nové díly z vašich seznamů a seriálů</p>
+        </div>
+        <div class="row-actions">
+          <button id="upcoming-calendar-btn" class="btn btn-ghost btn-sm"><i class="bi bi-calendar3"></i> Kalendář</button>
+        </div>
+      </div>
+      <div class="row" data-row><div class="row-track" id="upcoming-movies"></div></div>
     </section>
 
     <!-- ── Watchlist ── -->
@@ -455,6 +483,114 @@
     </div>
   </div>
 
+  <!-- ── "Pustit na TV": choose where to play (cast-sender.js) ── -->
+  <div id="cast-modal" class="overlay-modal hidden" role="dialog" aria-modal="true" aria-labelledby="cast-title">
+    <div class="overlay-backdrop" data-close></div>
+    <div class="overlay-card cast-inner">
+      <div class="overlay-header">
+        <h3 id="cast-title"><i class="bi bi-cast"></i> Přehrávat na</h3>
+        <button class="sheet-close static" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div id="cast-devices" class="cast-devices"></div>
+      <p class="settings-hint">Televize se tu objeví, když je na ní FilmBox zapnutý. Vybraný film nebo díl pak tlačítkem Přehrát pošlete na ni a tady se otevře ovladač.</p>
+    </div>
+  </div>
+
+  <!-- ── Phone remote for a TV (cast-sender.js) ── -->
+  <div id="remote-modal" class="overlay-modal hidden" role="dialog" aria-modal="true" aria-labelledby="remote-title">
+    <div class="overlay-backdrop" data-close></div>
+    <div class="overlay-card remote-inner">
+      <div class="overlay-header">
+        <span class="eyebrow" id="remote-device"><i class="bi bi-tv"></i> Televize</span>
+        <button class="sheet-close static" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="remote-now">
+        <img id="remote-poster" alt="" style="display:none">
+        <div class="remote-now-text">
+          <h3 id="remote-title">Připojuji…</h3>
+          <p id="remote-sub" class="remote-sub"></p>
+        </div>
+      </div>
+      <div class="remote-progress" id="remote-progress" role="slider" tabindex="0" aria-label="Časová osa — klepnutím přeskočíte" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+        <div id="remote-progress-fill"></div>
+      </div>
+      <div class="remote-times"><span id="remote-pos">0:00</span><span id="remote-dur">0:00</span></div>
+      <div class="remote-main">
+        <button data-cmd="seek" data-by="-30" aria-label="Zpět o 30 sekund"><i class="bi bi-skip-backward-fill"></i><small>30 s</small></button>
+        <button data-cmd="seek" data-by="-10" aria-label="Zpět o 10 sekund"><i class="bi bi-arrow-counterclockwise"></i><small>10 s</small></button>
+        <button data-cmd="toggle" class="remote-play" id="remote-play" aria-label="Přehrát nebo pozastavit"><i class="bi bi-play-fill"></i></button>
+        <button data-cmd="seek" data-by="10" aria-label="Vpřed o 10 sekund"><i class="bi bi-arrow-clockwise"></i><small>10 s</small></button>
+        <button data-cmd="seek" data-by="30" aria-label="Vpřed o 30 sekund"><i class="bi bi-skip-forward-fill"></i><small>30 s</small></button>
+      </div>
+      <div class="remote-extra">
+        <button class="btn btn-glass btn-sm" data-cmd="subs" id="remote-subs"><i class="bi bi-badge-cc"></i> Titulky</button>
+        <button class="btn btn-glass btn-sm" data-cmd="next" id="remote-next"><i class="bi bi-skip-end-fill"></i> Další díl</button>
+        <button class="btn btn-ghost btn-sm" data-cmd="stop" id="remote-stop"><i class="bi bi-stop-fill"></i> Zastavit</button>
+      </div>
+      <p class="remote-hint" id="remote-hint"></p>
+    </div>
+  </div>
+
+  <!-- ── "Co pustit?" random pick (random.js) ── -->
+  <div id="random-modal" class="overlay-modal hidden" role="dialog" aria-modal="true" aria-labelledby="random-title">
+    <div class="overlay-backdrop" data-close></div>
+    <div class="overlay-card random-inner">
+      <div class="overlay-header">
+        <h3 id="random-title"><i class="bi bi-shuffle"></i> Co pustit?</h3>
+        <button class="sheet-close static" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="random-filters">
+        <div class="segmented" id="random-from" role="group" aria-label="Odkud vybírat">
+          <button data-value="all" class="active">Odkudkoli</button>
+          <button data-value="list">Můj seznam</button>
+          <button data-value="recommended">Doporučené</button>
+        </div>
+        <div class="segmented" id="random-type" role="group" aria-label="Filmy nebo seriály">
+          <button data-value="all" class="active">Vše</button>
+          <button data-value="movie">Filmy</button>
+          <button data-value="tv">Seriály</button>
+        </div>
+        <div class="segmented" id="random-length" role="group" aria-label="Délka filmu">
+          <button data-value="0" class="active">Jakkoli dlouhé</button>
+          <button data-value="100">Do 1 h 40 min</button>
+          <button data-value="120">Do 2 h</button>
+        </div>
+        <div class="chip-row" id="random-genres" role="group" aria-label="Žánr"></div>
+      </div>
+      <div id="random-result" class="random-result" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <!-- ── Release calendar (upcoming.js) ── -->
+  <div id="calendar-modal" class="sheet-modal hidden" role="dialog" aria-modal="true" aria-labelledby="calendar-title">
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet calendar-sheet">
+      <button class="sheet-close" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
+      <span class="eyebrow">Kalendář premiér</span>
+      <h2 id="calendar-title">Brzy vyjde</h2>
+      <p class="detail-meta">Kina a digitální premiéry v Česku (jinak v USA) a nové díly seriálů — z vašich seznamů, oblíbených a sledovaných seriálů.</p>
+      <div id="calendar-list" class="calendar-list"></div>
+    </div>
+  </div>
+
+  <!-- ── Watching stats (profile-stats.js) ── -->
+  <div id="stats-modal" class="sheet-modal hidden" role="dialog" aria-modal="true" aria-labelledby="stats-title">
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet stats-sheet">
+      <button class="sheet-close" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
+      <div class="stats-head">
+        <span class="eyebrow">Statistiky sledování</span>
+        <h2 id="stats-title"></h2>
+        <div class="segmented" id="stats-period" role="group" aria-label="Období">
+          <button data-period="month">Tento měsíc</button>
+          <button data-period="year">Tento rok</button>
+          <button data-period="all">Celkem</button>
+        </div>
+      </div>
+      <div id="stats-body" class="stats-body" aria-live="polite"></div>
+    </div>
+  </div>
+
   <!-- ── Watchlist modal ── -->
   <div id="wl-modal" class="overlay-modal hidden" role="dialog" aria-modal="true" aria-labelledby="wl-modal-title">
     <div class="overlay-backdrop" data-close></div>
@@ -533,8 +669,38 @@
         </section>
 
         <section class="settings-section">
+          <span class="settings-label">Přehrávání</span>
+          <span class="settings-sublabel">Zvuk — který zdroj nabídnout jako první</span>
+          <div class="segmented settings-choice" data-setting="audioPref">
+            <button data-value="dub"><i class="bi bi-mic"></i> CZ dabing</button>
+            <button data-value="original"><i class="bi bi-badge-cc"></i> Originál</button>
+            <button data-value="any">Nezáleží</button>
+          </div>
+          <span class="settings-sublabel">Kvalita zdroje</span>
+          <div class="segmented settings-choice" data-setting="qualityPref">
+            <button data-value="2160">4K</button>
+            <button data-value="1080">1080p</button>
+            <button data-value="720">720p <span class="settings-hint">šetří data</span></button>
+          </div>
+          <span class="settings-sublabel">Titulky při spuštění</span>
+          <div class="chip-row settings-choice" data-setting="subLang">
+            <button class="chip" data-value="device">Jako minule</button>
+            <button class="chip" data-value="off">Vypnuté</button>
+            <button class="chip" data-value="cze">České</button>
+            <button class="chip" data-value="slo">Slovenské</button>
+            <button class="chip" data-value="eng">Anglické</button>
+          </div>
+          <label class="settings-toggle">
+            <input type="checkbox" id="settings-still-watching" />
+            <span class="switch" aria-hidden="true"></span>
+            <span>Po 3 epizodách v řadě se zeptat „Sledujete ještě?“</span>
+          </label>
+        </section>
+
+        <section class="settings-section">
           <span class="settings-label">Moje data</span>
-          <div class="settings-inline">
+          <div class="settings-inline settings-buttons">
+            <button id="settings-stats" class="btn btn-ghost btn-sm"><i class="bi bi-bar-chart"></i> Statistiky</button>
             <button id="settings-export" class="btn btn-ghost btn-sm"><i class="bi bi-download"></i> Exportovat</button>
             <button id="settings-wipe" class="btn btn-ghost btn-sm"><i class="bi bi-eraser"></i> Vymazat data</button>
           </div>
@@ -591,6 +757,7 @@
   <script src="js/compat.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/tv.js"></script>
+  <script src="js/cast-receiver.js"></script>
   <script src="js/intro.js"></script>
   <script src="js/whatsnew.js"></script>
   <script src="js/favorites.js"></script>
@@ -605,10 +772,14 @@
   <script src="js/search.js"></script>
   <script src="js/hero.js"></script>
   <script src="js/recommend.js"></script>
+  <script src="js/upcoming.js"></script>
+  <script src="js/random.js"></script>
+  <script src="js/cast-sender.js"></script>
   <script src="js/browse.js"></script>
   <script src="js/series.js"></script>
   <script src="js/main.js"></script>
   <script src="js/settings.js"></script>
+  <script src="js/profile-stats.js"></script>
 </body>
 
 </html>

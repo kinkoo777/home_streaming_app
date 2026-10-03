@@ -20,7 +20,9 @@ const { fetchVideoPage, fetchFastsharePage, fetchSledujtetoPage, getMp4Info, han
 const sec = require('./security');
 const subtitles = require('./subtitles');
 const { srtToVtt } = subtitles;
-const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB, sanitizeProfile, DATA_DIR } = require('./db');
+const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB, intros: introsDB, history: historyDB, sanitizeProfile, DATA_DIR } = require('./db');
+const { computeStats, PERIODS } = require('./stats');
+const cast = require('./cast');
 const { createCache, tmdbTtl } = require('./cache');
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 3000;
@@ -156,6 +158,14 @@ app.get('/tmdb/similar', async (req, res) => {
     const type = sec.tmdbType(req.query.type);
     if (!id || !type) return res.status(400).json({ error: 'Neplatné id nebo type (movie|tv)' });
     try { res.json(await tmdbFetch(`/${type}/${id}/similar?language=cs-CZ`)); }
+    catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Cinema / digital / disc release dates per country (the "Brzy vyjde" calendar).
+app.get('/tmdb/release_dates', async (req, res) => {
+    const id = sec.toId(req.query.id);
+    if (!id) return res.status(400).json({ error: 'Neplatné id' });
+    try { res.json(await tmdbFetch(`/movie/${id}/release_dates`)); }
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -736,6 +746,101 @@ app.get('/stream', (req, res) => handleStream(req, res).catch(err => {
 
 
 
+// ── "Pustit na TV" (cast.js) ──
+app.get('/api/cast/receiver', (req, res) => { cast.connect(req, res); });
+app.get('/api/cast/devices', (req, res) => res.json(cast.list()));
+app.get('/api/cast/:id', (req, res) => {
+    const d = cast.get(req.params.id);
+    if (!d) return res.status(404).json({ error: 'Televize není připojená' });
+    res.json(d);
+});
+// The TV player's playback state, for the phone remote. Also accepted as text/plain (beacon).
+app.post('/api/cast/:id/state', express.json({ type: 'text/plain' }), (req, res) => {
+    const key = req.get('x-cast-key') || (req.body && req.body.key);
+    if (!cast.setState(req.params.id, String(key || ''), req.body)) return res.status(403).json({ error: 'Neznámý přijímač' });
+    res.status(204).end();
+});
+
+// What a phone may tell the TV to play: the same payload the source picker hands the
+// player, with every link checked, plus the profile (looked up here — a PIN profile
+// needs the phone's own session, which is then passed on to the TV).
+function castPlayCommand(req, b) {
+    const profile = profilesDB.get(String(b.profileId || ''));
+    if (!profile) return { status: 404, error: 'Profil nenalezen' };
+    if (profile.pinHash && !sec.hasSession(req, profile.id)) return { status: 401, error: 'Vyžadován PIN' };
+    const p = b.player;
+    const src = p && p.source;
+    if (!p || typeof p !== 'object' || !src || !Array.isArray(src.qualities) || !src.qualities.length || src.qualities.length > 12) {
+        return { status: 400, error: 'Chybí video' };
+    }
+    if (!src.qualities.every(q => q && typeof q.src === 'string' && isAllowedCdnUrl(q.src))) return { status: 400, error: 'Nepovolený odkaz na video' };
+    const subsOk = s => s && typeof s.src === 'string' && (isAllowedCdnUrl(s.src) || /^\/subs\/file\/\d+$/.test(s.src));
+    if (src.subtitles != null && !(Array.isArray(src.subtitles) && src.subtitles.every(subsOk))) return { status: 400, error: 'Nepovolené titulky' };
+    if (src.pageUrl != null && !isAllowedVideoUrl(src.pageUrl)) return { status: 400, error: 'Nepovolená stránka videa' };
+    if (p.alternatives != null && !(Array.isArray(p.alternatives) && p.alternatives.every(a => a && isAllowedVideoUrl(a.url)))) {
+        return { status: 400, error: 'Nepovolený záložní zdroj' };
+    }
+    const startAt = Number(b.startAt);
+    return {
+        command: {
+            type: 'play',
+            player: p,
+            profile: sanitizeProfile(profile),
+            token: profile.pinHash ? req.get('x-profile-token') : null,
+            startAt: Number.isFinite(startAt) && startAt >= 0 && startAt < 1e6 ? startAt : 0
+        }
+    };
+}
+
+const REMOTE_COMMANDS = ['toggle', 'pause', 'resume', 'seek', 'seekTo', 'next', 'stop', 'subs'];
+app.post('/api/cast/:id/command', (req, res) => {
+    const b = req.body || {};
+    let command;
+    if (b.type === 'play') {
+        const r = castPlayCommand(req, b);
+        if (r.error) return res.status(r.status).json({ error: r.error });
+        command = r.command;
+    } else if (REMOTE_COMMANDS.includes(b.type)) {
+        command = { type: b.type };
+        if (b.type === 'seek') {
+            const by = Number(b.by);
+            if (!Number.isFinite(by) || Math.abs(by) > 3600) return res.status(400).json({ error: 'Neplatný posun' });
+            command.by = by;
+        }
+        if (b.type === 'seekTo') {
+            const to = Number(b.to);
+            if (!Number.isFinite(to) || to < 0 || to > 1e6) return res.status(400).json({ error: 'Neplatný čas' });
+            command.to = to;
+        }
+    } else {
+        return res.status(400).json({ error: 'Neznámý příkaz' });
+    }
+    if (!cast.send(req.params.id, command)) return res.status(404).json({ error: 'Televize není připojená' });
+    res.json({ ok: true });
+});
+
+// ── Intros (skip-intro marks per show + season, shared by all profiles) ──
+app.get('/api/intros/:tmdbId', (req, res) => {
+    const tmdbId = sec.toId(req.params.tmdbId);
+    if (!tmdbId) return res.status(400).json({ error: 'Neplatné tmdbId' });
+    res.json(introsDB.list(tmdbId));
+});
+app.put('/api/intros/:tmdbId/:season', (req, res) => {
+    const tmdbId = sec.toId(req.params.tmdbId);
+    const season = sec.season(req.params.season);
+    const marks = sec.intro(req.body);
+    if (!tmdbId || season == null) return res.status(400).json({ error: 'Neplatné parametry' });
+    if (!marks) return res.status(400).json({ error: 'Úvod musí začít v první půlhodině a trvat 5 s až 5 min' });
+    introsDB.set(tmdbId, season, marks);
+    res.json({ ok: true, season, ...marks });
+});
+app.delete('/api/intros/:tmdbId/:season', (req, res) => {
+    const tmdbId = sec.toId(req.params.tmdbId);
+    const season = sec.season(req.params.season);
+    if (!tmdbId || season == null) return res.status(400).json({ error: 'Neplatné parametry' });
+    res.json({ ok: introsDB.remove(tmdbId, season) });
+});
+
 // ====================
 // PROFILES API
 // ====================
@@ -843,6 +948,7 @@ app.delete('/api/profiles/:id', (req, res) => {
     watchedDB.deleteByProfile(id);
     watchlistsDB.deleteByProfile(id);
     progressDB.deleteByProfile(id);
+    historyDB.deleteByProfile(id);
     sec.revokeProfile(id);
     res.json({ ok: true });
 });
@@ -881,6 +987,46 @@ app.delete('/api/profiles/:id/progress/:key', (req, res) => {
     res.json({ ok: progressDB.remove(req.params.id, req.params.key) });
 });
 
+// ── Watch time + stats ──
+// The player reports seconds actually played (with its progress saves; POST
+// text/plain from the page-close beacon too).
+function saveWatchTime(req, res) {
+    const entry = sec.watchTime(req.body);
+    if (!entry) return res.status(400).json({ error: 'Neplatný záznam sledování' });
+    historyDB.add(req.params.id, entry);
+    res.json({ ok: true });
+}
+app.post('/api/profiles/:id/watchtime', express.json({ type: 'text/plain' }), saveWatchTime);
+
+// Genre shares of the watched time, from TMDB details of the most watched titles
+// (cached). Best effort: missing TMDB just leaves the list shorter.
+async function genreShares(titles) {
+    const top = titles.slice(0, 25);
+    const lookups = top.map(t => tmdbFetch(`/${t.mediaType}/${t.tmdbId}?language=cs-CZ`).then(d => ({ t, d }), () => null));
+    const settled = await Promise.race([
+        Promise.all(lookups),
+        new Promise(r => setTimeout(() => r(null), 4000))
+    ]);
+    const byName = {};
+    (settled || []).forEach(x => {
+        if (!x || !x.d || !Array.isArray(x.d.genres) || !x.d.genres.length) return;
+        // A title's time is split evenly between its genres.
+        const share = x.t.seconds / x.d.genres.length;
+        x.d.genres.forEach(g => { byName[g.name] = (byName[g.name] || 0) + share; });
+    });
+    return Object.keys(byName).map(name => ({ name, seconds: Math.round(byName[name]) }))
+        .sort((a, b) => b.seconds - a.seconds).slice(0, 6);
+}
+
+app.get('/api/profiles/:id/stats', async (req, res) => {
+    const id = req.params.id;
+    const period = PERIODS.includes(req.query.period) ? req.query.period : 'month';
+    const stats = computeStats({ history: historyDB.list(id), watched: watchedDB.list(id), progress: progressDB.getAll(id) }, period);
+    stats.genres = await genreShares(stats.titles);
+    delete stats.titles;
+    res.json(stats);
+});
+
 // ── Export / wipe ──
 app.get('/api/profiles/:id/export', (req, res) => {
     const id = req.params.id;
@@ -890,7 +1036,8 @@ app.get('/api/profiles/:id/export', (req, res) => {
         favorites:  favoritesDB.list(id),
         watched:    watchedDB.list(id),
         watchlists: watchlistsDB.getByProfile(id),
-        progress:   progressDB.getAll(id)
+        progress:   progressDB.getAll(id),
+        history:    historyDB.list(id).map(({ date, items }) => ({ date, items }))
     });
 });
 
@@ -900,6 +1047,7 @@ app.delete('/api/profiles/:id/data', (req, res) => {
     watchedDB.deleteByProfile(id);
     watchlistsDB.deleteByProfile(id);
     progressDB.deleteByProfile(id);
+    historyDB.deleteByProfile(id);
     res.json({ ok: true });
 });
 
