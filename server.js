@@ -510,38 +510,61 @@ app.get('/search', async (req, res) => {
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// A TMDB film → something playable, chosen like the source picker would: uploads that
-// really are this film (relevance.js), best first by the room host's preferences
-// (CZ dub / original, resolution); the first that resolves wins. For room polls.
-async function findMovieSource(tmdbId, prefs) {
-    const d = await tmdbFetch(`/movie/${tmdbId}?language=cs-CZ`);
-    const title = d.title || d.original_title;
-    const names = [...new Set([d.title, d.original_title].filter(Boolean))];
+// ── Sources for watch-together rooms ──
+// what = { tmdbId, mediaType: 'movie' | 'tv', episode: { season, number } | null }
+// Uploads that really are this film / episode (relevance.js), best first by the
+// room host's preferences (CZ dub / original, resolution) — what the room's
+// source chooser lists.
+const pad2 = n => String(n).padStart(2, '0');
+async function listRoomSources(what, prefs) {
+    const tv = what.mediaType === 'tv';
+    const d = await tmdbFetch(`/${tv ? 'tv' : 'movie'}/${what.tmdbId}?language=cs-CZ`);
+    const names = [...new Set((tv ? [d.name, d.original_name] : [d.title, d.original_title]).filter(Boolean))];
+    const episode = tv && what.episode ? { season: what.episode.season, number: what.episode.number } : null;
+    const code = episode ? ` S${pad2(episode.season)}E${pad2(episode.number)}` : '';
     const seen = new Set();
-    let pool = [];
-    for (const q of names) {
+    const pool = [];
+    for (const name of names) {
         let results = [];
-        try { results = await searchSources(q, Object.keys(SEARCHERS)); } catch { continue; }
-        for (const r of relevance.filterSources(results, { names, mediaType: 'movie' })) {
+        try { results = await searchSources(name + code, Object.keys(SEARCHERS)); } catch { continue; }
+        for (const r of relevance.filterSources(results, { names, mediaType: tv ? 'tv' : 'movie', episode })) {
             if (r.url && !seen.has(r.url)) { seen.add(r.url); pool.push(r); }
         }
         if (pool.length >= 3) break;
     }
-    const ranked = relevance.rankSources(pool, prefs || {});
-    for (const pick of ranked.slice(0, 3)) {
+    return {
+        title: (names[0] || 'Film') + code, posterPath: d.poster_path || null, episode, code: code.trim() || null,
+        sources: relevance.rankSources(pool, prefs || {}).slice(0, 40).map(r => ({
+            url: r.url, title: r.title, duration: r.duration || null, size: r.size || null, res: r.res || null,
+            dub: !!r.dub, subs: !!r.subs, source: r.source || 'prehrajto', thumb: r.thumb || null
+        }))
+    };
+}
+
+// → a player payload for the room. With `url`: exactly that upload, which must be one
+// listRoomSources offers (search results are cached, so this is cheap); without:
+// the first of the top three that resolves.
+async function findRoomPlayer(what, prefs, url) {
+    const list = await listRoomSources(what, prefs);
+    const order = url ? list.sources.filter(s => s.url === url) : list.sources.slice(0, 3);
+    if (url && !order.length) throw new Error('Tento zdroj už není v nabídce — načtěte seznam znovu');
+    for (const pick of order) {
         try {
             const source = await resolveVideo(pick.url);
+            const tv = what.mediaType === 'tv';
             return {
-                title, tmdbId, mediaType: 'movie', posterPath: d.poster_path || null, progressKey: String(tmdbId),
-                source, sourceSite: pick.source || 'prehrajto',
-                alternatives: ranked.filter(r => r !== pick).slice(0, 6)
-                    .map(r => ({ url: r.url, title: r.title, source: r.source || 'prehrajto', dub: !!r.dub, res: r.res || null }))
+                title: list.title, tmdbId: what.tmdbId, mediaType: tv ? 'tv' : 'movie', posterPath: list.posterPath,
+                episode: list.episode, episodeLabel: list.code,
+                progressKey: list.code ? `${what.tmdbId}:${list.code}` : String(what.tmdbId),
+                source, sourceSite: pick.source,
+                alternatives: list.sources.filter(r => r !== pick).slice(0, 6)
+                    .map(r => ({ url: r.url, title: r.title, source: r.source, dub: r.dub, res: r.res }))
             };
         } catch (err) {
             console.error('Zdroj pro místnost nefunguje:', pick.url, err.message);
         }
     }
-    throw new Error(`Pro „${title}“ se nenašel žádný funkční zdroj`);
+    throw new Error(url ? 'Tento zdroj teď nefunguje — zkuste jiný' : `Pro „${list.title}“ se nenašel žádný funkční zdroj`);
 }
 
 // Film search for room members (the guest server has no other access to TMDB).
@@ -924,7 +947,7 @@ function roomLinks(hostname, id) {
     if (pub) return { link: `${pub}/r/${id}`, public: true };
     return { link: `http://${hostname}:${GUEST_PORT || PORT}${GUEST_PORT ? '/r/' + id : '/watch.html?room=' + id}`, public: false };
 }
-const roomOpts = { checkPlayer, resolveVideo, handleStream, loadSubtitle, linkFor: roomLinks, findMovie: findMovieSource, tmdb: roomTmdb };
+const roomOpts = { checkPlayer, resolveVideo, handleStream, loadSubtitle, linkFor: roomLinks, listSources: listRoomSources, findPlayer: findRoomPlayer, tmdb: roomTmdb };
 app.use('/api/rooms', rooms.router(Object.assign({ canCreate: true }, roomOpts)));
 
 // ── Intros (skip-intro marks per show + season, shared by all profiles) ──

@@ -175,6 +175,10 @@
         room.settings = msg.settings
         renderAll()
         break
+      case 'switching':
+        if (msg.error) toast(msg.error, 6000)
+        else stageMsg((msg.by || 'Někdo') + ' přepíná zdroj videa…')
+        break
       case 'chat': addChat(msg.message); break
       case 'reaction': floatReaction(msg.emoji, msg.from.name); break
       case 'kicked': end('Byli jste odebráni', 'Hostitel vás z místnosti odebral.'); break
@@ -418,7 +422,10 @@
   function renderGear() {
     const menu = $('gear-menu')
     if (!videoInfo) return
-    let html = (viaProxy ? '<div class="menu-note">Přes server hostitele — při sekání zkuste nižší kvalitu</div>' : '') +
+    // Another upload for everyone — for those who control playback, when the film is known.
+    const canSwitch = me && me.perms.control && videoInfo.tmdbId && (videoInfo.mediaType !== 'tv' || videoInfo.episode)
+    let html = (canSwitch ? '<button class="menu-action" data-sources="1"><i class="bi bi-collection-play"></i>Jiný zdroj videa…</button>' : '') +
+      (viaProxy ? '<div class="menu-note">Přes server hostitele — při sekání zkuste nižší kvalitu</div>' : '') +
       '<div class="menu-title">Kvalita</div>' + videoInfo.qualities.map((q, i) =>
       `<button data-q="${i}" class="${i === qualityIdx ? 'on' : ''}"><i class="bi bi-check-lg"></i>${esc(q.label || (q.res ? q.res + 'p' : 'Zdroj ' + (i + 1)))}</button>`).join('')
     if (videoInfo.subtitles.length) {
@@ -434,6 +441,11 @@
     e.stopPropagation()
     const b = e.target.closest('button')
     if (!b) return
+    if (b.dataset.sources) {
+      $('gear-menu').classList.remove('open')
+      openSources({ mode: 'switch', title: videoInfo.title })
+      return
+    }
     if (b.dataset.q != null) {
       qualityIdx = Number(b.dataset.q)
       setSrc()                                        // sync() puts it back at the room's position
@@ -484,6 +496,7 @@
     renderNextButton()
     renderPoll()
     renderLobbyButton()
+    renderGear()
     $('chat-form').style.display = me.perms.chat ? '' : 'none'
     $('settings-tab').style.display = me.role === 'host' ? '' : 'none'
     $('leave-btn').innerHTML = me.role === 'host' ? '<i class="bi bi-x-circle"></i><span> Ukončit</span>' : '<i class="bi bi-box-arrow-right"></i><span> Odejít</span>'
@@ -675,10 +688,104 @@
     })
   })
 
+  // ▶ / "Pustit vítěze" → choose the upload first (or take the recommended one).
   function startFromPoll(id, title) {
     if (videoInfo && !window.confirm('Zastavit „' + videoInfo.title + '“ a pustit „' + title + '“?')) return
-    api('POST', '/poll/' + encodeURIComponent(id) + '/play').catch(err => toast(err.message))
+    openSources({ mode: 'poll', id, title })
   }
+
+  // ── Source chooser: which upload of the film everyone watches ──
+  // mode 'poll' = starting a proposed film; 'switch' = another upload of the film playing
+  // now (same position). The list comes from the server, best first by the host's preferences.
+  const SITE_NAMES = { prehrajto: 'prehraj.to', fastshare: 'FastShare', sledujteto: 'Sledujteto' }
+  const SOURCE_FILTERS = [
+    { id: 'all', label: 'Vše', test: () => true },
+    { id: 'dub', label: 'CZ dabing', test: s => s.dub },
+    { id: 'subs', label: 'Titulky', test: s => s.subs },
+    { id: '2160', label: '4K', test: s => s.res === 2160 },
+    { id: '1080', label: '1080p', test: s => s.res === 1080 },
+    { id: '720', label: '720p a méně', test: s => s.res && s.res <= 720 }
+  ]
+  let srcCtx = null      // { mode, id, title, sources, recommended, filter, seq }
+  let srcSeq = 0
+  function openSources(ctx) {
+    srcCtx = Object.assign({ sources: [], recommended: null, filter: 'all', seq: ++srcSeq }, ctx)
+    $('sources-title').innerHTML = '<i class="bi bi-collection-play"></i> ' + (ctx.mode === 'switch' ? 'Jiný zdroj videa' : 'Vyberte zdroj')
+    $('sources-sub').textContent = (ctx.mode === 'switch' ? 'Všem se přepne na stejném místě. ' : '') + 'Hledám, co je k dispozici…'
+    $('sources-auto').style.display = ctx.mode === 'poll' ? '' : 'none'
+    $('sources-auto').disabled = false
+    $('sources-filters').innerHTML = ''
+    $('sources-list').innerHTML = '<div class="src-loading"><i class="bi bi-arrow-repeat spin"></i> Načítám zdroje…</div>'
+    $('sources').style.display = ''
+    const seq = srcCtx.seq
+    const path = ctx.mode === 'switch' ? '/sources' : '/poll/' + encodeURIComponent(ctx.id) + '/sources'
+    api('GET', path).then(r => {
+      if (!srcCtx || srcCtx.seq !== seq) return
+      srcCtx.sources = r.sources
+      srcCtx.recommended = r.recommended
+      $('sources-sub').textContent = (ctx.mode === 'switch' ? 'Všem se přepne na stejném místě. ' : '') +
+        (r.sources.length ? r.sources.length + ' ' + (r.sources.length === 1 ? 'zdroj' : r.sources.length < 5 ? 'zdroje' : 'zdrojů') + ' pro „' + r.title + '“ — nejlepší podle předvoleb hostitele nahoře.' : 'Pro „' + r.title + '“ jsme nic nenašli.')
+      if (!r.sources.length) $('sources-auto').disabled = true
+      renderSources()
+    }).catch(err => {
+      if (!srcCtx || srcCtx.seq !== seq) return
+      $('sources-sub').textContent = err.message
+      $('sources-list').innerHTML = ''
+    })
+  }
+  function closeSources() {
+    srcCtx = null
+    $('sources').style.display = 'none'
+  }
+  function renderSources() {
+    const all = srcCtx.sources
+    const present = SOURCE_FILTERS.filter(f => f.id === 'all' || all.some(f.test))
+    $('sources-filters').innerHTML = present.length > 2 ? present.map(f =>
+      `<button class="chip${srcCtx.filter === f.id ? ' active' : ''}" data-filter="${f.id}">${esc(f.label)} <small>${all.filter(f.test).length}</small></button>`).join('') : ''
+    const filter = SOURCE_FILTERS.find(f => f.id === srcCtx.filter) || SOURCE_FILTERS[0]
+    const list = all.filter(filter.test)
+    $('sources-list').innerHTML = list.length ? list.map(s => {
+      const tags = [
+        s.res ? `<span class="t-q">${s.res === 2160 ? '4K' : s.res + 'p'}</span>` : '',
+        s.dub ? '<span class="t-dub"><i class="bi bi-mic-fill"></i>CZ dabing</span>' : '',
+        s.subs ? '<span class="t-subs"><i class="bi bi-badge-cc-fill"></i>Titulky</span>' : '',
+        s.size ? `<span>${esc(s.size)}</span>` : '',
+        `<span class="t-site">${esc(SITE_NAMES[s.source] || s.source)}</span>`
+      ].join('')
+      const badge = s.current ? '<span class="src-badge now">Hraje</span>' : s.url === srcCtx.recommended ? '<span class="src-badge">Doporučeno</span>' : ''
+      return `
+        <button class="src-row${s.current ? ' current' : ''}" data-url="${esc(s.url)}"${s.current ? ' disabled' : ''}>
+          <span class="src-thumb">${s.thumb ? `<img src="${esc(s.thumb)}" alt="" loading="lazy" onerror="this.remove()">` : '<i class="bi bi-film"></i>'}${s.duration ? `<span class="dur">${esc(s.duration)}</span>` : ''}</span>
+          <span class="src-text">${badge}<b>${esc(s.title)}</b><span class="src-tags">${tags}</span></span>
+          <i class="bi bi-chevron-right src-go"></i>
+        </button>`
+    }).join('') : '<div class="src-loading">Žádný zdroj neodpovídá filtru.</div>'
+  }
+  function pickSource(url) {
+    const ctx = srcCtx
+    if (!ctx) return
+    closeSources()
+    const body = url ? { url } : {}
+    if (ctx.mode === 'switch') {
+      toast('Přepínám zdroj…', 4000)
+      api('POST', '/source', body).catch(err => toast(err.message))
+    } else {
+      api('POST', '/poll/' + encodeURIComponent(ctx.id) + '/play', body).catch(err => toast(err.message))
+    }
+  }
+  $('sources-list').addEventListener('click', e => {
+    const b = e.target.closest('.src-row')
+    if (b && !b.disabled) pickSource(b.dataset.url)
+  })
+  $('sources-filters').addEventListener('click', e => {
+    const b = e.target.closest('[data-filter]')
+    if (!b || !srcCtx) return
+    srcCtx.filter = b.dataset.filter
+    renderSources()
+  })
+  $('sources-auto').addEventListener('click', () => pickSource(null))
+  $('sources-close').addEventListener('click', closeSources)
+  $('sources').addEventListener('click', e => { if (e.target.id === 'sources') closeSources() })
 
   function renderPoll() {
     if (!me) return
@@ -965,6 +1072,7 @@
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || $('app').style.display === 'none') return
     if ($('invite').style.display !== 'none') { if (e.key === 'Escape') $('invite').style.display = 'none'; return }
+    if ($('sources').style.display !== 'none') { if (e.key === 'Escape') closeSources(); return }
     const k = e.key
     if (k === ' ' || (k === 'Enter' && e.target === document.body)) { e.preventDefault(); togglePlay() }
     else if (k === 'ArrowLeft' && !e.target.closest('.side')) { e.preventDefault(); seekBy(-10) }

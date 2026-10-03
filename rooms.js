@@ -14,7 +14,9 @@
 //
 // A room can also start without a film: people propose films (TMDB search),
 // vote — one vote each, changeable — and whoever may control playback starts
-// one; the server finds a playable upload for it (findMovie in server.js).
+// one — with an upload picked from the list of what's available, or the
+// recommended one (listSources / findPlayer in server.js). Whoever may control
+// playback can also switch the playing film to another upload.
 //
 // The router is mounted twice: on the main app (home network — can create rooms)
 // and on the guest app (GUEST_PORT, the one exposed to the internet — can only
@@ -449,15 +451,85 @@ function router(opts) {
         res.json({ ok: true, settings: s });
     });
 
-    // A new film for everyone (null = back to choosing).
-    function setVideo(rm, player, position, note) {
+    // A new film for everyone (null = back to choosing). `playing` defaults to
+    // playing whenever there's a film.
+    function setVideo(rm, player, position, note, playing) {
         const t = now();
         rm.player = player;
         rm.videoVersion++;
-        rm.state = { playing: !!player, position: player && Number.isFinite(position) && position > 0 ? position : 0, updatedAt: t };
+        rm.state = { playing: !!player && playing !== false, position: player && Number.isFinite(position) && position > 0 ? position : 0, updatedAt: t };
         broadcast(rm, { type: 'video', video: publicVideo(rm), videoVersion: rm.videoVersion, state: rm.state, serverTime: t });
-        systemMessage(rm, player ? 'Hraje: ' + publicVideo(rm).title + (note || '') : 'Vybíráme další film');
+        systemMessage(rm, player ? (note === 'switch' ? 'Jiný zdroj: ' + publicVideo(rm).title : 'Hraje: ' + publicVideo(rm).title + (note || '')) : 'Vybíráme další film');
     }
+
+    // The upload someone picked in the source chooser (or none = recommended).
+    const pickedUrl = b => (b && typeof b.url === 'string' && b.url.length <= 500 ? b.url : null);
+
+    // ── Choosing the upload ──
+    // What's available for a proposal / for the film playing now (needs "control").
+    async function sendSources(res, rm, what, currentUrl) {
+        try {
+            const list = await opts.listSources(what, rm.prefs);
+            res.json({
+                title: list.title,
+                sources: list.sources.map(s => Object.assign({}, s, { current: !!currentUrl && s.url === currentUrl })),
+                recommended: list.sources.length ? list.sources[0].url : null
+            });
+        } catch (err) {
+            res.status(502).json({ error: 'Zdroje se nepodařilo načíst' });
+        }
+    }
+    r.get('/:id/poll/:item/sources', (req, res) => {
+        const rm = room(req, res);
+        if (!rm) return;
+        const m = member(req, res, rm);
+        if (!m || !need(res, rm, m, 'control')) return;
+        const item = rm.poll.items.find(it => it.id === req.params.item);
+        if (!item) return res.status(404).json({ error: 'Návrh nenalezen' });
+        sendSources(res, rm, { tmdbId: item.tmdbId, mediaType: 'movie', episode: null }, null);
+    });
+    function currentWhat(rm) {
+        const p = rm.player;
+        if (!p || !Number(p.tmdbId)) return null;
+        const tv = p.mediaType === 'tv';
+        if (tv && !(p.episode && p.episode.season != null && p.episode.number)) return null;
+        return { tmdbId: Number(p.tmdbId), mediaType: tv ? 'tv' : 'movie', episode: tv ? { season: Number(p.episode.season), number: Number(p.episode.number) } : null };
+    }
+    r.get('/:id/sources', (req, res) => {
+        const rm = room(req, res);
+        if (!rm) return;
+        const m = member(req, res, rm);
+        if (!m || !need(res, rm, m, 'control')) return;
+        const what = currentWhat(rm);
+        if (!what) return res.status(400).json({ error: 'U tohoto videa jiný zdroj vybrat nejde' });
+        sendSources(res, rm, what, rm.player.source.pageUrl || null);
+    });
+
+    // Switch the playing film to another upload ({ url }), same position for everyone.
+    r.post('/:id/source', (req, res) => {
+        const rm = room(req, res);
+        if (!rm) return;
+        const m = member(req, res, rm);
+        if (!m || !need(res, rm, m, 'control')) return;
+        const what = currentWhat(rm);
+        const url = pickedUrl(req.body);
+        if (!what) return res.status(400).json({ error: 'U tohoto videa jiný zdroj vybrat nejde' });
+        if (!url) return res.status(400).json({ error: 'Vyberte zdroj' });
+        if (rm.switching) return res.status(409).json({ error: 'Zdroj se právě přepíná' });
+        rm.switching = true;
+        const version = rm.videoVersion;
+        broadcast(rm, { type: 'switching', by: m.name });
+        res.status(202).json({ ok: true });
+        opts.findPlayer(what, rm.prefs, url).then(player => {
+            if (!rooms.has(rm.id)) return;
+            if (rm.videoVersion !== version) return;           // something else started meanwhile
+            const bad = opts.checkPlayer(player);
+            if (bad) throw new Error(bad);
+            setVideo(rm, player, positionAt(rm.state, now()), 'switch', rm.state.playing);
+        }).catch(err => {
+            if (rooms.has(rm.id)) broadcast(rm, { type: 'switching', error: err.message || 'Zdroj se nepodařilo přepnout' });
+        }).finally(() => { rm.switching = false; });
+    });
 
     // Host: play something else ({ player, position }) — next episode etc.
     r.post('/:id/video', (req, res) => {
@@ -570,7 +642,7 @@ function router(opts) {
         rm.poll.error = null;
         broadcastPoll(rm);
         res.status(202).json({ ok: true });
-        opts.findMovie(item.tmdbId, rm.prefs).then(player => {
+        opts.findPlayer({ tmdbId: item.tmdbId, mediaType: 'movie', episode: null }, rm.prefs, pickedUrl(req.body)).then(player => {
             if (!rooms.has(rm.id)) return;
             const bad = opts.checkPlayer(player);
             if (bad) throw new Error(bad);
