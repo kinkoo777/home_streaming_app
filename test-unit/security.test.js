@@ -61,6 +61,16 @@ test('profileChanges: name, theme, picture and settings rules', () => {
     assert.deepStrictEqual(sec.profileChanges({ settings: { seenWhatsNew: '<script>' } }, false).changes.settings, {});
 });
 
+test('profileChanges: playback preferences take only known values', () => {
+    assert.deepStrictEqual(
+        sec.profileChanges({ settings: { audioPref: 'original', qualityPref: '720', subLang: 'cze', stillWatching: false } }, false).changes.settings,
+        { audioPref: 'original', qualityPref: '720', subLang: 'cze', stillWatching: false });
+    assert.ok(sec.profileChanges({ settings: { audioPref: 'loud' } }, false).error);
+    assert.ok(sec.profileChanges({ settings: { qualityPref: 1080 } }, false).error);
+    assert.ok(sec.profileChanges({ settings: { subLang: 'de' } }, false).error);
+    assert.deepStrictEqual(sec.profileChanges({ settings: { stillWatching: 'yes' } }, false).changes.settings, {});
+});
+
 test('wrong-PIN limit: 5 failures then blocked, success clears', () => {
     const req = { ip: '10.0.0.' + Math.floor(Math.random() * 250), socket: {} };
     const id = 'profile-' + Date.now();

@@ -31,7 +31,6 @@ const FILTERS = [
   { id: '720',  label: '720p',       test: r => r.res && r.res <= 720 }
 ]
 
-// Czech household defaults: dubbed first, then quality, then subtitles.
 const SOURCE_NAMES = { prehrajto: 'prehraj.to', fastshare: 'FastShare', sledujteto: 'Sledujteto' }
 const SOURCE_KEYS = Object.keys(SOURCE_NAMES)
 
@@ -75,8 +74,13 @@ prehrajSites.addEventListener('click', e => {
   if (q) runSourceSearch(q)
 })
 
+// Ranked by the profile's playback preferences (Nastavení → Přehrávání).
+function sourcePrefs() {
+  const p = getActiveProfile()
+  return (p && p.settings) || {}
+}
 function sourceScore(r) {
-  return (r.dub ? 30 : 0) + (r.res === 1080 ? 12 : r.res === 2160 ? 10 : r.res === 720 ? 6 : 0) + (r.subs ? 3 : 0)
+  return FilmBoxRelevance.sourceScore(r, sourcePrefs())
 }
 
 function qualityTag(res) {
@@ -125,7 +129,10 @@ function renderSources() {
     prehrajModalContent.innerHTML = '<div class="source-state"><i class="bi bi-funnel"></i>Žádný zdroj neodpovídá filtru.</div>'
     return
   }
-  const bestUrl = _prehrajResults.slice().sort((a, b) => sourceScore(b) - sourceScore(a))[0].url
+  const bestUrl = FilmBoxRelevance.rankSources(_prehrajResults, sourcePrefs())[0].url
+  // The recommended upload goes first, so it's also what the remote focuses.
+  const best = list.find(r => r.url === bestUrl)
+  if (best) list.splice(0, list.length, best, ...list.filter(r => r !== best))
   prehrajModalContent.innerHTML = list.map((r, i) => {
     const rec = r.url === bestUrl
     return `
@@ -311,6 +318,8 @@ async function playSource(url) {
       episodeLabel,
       progressKey
     }))
+    // A TV picked in "Přehrávat na" → send it there instead (cast-sender.js).
+    if (window.castSend && window.castSend(JSON.parse(sessionStorage.getItem('filmbox_player')))) return
     window.location.href = 'player.html'
   } catch (err) {
     if (seq !== _prehrajSeq) return

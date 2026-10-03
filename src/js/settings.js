@@ -55,6 +55,20 @@
     document.querySelectorAll('.settings-theme-option').forEach(btn =>
       btn.classList.toggle('active', btn.dataset.theme === theme))
   }
+  // Playback preference groups: one active button per [data-setting] group.
+  const CHOICE_DEFAULTS = { audioPref: 'dub', qualityPref: '1080', subLang: 'device' }
+  function syncChoices(settings) {
+    document.querySelectorAll('.settings-choice').forEach(group => {
+      const key = group.dataset.setting
+      const value = settings[key] || CHOICE_DEFAULTS[key]
+      group.querySelectorAll('[data-value]').forEach(b => {
+        const on = b.dataset.value === value
+        b.classList.toggle('active', on)
+        b.setAttribute('aria-pressed', on ? 'true' : 'false')
+      })
+    })
+  }
+
   function syncPinStatus(hasPin) {
     $('settings-pin-status').textContent = hasPin ? '(nastaveno)' : '(nenastaveno)'
     $('settings-pin-remove').style.display = hasPin ? '' : 'none'
@@ -71,6 +85,8 @@
     const s = profile.settings || {}
     $('settings-reduce-motion').checked = !!s.reduceMotion
     $('settings-autoplay').checked = s.autoplayTrailers !== false
+    $('settings-still-watching').checked = s.stillWatching !== false
+    syncChoices(s)
     modal.querySelector('.overlay-card').scrollTop = 0
     openModal(modal, closeSettings)
   }
@@ -204,6 +220,23 @@
   $('settings-autoplay').addEventListener('change', async e => {
     try { await saveProfile({ settings: { autoplayTrailers: e.target.checked } }) }
     catch (err) { showToast('Chyba: ' + err.message) }
+  })
+
+  $('settings-still-watching').addEventListener('change', async e => {
+    try { await saveProfile({ settings: { stillWatching: e.target.checked } }) }
+    catch (err) { showToast('Chyba: ' + err.message) }
+  })
+  document.querySelectorAll('.settings-choice').forEach(group => {
+    group.addEventListener('click', async e => {
+      const btn = e.target.closest('[data-value]')
+      if (!btn) return
+      const change = {}
+      change[group.dataset.setting] = btn.dataset.value
+      const before = (getActiveProfile() || {}).settings || {}
+      syncChoices(Object.assign({}, before, change))
+      try { await saveProfile({ settings: change }) }
+      catch (err) { syncChoices(before); showToast('Chyba: ' + err.message) }
+    })
   })
 
   $('settings-export').addEventListener('click', async () => {

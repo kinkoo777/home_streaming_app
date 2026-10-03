@@ -96,8 +96,37 @@ function progress(key, b) {
     };
 }
 
+// Watched time reported by the player → clean record, or null. Sent at most a
+// minute or so apart; anything bigger is a clock jump, not viewing.
+function watchTime(b) {
+    if (!b || typeof b !== 'object') return null;
+    const seconds = Math.round(Number(b.seconds));
+    const tmdbId = toId(b.tmdbId);
+    const mt = mediaType(b.mediaType);
+    if (!Number.isFinite(seconds) || seconds < 1 || seconds > 1800 || !tmdbId || !mt) return null;
+    // "Kancelář S02E03" → "Kancelář": episodes count towards the show.
+    const t = title(b.title);
+    return { seconds, tmdbId, mediaType: mt, title: t ? t.replace(/\s*S\d{1,3}E\d{1,4}.*$/i, '').trim() || t : null, posterPath: posterPath(b.posterPath) };
+}
+
+// Intro marks (seconds into the episode) → { start, end } or null. Openings sit in
+// the first half hour and run 5 s – 5 min.
+function intro(b) {
+    if (!b || typeof b !== 'object') return null;
+    const start = Number(b.start), end = Number(b.end);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || start > 1800) return null;
+    if (end - start < 5 || end - start > 300) return null;
+    return { start: Math.round(start * 10) / 10, end: Math.round(end * 10) / 10 };
+}
+
 // Profile create/update fields. Returns { changes } or { error }.
-const SETTINGS_KEYS = ['reduceMotion', 'autoplayTrailers'];
+const SETTINGS_KEYS = ['reduceMotion', 'autoplayTrailers', 'stillWatching'];
+// Playback preferences with a fixed set of values (see DEFAULT_SETTINGS in db.js).
+const SETTINGS_CHOICES = {
+    audioPref:   ['dub', 'original', 'any'],
+    qualityPref: ['2160', '1080', '720'],
+    subLang:     ['device', 'off', 'cze', 'slo', 'eng']
+};
 const MAX_PICTURE = 300 * 1024;
 function profileChanges(b, creating) {
     if (!b || typeof b !== 'object') return { error: 'Neplatná data' };
@@ -121,6 +150,11 @@ function profileChanges(b, creating) {
         if (!b.settings || typeof b.settings !== 'object') return { error: 'Neplatná nastavení' };
         const s = {};
         SETTINGS_KEYS.forEach(k => { if (typeof b.settings[k] === 'boolean') s[k] = b.settings[k]; });
+        for (const k of Object.keys(SETTINGS_CHOICES)) {
+            if (b.settings[k] === undefined) continue;
+            if (!SETTINGS_CHOICES[k].includes(b.settings[k])) return { error: 'Neplatné nastavení: ' + k };
+            s[k] = b.settings[k];
+        }
         // Version of the "what's new" video this profile has already seen.
         const seen = b.settings.seenWhatsNew;
         if (typeof seen === 'string' && /^[\w.-]{1,32}$/.test(seen)) s.seenWhatsNew = seen;
@@ -191,7 +225,7 @@ function recordFailure(req, profileId) {
 function clearFailures(req, profileId) { failures.delete(failKey(req, profileId)); }
 
 module.exports = {
-    toId, mediaType, posterPath, title, watchlists, libraryEntry, progress, profileChanges,
+    toId, mediaType, posterPath, title, watchlists, libraryEntry, progress, intro, watchTime, profileChanges,
     tmdbType, season,
     issueToken, hasSession, revokeProfile, retryAfter, recordFailure, clearFailures
 };

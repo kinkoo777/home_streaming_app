@@ -46,6 +46,20 @@
 .settings-inline .field { -webkit-flex: 1; flex: 1; min-width: 0; height: 40px; }
 .settings-inline .btn { -webkit-flex-shrink: 0; flex-shrink: 0; height: 40px; }
 
+/* Playback preferences: labelled choice groups */
+.settings-sublabel { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 8px; }
+.settings-label + .settings-sublabel { margin-top: 0; }
+.settings-choice.segmented { display: -webkit-flex; display: flex; }
+.settings-choice.segmented > button { -webkit-flex: 1; flex: 1; -webkit-justify-content: center; justify-content: center; height: 36px; padding: 0 8px; }
+.settings-choice.segmented .settings-hint { margin: 0 0 0 6px; font-size: 11px; }
+.settings-choice.chip-row { padding: 2px 0 4px; -webkit-flex-wrap: wrap; flex-wrap: wrap; overflow: visible; }
+.settings-choice.chip-row > * { margin-bottom: 6px; }
+.settings-choice + .settings-toggle { margin-top: 10px; }
+@media (max-width: 420px) { .settings-choice.segmented .settings-hint { display: none; } }
+
+.settings-inline.settings-buttons { -webkit-flex-wrap: wrap; flex-wrap: wrap; margin-bottom: -8px; }
+.settings-inline.settings-buttons > * { margin: 0 8px 8px 0; }
+
 .settings-theme-options { display: -webkit-flex; display: flex; }
 .settings-theme-options > button { -webkit-flex: 1; flex: 1; -webkit-justify-content: center; justify-content: center; height: 38px; }
 

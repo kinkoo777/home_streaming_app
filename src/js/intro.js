@@ -165,6 +165,7 @@
     await Promise.all(tasks)
     if (window.reloadContinueWatching) window.reloadContinueWatching()
     if (window.reloadRecommendations) window.reloadRecommendations()
+    if (window.reloadUpcoming) window.reloadUpcoming()
   }
 
   // ── Show chooser (navbar profile chip) ──

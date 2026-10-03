@@ -130,7 +130,32 @@
     return bestScore >= 45 ? best : null
   }
 
-  const api = { titleWords, durationSeconds, hasEpisodeCode, filterSources, parseReleaseName, pickTmdbMatch }
+  // ── Source ranking by the profile's playback preferences ──
+  // prefs: { audioPref: 'dub' | 'original' | 'any', qualityPref: '2160' | '1080' | '720' }
+  // (profile settings, see db.js). Audio matters most, then resolution, then subtitles.
+  const QUALITY_ORDER = { '2160': [2160, 1080, 720], '1080': [1080, 2160, 720], '720': [720, 1080, 2160] }
+  function sourceScore(r, prefs) {
+    prefs = prefs || {}
+    const audio = prefs.audioPref || 'dub'
+    const order = QUALITY_ORDER[prefs.qualityPref] || QUALITY_ORDER['1080']
+    let score = 0
+    if (audio === 'dub' && r.dub) score += 30
+    if (audio === 'original' && !r.dub) score += 30
+    const qi = order.indexOf(r.res)
+    if (qi >= 0) score += 12 - qi * 3
+    else if (r.res && r.res < 720) score += prefs.qualityPref === '720' ? 4 : 1
+    if (r.subs) score += audio === 'original' ? 6 : 3
+    return score
+  }
+
+  // Best match first; equal scores keep their original order.
+  function rankSources(list, prefs) {
+    return list.map((r, i) => ({ r: r, i: i, s: sourceScore(r, prefs) }))
+      .sort((a, b) => b.s - a.s || a.i - b.i)
+      .map(x => x.r)
+  }
+
+  const api = { titleWords, durationSeconds, hasEpisodeCode, filterSources, parseReleaseName, pickTmdbMatch, sourceScore, rankSources }
   if (typeof module !== 'undefined' && module.exports) module.exports = api
   else root.FilmBoxRelevance = api
 })(typeof window !== 'undefined' ? window : this)

@@ -33,6 +33,15 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
   - **Reliability** — Auto quality follows screen size and steps down on repeated buffering; expired CDN links are refreshed automatically; a broken quality falls back to the next one; stuck streams are reloaded at the same position
   - **TV remote friendly** — arrow/OK navigation in menus and prompts, Samsung/LG back keys, media keys, Media Session
 - **Export / wipe my data** — from a profile's settings, download everything (favorites, watched, watchlists, progress) as one JSON file, or wipe the library while keeping the profile
+- **Pustit na TV** — pick a film or episode on your phone and play it on the TV: the cast button in the navbar lists every TV with FilmBox open, *Přehrát* then sends the video there (your phone asks *Pokračovat od 12:34 / Od začátku*), plays as your profile (PIN profiles included) and turns the phone into a remote — play/pause, ±10/30 s, tap the timeline to jump, subtitles, next episode, stop. Any device can be a receiver: TVs are automatically, other browsers after opening FilmBox once with `?receiver=1`
+- **Nové díly** — a row with the series you follow (episodes in progress, series marked watched, favourite series) that aired episodes you haven't seen: "Nový díl S02E05", "3 nové díly", "Nová řada", plus the date of the next one
+- **Brzy vyjde + calendar** — a row and a month-by-month calendar of what's coming from your lists and favourites: Czech cinema and digital premieres (US when there's no Czech date), series premieres and the next episodes of followed series
+- **Co pustit?** — the shuffle button in the navbar picks something at random from your lists and recommendations (or this week's trending titles for a new profile), filtered by films/series, genre and length (up to 1 h 40 / 2 h); *Jiný tip* rerolls without repeating itself
+- **Playback preferences per profile** — *Nastavení → Přehrávání*: which uploads the source picker recommends and focuses first (CZ dub / original with subtitles / doesn't matter; 4K / 1080p / 720p), which subtitles start on (as last time / off / Czech / Slovak / English), the same ranking for the next episode that plays automatically
+- **Sledujete ještě?** — after three episodes in a row that started on their own with nobody touching the remote, the player stops and asks instead of counting down to the next one (can be turned off per profile)
+- **Sleep timer** — *Settings (gear) → Časovač vypnutí* in the player: at the end of this episode / film or after 15–90 minutes the video pauses (position saved) behind a black "Dobrou noc" screen; survives the jump to the next episode
+- **Skip intro** — mark a series' opening once in the player (*Settings → Úvod seriálu*: "Začátek úvodu je teď", "Konec úvodu je teď"); every episode of that season — and of seasons nobody has marked yet — then shows *Přeskočit úvod*. Marks are shared by all profiles
+- **Watching stats** — *Nastavení → Statistiky*: hours watched this month / year / in total (films vs. series), finished films and episodes, days with watching and the longest run of days, the last 12 months as columns, top genres and the most watched titles. Time is counted from playback the player reports (only real playing, never seeking); finished titles include older history
 - **Fully responsive** — 360 px phone → tablet → laptop → large TV
 
 ## Tech Stack
@@ -55,19 +64,23 @@ home_streaming_app/
 ├── stream.js           # prehraj.to page parsing, MP4 colour-tag probing, /stream proxy
 ├── security.js         # API input validation, PIN sessions, wrong-PIN rate limit
 ├── cache.js            # Response cache (TMDB 30 min for lists, 6 h for details), kept on disk
+├── stats.js            # Watching stats from the watch history (hours, finished titles, months, streaks)
+├── cast.js             # "Pustit na TV": TV receivers (Server-Sent Events), commands, playback state
 ├── subtitles.js        # SRT→WebVTT + OpenSubtitles search/download
 ├── tools/
 │   ├── guides.spec.js  # Hand-written watch guides (film lists, chronological order) + TMDB collection ids
 │   └── build-guides.js # Resolves them on TMDB → src/guides/guides.json
 ├── test-unit/          # node:test unit tests (npm run test:unit)
-├── db.js               # JSON file store (profiles, favorites, watched, watchlists, progress)
+├── db.js               # JSON file store (profiles, favorites, watched, watchlists, progress, history, intros)
 ├── package.json
 ├── data/               # Created automatically on first run
 │   ├── profiles.json
 │   ├── favorites.json
 │   ├── watched.json
 │   ├── watchlists.json   # Per-profile array of named lists { id, name, movies[] }
-│   └── progress.json     # Per-profile playback position, keyed by tmdbId or "tmdbId:S01E05" → { seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }
+│   ├── progress.json     # Per-profile playback position, keyed by tmdbId or "tmdbId:S01E05" → { seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }
+│   ├── history.json      # Seconds played per profile, day and title (stats)
+│   └── intros.json       # Skip-intro marks per series + season, shared by all profiles
 └── src/
     ├── index.html
     ├── media/whats-new.mp4 # "What's new" video (not in git — copy it in manually)
@@ -83,6 +96,7 @@ home_streaming_app/
     │   ├── settings.css
     │   ├── watchlist.css
     │   ├── footer.css
+    │   ├── features.css  # Stats, Nové díly / Brzy vyjde, calendar, Co pustit?, cast + remote
     │   └── responsive.css # Breakpoints + TV mode
     └── js/
         ├── utils.js      # Helpers, modal stack, confirm dialog, profile helpers
@@ -99,6 +113,11 @@ home_streaming_app/
         ├── search.js     # Live search, history, results grid
         ├── hero.js       # Hero carousel
         ├── recommend.js  # "Doporučeno pro vás" row
+        ├── upcoming.js   # "Nové díly" + "Brzy vyjde" rows and the release calendar
+        ├── random.js     # "Co pustit?" random pick
+        ├── profile-stats.js # Watching stats sheet
+        ├── cast-receiver.js # TV side of "Pustit na TV" (home page + player)
+        ├── cast-sender.js   # Phone side: choose a TV, send, remote
         ├── browse.js     # "Procházet" genre / decade browser
         ├── whatsnew.js   # One-time "what's new" video after choosing a profile
         ├── series.js     # "Filmové série" row, watch-guide sheet, "Součást série" in the detail
@@ -189,7 +208,7 @@ node tools/build-guides.js
 
 ### Test
 
-Unit tests (no TMDB token or network needed) cover the HDR colour-tag patching, prehraj.to page parsing, API input validation / PIN limits, the film/series source filter, the response cache, and the progress API (saving, page-close beacons, PIN-protected profiles, requests from other websites) on a throwaway server with a temp data folder:
+Unit tests (no TMDB token or network needed) cover the HDR colour-tag patching, prehraj.to page parsing, API input validation / PIN limits, the film/series source filter and source ranking by preferences, the response cache, the stats maths, and — on a throwaway server with a temp data folder — the progress API (saving, page-close beacons, PIN-protected profiles, requests from other websites), playback preferences, skip-intro marks, watched time → stats, and casting (receiver ownership, remote commands, link and PIN checks on *play*):
 
 ```bash
 npm run test:unit
@@ -205,6 +224,10 @@ npm test                          # or BASE=http://localhost:3100 npm test
 To access from other devices on the same network use your machine's local IP — e.g. `http://192.168.1.x:3000`.
 
 The API only accepts changes from FilmBox's own pages: another website open on the same network can't edit or delete profiles.
+
+### Pustit na TV
+
+Open FilmBox on the TV (the LG app or the TV browser) — it registers itself as a receiver automatically. A computer connected to the TV can be one too: open FilmBox there once with `?receiver=1` (`?receiver=0` turns it off). On the phone, the cast button appears in the navbar as soon as a TV is online; choose the TV there, then press *Přehrát* as usual. If the TV's browser refuses to start a video with sound on its own, it starts muted and the first OK press on the TV remote turns the sound on (the phone remote says so).
 
 ### TV diagnostics
 
