@@ -468,8 +468,10 @@ function patchTransform(startOffset, patches) {
     });
 }
 
-async function handleStream(req, res) {
-    const url = req.query.url;
+// `fixedUrl`: a URL the caller already vetted (watch-together rooms proxy only
+// their own video); otherwise ?url= from the request.
+async function handleStream(req, res, fixedUrl) {
+    const url = fixedUrl || req.query.url;
     if (typeof url !== 'string' || !isAllowedCdnUrl(url)) return res.status(400).json({ error: 'Nepovolená URL' });
 
     const info = await getMp4Info(url);

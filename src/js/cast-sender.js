@@ -257,6 +257,11 @@
     }
   })
 
+  // Just handed a video over from the player ("Pustit na TV") → straight to the remote.
+  let handoff = null
+  try { handoff = sessionStorage.getItem('filmbox_open_remote'); sessionStorage.removeItem('filmbox_open_remote') } catch (e) {}
+  if (handoff && getTarget()) setTimeout(() => openRemote(getTarget()), 500)
+
   // Keep the button in sync: on load, every 15 s, and when the tab comes back.
   refresh()
   setInterval(() => { if (document.visibilityState !== 'hidden') refresh() }, 15000)
