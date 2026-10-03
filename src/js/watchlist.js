@@ -407,3 +407,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderContinueWatching()
   renderWatchlist()
 })
+
+// Back from the player: its last save can land just after this page loaded, or the
+// page comes back from the back/forward cache with the old row — re-read progress.
+window.addEventListener('pageshow', () => {
+  let dirty = false
+  try {
+    dirty = sessionStorage.getItem('filmbox_progress_dirty') === '1'
+    sessionStorage.removeItem('filmbox_progress_dirty')
+  } catch (e) {}
+  if (!dirty || !hasActiveProfile()) return
+  setTimeout(async () => {
+    await loadProfileProgress()
+    renderContinueWatching()
+  }, 1000)
+})

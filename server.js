@@ -899,7 +899,8 @@ function saveProgress(req, res) {
 }
 app.get('/api/profiles/:id/progress', (req, res) => res.json(progressDB.getAll(req.params.id)));
 app.put('/api/profiles/:id/progress/:key', saveProgress);
-app.post('/api/profiles/:id/progress/:key', saveProgress);
+// The player's beacon is sent as text/plain (old TV browsers reject JSON-typed beacons).
+app.post('/api/profiles/:id/progress/:key', express.json({ type: 'text/plain' }), saveProgress);
 app.delete('/api/profiles/:id/progress/:key', (req, res) => {
     res.json({ ok: progressDB.remove(req.params.id, req.params.key) });
 });
