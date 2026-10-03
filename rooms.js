@@ -12,6 +12,10 @@
 // its own id + secret on joining, sent with every request. Events go out over
 // Server-Sent Events. Everything lives in memory: a server restart ends rooms.
 //
+// A room can also start without a film: people propose films (TMDB search),
+// vote — one vote each, changeable — and whoever may control playback starts
+// one; the server finds a playable upload for it (findMovie in server.js).
+//
 // The router is mounted twice: on the main app (home network — can create rooms)
 // and on the guest app (GUEST_PORT, the one exposed to the internet — can only
 // join existing rooms, see server.js).
@@ -27,11 +31,14 @@ const EMPTY_CLOSE = 30 * 60 * 1000;      // a room nobody is connected to closes
 const MAX_AGE = 12 * 60 * 60 * 1000;
 const ROLES = ['host', 'moderator', 'viewer'];
 const RANK = { host: 3, moderator: 2, viewer: 1 };
-const PERMS = ['control', 'chat', 'react', 'kick'];
+const PERMS = ['control', 'chat', 'react', 'suggest', 'kick'];
 const DEFAULT_PERMS = {
-    moderator: { control: true, chat: true, react: true, kick: true },
-    viewer: { control: false, chat: true, react: true, kick: false }
+    moderator: { control: true, chat: true, react: true, suggest: true, kick: true },
+    viewer: { control: false, chat: true, react: true, suggest: true, kick: false }
 };
+const MAX_POLL = 20;
+const AUDIO = ['dub', 'original', 'any'];
+const QUALITY = ['2160', '1080', '720'];
 const EMOJI = ['😂', '😮', '❤️', '👍', '😢', '🔥', '👏', '😱'];
 
 const rooms = new Map();
@@ -60,6 +67,8 @@ const joinLimit = limiter(10, 60 * 1000);
 const chatLimit = limiter(5, 5000);
 const reactLimit = limiter(10, 5000);
 const actionLimit = limiter(15, 5000);
+const searchLimit = limiter(20, 10000);
+const pollLimit = limiter(20, 10000);
 
 // ── Room state ──
 
@@ -85,8 +94,10 @@ function publicMember(m) {
 }
 
 // What members see of the video: no page URL, just what playing it needs.
+// null = no film yet (choosing one).
 function publicVideo(room) {
     const p = room.player;
+    if (!p) return null;
     return {
         title: p.title || 'Film',
         posterPath: typeof p.posterPath === 'string' ? p.posterPath : null,
@@ -115,8 +126,24 @@ function snapshot(room, m, links) {
         videoVersion: room.videoVersion,
         state: Object.assign({}, room.state, { position: positionAt(room.state, t), updatedAt: t }),
         members: [...room.members.values()].map(publicMember),
-        chat: room.chat.slice(-50)
+        chat: room.chat.slice(-50),
+        poll: publicPoll(room)
     };
+}
+
+// Proposals, most votes first (ties: proposed earlier first).
+function publicPoll(room) {
+    const items = room.poll.items.map(it => ({
+        id: it.id, tmdbId: it.tmdbId, title: it.title, year: it.year, posterPath: it.posterPath,
+        rating: it.rating, overview: it.overview, by: it.by,
+        votes: it.votes.size,
+        voters: [...it.votes].map(id => { const m = room.members.get(id); return { id, name: m ? m.name : '?' }; })
+    })).sort((a, b) => b.votes - a.votes || room.poll.items.findIndex(x => x.id === a.id) - room.poll.items.findIndex(x => x.id === b.id));
+    return { items, finding: room.poll.finding || null, error: room.poll.error || null };
+}
+
+function broadcastPoll(room) {
+    broadcast(room, { type: 'poll', poll: publicPoll(room) });
 }
 
 function send(res, msg) {
@@ -213,10 +240,11 @@ function router(opts) {
     }
 
     if (opts.canCreate) {
-        // { player, name, position, playing } → { id, link, member }
+        // { player?, name, position, playing, prefs? } → { id, link, member }
+        // Without a player the room starts by choosing a film together.
         r.post('/', (req, res) => {
             const b = req.body || {};
-            const bad = opts.checkPlayer(b.player);
+            const bad = b.player != null ? opts.checkPlayer(b.player) : null;
             if (bad) return res.status(400).json({ error: bad });
             if (rooms.size >= MAX_ROOMS) return res.status(503).json({ error: 'Je otevřeno příliš mnoho místností' });
             const id = token(16);
@@ -224,11 +252,17 @@ function router(opts) {
             const position = Number(b.position);
             const rm = {
                 id, createdAt: t, lastActive: t,
-                player: b.player,
+                player: b.player || null,
                 videoVersion: 1,
-                state: { playing: b.playing !== false, position: Number.isFinite(position) && position > 0 ? position : 0, updatedAt: t },
+                state: { playing: !!b.player && b.playing !== false, position: b.player && Number.isFinite(position) && position > 0 ? position : 0, updatedAt: t },
                 settings: { locked: false, defaultRole: 'viewer', perms: JSON.parse(JSON.stringify(DEFAULT_PERMS)) },
-                members: new Map(), chat: [], hostId: null, refreshedAt: 0, refreshing: null
+                members: new Map(), chat: [], hostId: null, refreshedAt: 0, refreshing: null,
+                poll: { items: [], finding: null, error: null },
+                // The host's playback preferences pick uploads for films from the poll.
+                prefs: {
+                    audioPref: AUDIO.includes(b.prefs && b.prefs.audioPref) ? b.prefs.audioPref : 'dub',
+                    qualityPref: QUALITY.includes(b.prefs && b.prefs.qualityPref) ? b.prefs.qualityPref : '1080'
+                }
             };
             rm.linkHost = req.hostname;          // fallback for links without a public address
             const links = opts.linkFor(rm.linkHost, id);
@@ -244,9 +278,9 @@ function router(opts) {
         const rm = room(req, res);
         if (!rm) return;
         const host = rm.members.get(rm.hostId);
-        const v = publicVideo(rm);
+        const v = publicVideo(rm) || { title: 'Vybíráme film', posterPath: null, episodeLabel: null };
         const links = opts.linkFor(rm.linkHost, rm.id);
-        res.json({ title: v.title, posterPath: v.posterPath, episodeLabel: v.episodeLabel, host: host ? host.name : null, locked: rm.settings.locked, count: rm.members.size, full: rm.members.size >= MAX_MEMBERS, link: links.link, public: links.public });
+        res.json({ title: v.title, posterPath: v.posterPath, episodeLabel: v.episodeLabel, choosing: !rm.player, host: host ? host.name : null, locked: rm.settings.locked, count: rm.members.size, full: rm.members.size >= MAX_MEMBERS, link: links.link, public: links.public });
     });
 
     r.post('/:id/join', (req, res) => {
@@ -415,6 +449,16 @@ function router(opts) {
         res.json({ ok: true, settings: s });
     });
 
+    // A new film for everyone (null = back to choosing).
+    function setVideo(rm, player, position, note) {
+        const t = now();
+        rm.player = player;
+        rm.videoVersion++;
+        rm.state = { playing: !!player, position: player && Number.isFinite(position) && position > 0 ? position : 0, updatedAt: t };
+        broadcast(rm, { type: 'video', video: publicVideo(rm), videoVersion: rm.videoVersion, state: rm.state, serverTime: t });
+        systemMessage(rm, player ? 'Hraje: ' + publicVideo(rm).title + (note || '') : 'Vybíráme další film');
+    }
+
     // Host: play something else ({ player, position }) — next episode etc.
     r.post('/:id/video', (req, res) => {
         const rm = room(req, res);
@@ -425,14 +469,123 @@ function router(opts) {
         const b = req.body || {};
         const bad = opts.checkPlayer(b.player);
         if (bad) return res.status(400).json({ error: bad });
-        const t = now();
-        const pos = Number(b.position);
-        rm.player = b.player;
-        rm.videoVersion++;
-        rm.state = { playing: true, position: Number.isFinite(pos) && pos > 0 ? pos : 0, updatedAt: t };
-        broadcast(rm, { type: 'video', video: publicVideo(rm), videoVersion: rm.videoVersion, state: rm.state, serverTime: t });
-        systemMessage(rm, 'Hraje: ' + publicVideo(rm).title);
+        setVideo(rm, b.player, Number(b.position));
         res.json({ ok: true });
+    });
+
+    // Host: stop the film and go back to choosing one.
+    r.post('/:id/lobby', (req, res) => {
+        const rm = room(req, res);
+        if (!rm) return;
+        const m = member(req, res, rm);
+        if (!m) return;
+        if (m.role !== 'host') return res.status(403).json({ error: 'Jen hostitel' });
+        if (rm.player) setVideo(rm, null);
+        res.json({ ok: true });
+    });
+
+    // ── Choosing a film together ──
+
+    // Film search for members (empty q → this week's trending films).
+    r.get('/:id/search', async (req, res) => {
+        const rm = room(req, res);
+        if (!rm) return;
+        const m = member(req, res, rm);
+        if (!m || !need(res, rm, m, 'suggest')) return;
+        if (!searchLimit(m.id)) return res.status(429).json({ error: 'Pomaleji' });
+        const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : '';
+        try {
+            res.json({ results: q ? await opts.tmdb.search(q) : await opts.tmdb.trending(), trending: !q });
+        } catch (err) {
+            res.status(502).json({ error: 'Hledání filmů teď nefunguje' });
+        }
+    });
+
+    // Propose a film: { tmdbId }. Title, poster etc. come from TMDB, not from the request.
+    r.post('/:id/poll', async (req, res) => {
+        const rm = room(req, res);
+        if (!rm) return;
+        const m = member(req, res, rm);
+        if (!m || !need(res, rm, m, 'suggest')) return;
+        if (!pollLimit(m.id)) return res.status(429).json({ error: 'Pomaleji' });
+        const tmdbId = Number((req.body || {}).tmdbId);
+        if (!Number.isInteger(tmdbId) || tmdbId <= 0 || tmdbId >= 1e9) return res.status(400).json({ error: 'Neplatný film' });
+        const id = 'm' + tmdbId;
+        if (rm.poll.items.some(it => it.id === id)) return res.status(409).json({ error: 'Tento film už je v hlasování' });
+        if (rm.poll.items.length >= MAX_POLL) return res.status(400).json({ error: 'V hlasování je už ' + MAX_POLL + ' filmů' });
+        let info;
+        try { info = await opts.tmdb.movie(tmdbId); } catch (err) { return res.status(404).json({ error: 'Film se nenašel' }); }
+        if (!rooms.has(rm.id) || rm.poll.items.some(it => it.id === id)) return res.status(409).json({ error: 'Tento film už je v hlasování' });
+        const item = Object.assign(info, { id, by: { id: m.id, name: m.name }, votes: new Set([m.id]), at: now() });
+        // Proposing counts as your vote (moved from wherever it was).
+        rm.poll.items.forEach(it => it.votes.delete(m.id));
+        rm.poll.items.push(item);
+        rm.poll.error = null;
+        systemMessage(rm, m.name + ' navrhuje: ' + item.title + (item.year ? ' (' + item.year + ')' : ''));
+        broadcastPoll(rm);
+        res.status(201).json({ ok: true, id });
+    });
+
+    // Vote for a film — one vote each; voting again for the same film takes it back.
+    r.post('/:id/poll/:item/vote', (req, res) => {
+        const rm = room(req, res);
+        if (!rm) return;
+        const m = member(req, res, rm);
+        if (!m) return;
+        if (!pollLimit(m.id)) return res.status(429).json({ error: 'Pomaleji' });
+        const item = rm.poll.items.find(it => it.id === req.params.item);
+        if (!item) return res.status(404).json({ error: 'Návrh nenalezen' });
+        const had = item.votes.has(m.id);
+        rm.poll.items.forEach(it => it.votes.delete(m.id));
+        if (!had) item.votes.add(m.id);
+        broadcastPoll(rm);
+        res.json({ ok: true, voted: !had });
+    });
+
+    // Remove a proposal: the host, or whoever proposed it.
+    r.delete('/:id/poll/:item', (req, res) => {
+        const rm = room(req, res);
+        if (!rm) return;
+        const m = member(req, res, rm);
+        if (!m) return;
+        const item = rm.poll.items.find(it => it.id === req.params.item);
+        if (!item) return res.status(404).json({ error: 'Návrh nenalezen' });
+        if (m.role !== 'host' && item.by.id !== m.id) return res.status(403).json({ error: 'Návrh může odebrat jen hostitel nebo ten, kdo ho přidal' });
+        rm.poll.items = rm.poll.items.filter(it => it !== item);
+        broadcastPoll(rm);
+        res.json({ ok: true });
+    });
+
+    // Start a proposed film for everyone (needs "control"). Finding a working upload
+    // takes a while, so this answers right away and the room hears how it went.
+    r.post('/:id/poll/:item/play', (req, res) => {
+        const rm = room(req, res);
+        if (!rm) return;
+        const m = member(req, res, rm);
+        if (!m || !need(res, rm, m, 'control')) return;
+        const item = rm.poll.items.find(it => it.id === req.params.item);
+        if (!item) return res.status(404).json({ error: 'Návrh nenalezen' });
+        if (rm.poll.finding) return res.status(409).json({ error: 'Už se hledá „' + rm.poll.finding + '“' });
+        rm.poll.finding = item.title;
+        rm.poll.error = null;
+        broadcastPoll(rm);
+        res.status(202).json({ ok: true });
+        opts.findMovie(item.tmdbId, rm.prefs).then(player => {
+            if (!rooms.has(rm.id)) return;
+            const bad = opts.checkPlayer(player);
+            if (bad) throw new Error(bad);
+            // The film leaves the list; everyone gets their vote back for next time.
+            rm.poll.items = rm.poll.items.filter(it => it.id !== item.id);
+            rm.poll.items.forEach(it => it.votes.clear());
+            rm.poll.finding = null;
+            setVideo(rm, player, 0, item.votes.size ? ' (' + item.votes.size + ' ' + (item.votes.size === 1 ? 'hlas' : item.votes.size < 5 ? 'hlasy' : 'hlasů') + ')' : '');
+            broadcastPoll(rm);
+        }).catch(err => {
+            if (!rooms.has(rm.id)) return;
+            rm.poll.finding = null;
+            rm.poll.error = err.message || 'Film se nepodařilo pustit';
+            broadcastPoll(rm);
+        });
     });
 
     // The video links expired / stopped working → fetch fresh ones (at most every 30 s).
@@ -441,7 +594,7 @@ function router(opts) {
         if (!rm) return;
         const m = member(req, res, rm);
         if (!m) return;
-        const pageUrl = rm.player.source.pageUrl;
+        const pageUrl = rm.player && rm.player.source.pageUrl;
         if (!pageUrl) return res.status(400).json({ error: 'Video nejde obnovit' });
         try {
             if (!rm.refreshing && now() - rm.refreshedAt > 30000) {
@@ -477,7 +630,7 @@ function router(opts) {
         const rm = room(req, res);
         if (!rm) return;
         if (!member(req, res, rm)) return;
-        const q = rm.player.source.qualities[Number(req.params.q)];
+        const q = rm.player && rm.player.source.qualities[Number(req.params.q)];
         if (!q) return res.status(404).json({ error: 'Kvalita nenalezena' });
         opts.handleStream(req, res, q.src).catch(err => {
             if (!res.headersSent) res.status(502).json({ error: err.message });
@@ -487,7 +640,7 @@ function router(opts) {
         const rm = room(req, res);
         if (!rm) return;
         if (!member(req, res, rm)) return;
-        const sub = (rm.player.source.subtitles || [])[Number(req.params.n)];
+        const sub = rm.player && (rm.player.source.subtitles || [])[Number(req.params.n)];
         if (!sub) return res.status(404).json({ error: 'Titulky nenalezeny' });
         try {
             const vtt = await opts.loadSubtitle(sub.src);

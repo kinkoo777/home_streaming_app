@@ -73,7 +73,7 @@ test('join, snapshot, sync, chat and reactions', async () => {
         const hello = last(a, 'hello');
         assert.strictEqual(hello.you.name, 'Anna b');
         assert.strictEqual(hello.you.role, 'viewer');
-        assert.deepStrictEqual(hello.you.perms, { control: false, chat: true, react: true, kick: false });
+        assert.deepStrictEqual(hello.you.perms, { control: false, chat: true, react: true, suggest: true, kick: false });
         assert.ok(hello.room.link.endsWith('/r/' + room.id), 'everyone can pass the link on');
         assert.strictEqual(hello.room.publicLink, false);
         assert.strictEqual(hello.video.qualities.length, 2);

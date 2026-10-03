@@ -283,3 +283,84 @@ button { cursor: pointer; border: none; background: none; }
   .stage { -webkit-flex: 1; flex: 1; height: auto; max-height: none; }
   .stage-chat { display: block; bottom: 70px; }
 }
+
+/* ═════════════ Choosing a film together ═════════════ */
+
+/* No film yet: the poll fills the stage */
+.lobby { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 7; overflow-y: auto; background: radial-gradient(ellipse at top, rgba(244,63,94,0.16), transparent 60%), var(--bg); padding: 26px 20px 40px; }
+.poll-big { max-width: 720px; margin: 0 auto; }
+.poll-big .poll-head h3 { font-size: 28px; font-weight: 800; }
+.poll-head h3 { font-size: 17px; font-weight: 700; }
+.poll-head p { font-size: 13px; margin-top: 4px; }
+#poll-side { padding: 12px 14px 18px; }
+#panel-poll { overflow-y: auto; display: block; }
+
+.poll-status { font-size: 14px; margin-top: 12px; padding: 10px 12px; border-radius: 12px; }
+.poll-status:empty { display: none; }
+.poll-status.finding { background: rgba(255,255,255,0.06); color: var(--text); }
+.poll-status.error { background: rgba(244,63,94,0.12); color: #fda4af; }
+.poll-status i { margin-right: 6px; }
+.spin { display: inline-block; animation: spin 0.9s linear infinite; }
+
+.poll-search { margin-top: 14px; }
+.poll-search-row { position: relative; }
+.poll-search-row i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--dim); pointer-events: none; }
+.poll-q { width: 100%; padding-left: 40px; }
+.poll-results { margin-top: 6px; }
+.pr-head { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); padding: 6px 2px; }
+.pr-none { color: var(--muted); font-size: 14px; padding: 8px 2px; }
+.pr {
+  width: 100%; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; text-align: left;
+  padding: 6px 10px 6px 6px; margin-bottom: 4px; border-radius: 10px; background: var(--surface-2); transition: background-color 0.15s ease;
+}
+.pr:hover { background: var(--surface-3); }
+.pr:disabled { opacity: 0.5; cursor: default; }
+.pr img, .pr-noposter { width: 34px; height: 51px; border-radius: 6px; object-fit: cover; margin-right: 10px; -webkit-flex-shrink: 0; flex-shrink: 0; background: var(--surface-3); }
+.pr-noposter, .pi-noposter { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; color: var(--dim); }
+.pr-text { -webkit-flex: 1; flex: 1; min-width: 0; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; }
+.pr-text b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-text small { font-size: 12px; color: var(--dim); }
+.pr-add { font-size: 12px; font-weight: 700; color: var(--text); white-space: nowrap; margin-left: 8px; }
+
+.poll-items { list-style: none; margin-top: 16px; }
+.poll-item {
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  padding: 10px; margin-bottom: 8px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line);
+}
+.poll-item.leader { border-color: rgba(244,63,94,0.55); }
+.poll-item img, .pi-noposter { width: 46px; height: 69px; border-radius: 8px; object-fit: cover; margin-right: 12px; -webkit-flex-shrink: 0; flex-shrink: 0; background: var(--surface-3); }
+.pi-text { -webkit-flex: 1; flex: 1; min-width: 0; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; }
+.pi-text b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pi-text small { font-size: 12px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pi-bar { height: 6px; border-radius: 999px; background: var(--surface-3); margin: 6px 0 4px; overflow: hidden; }
+.pi-bar span { display: block; height: 100%; border-radius: 999px; background: var(--accent); transition: width 0.3s ease; }
+.pi-actions { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; margin-left: 10px; }
+.pi-vote {
+  display: -webkit-inline-flex; display: inline-flex; -webkit-align-items: center; align-items: center;
+  height: 38px; padding: 0 12px; border-radius: 12px; background: var(--glass); font-weight: 700; font-size: 14px;
+}
+.pi-vote i { margin-right: 6px; font-size: 16px; }
+.pi-vote.on { background: var(--accent); color: #fff; }
+.pi-play, .pi-remove { width: 38px; height: 38px; border-radius: 12px; margin-left: 6px; font-size: 16px; }
+.pi-play { background: var(--text); color: #111; }
+.pi-play:disabled { opacity: 0.4; }
+.pi-remove { color: var(--dim); }
+.pi-remove:hover { color: #fb7185; background: rgba(244,63,94,0.12); }
+.poll-empty { color: var(--muted); font-size: 14px; padding: 18px 2px; text-align: center; }
+.poll-foot { margin-top: 6px; }
+.poll-winner { width: 100%; height: 46px; }
+.poll-winner i { margin-right: 8px; }
+
+/* Side tab (narrow): smaller rows */
+#poll-side .poll-item img, #poll-side .pi-noposter { width: 36px; height: 54px; margin-right: 10px; }
+#poll-side .pi-vote { padding: 0 9px; height: 34px; }
+#poll-side .pi-play, #poll-side .pi-remove { width: 34px; height: 34px; margin-left: 4px; }
+
+/* Phone: while choosing, the poll gets the space and the chat shrinks */
+@media (max-width: 900px) {
+  .app.lobby-mode .stage { -webkit-flex: 1; flex: 1; height: auto; max-height: none; min-height: 0; }
+  .app.lobby-mode .main-col { -webkit-flex: 1; flex: 1; min-height: 0; }
+  .app.lobby-mode .side { -webkit-flex: none; flex: none; height: 34vh; }
+  .lobby { padding: 16px 12px 30px; }
+  .poll-big .poll-head h3 { font-size: 22px; }
+}

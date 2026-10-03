@@ -3073,7 +3073,10 @@
         toast('Zakládám místnost…')
         fetch('/api/rooms', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ player: Object.assign({}, _playerData, { source }), name, position: video.currentTime || 0, playing: !video.paused })
+          body: JSON.stringify({
+            player: Object.assign({}, _playerData, { source }), name, position: video.currentTime || 0, playing: !video.paused,
+            prefs: { audioPref: _profileSettings().audioPref, qualityPref: _profileSettings().qualityPref }
+          })
         }).then(r => r.json().then(b => {
           if (!r.ok) throw new Error(b.error || 'Místnost se nepodařilo založit')
           try { localStorage.setItem('filmbox_room_' + b.id, JSON.stringify(b.member)) } catch (e) {}

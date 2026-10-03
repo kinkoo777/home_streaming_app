@@ -23,6 +23,7 @@ const { srtToVtt } = subtitles;
 const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB, intros: introsDB, history: historyDB, sanitizeProfile, DATA_DIR } = require('./db');
 const { computeStats, PERIODS } = require('./stats');
 const cast = require('./cast');
+const relevance = require('./src/js/relevance');
 const { normalizeUrl, detectFunnel } = require('./funnel');
 const rooms = require('./rooms');
 const { createCache, tmdbTtl } = require('./cache');
@@ -482,13 +483,9 @@ function pickSources(raw) {
     return list.length ? [...new Set(list)] : Object.keys(SEARCHERS);
 }
 
-app.get('/search', async (req, res) => {
-    const q = req.query.q;
-    if (!q) return res.status(400).json({ error: 'Chybí query parameter "q"' });
-    if (typeof q !== 'string' || q.length > 200) return res.status(400).json({ error: 'Neplatný dotaz' });
-    const sources = pickSources(req.query.sources);
+// All chosen sites at once → combined results. Throws only if every site failed.
+async function searchSources(q, sources) {
     const norm = q.toLowerCase().trim();
-
     // Cached per site, so toggling a source on/off doesn't refetch the others.
     const settled = await Promise.allSettled(sources.map(async name => {
         const key = `search5:${name}:${norm}`;
@@ -501,9 +498,71 @@ app.get('/search', async (req, res) => {
     // One site being down shouldn't hide the others' results.
     const failed = settled.filter(s => s.status === 'rejected');
     failed.forEach(f => console.error('SEARCH ERROR:', f.reason && f.reason.message));
-    if (failed.length === settled.length) return res.status(500).json({ error: failed[0].reason.message });
-    res.json(settled.flatMap(s => s.status === 'fulfilled' ? s.value : []));
+    if (failed.length === settled.length) throw failed[0].reason;
+    return settled.flatMap(s => s.status === 'fulfilled' ? s.value : []);
+}
+
+app.get('/search', async (req, res) => {
+    const q = req.query.q;
+    if (!q) return res.status(400).json({ error: 'Chybí query parameter "q"' });
+    if (typeof q !== 'string' || q.length > 200) return res.status(400).json({ error: 'Neplatný dotaz' });
+    try { res.json(await searchSources(q, pickSources(req.query.sources))); }
+    catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// A TMDB film → something playable, chosen like the source picker would: uploads that
+// really are this film (relevance.js), best first by the room host's preferences
+// (CZ dub / original, resolution); the first that resolves wins. For room polls.
+async function findMovieSource(tmdbId, prefs) {
+    const d = await tmdbFetch(`/movie/${tmdbId}?language=cs-CZ`);
+    const title = d.title || d.original_title;
+    const names = [...new Set([d.title, d.original_title].filter(Boolean))];
+    const seen = new Set();
+    let pool = [];
+    for (const q of names) {
+        let results = [];
+        try { results = await searchSources(q, Object.keys(SEARCHERS)); } catch { continue; }
+        for (const r of relevance.filterSources(results, { names, mediaType: 'movie' })) {
+            if (r.url && !seen.has(r.url)) { seen.add(r.url); pool.push(r); }
+        }
+        if (pool.length >= 3) break;
+    }
+    const ranked = relevance.rankSources(pool, prefs || {});
+    for (const pick of ranked.slice(0, 3)) {
+        try {
+            const source = await resolveVideo(pick.url);
+            return {
+                title, tmdbId, mediaType: 'movie', posterPath: d.poster_path || null, progressKey: String(tmdbId),
+                source, sourceSite: pick.source || 'prehrajto',
+                alternatives: ranked.filter(r => r !== pick).slice(0, 6)
+                    .map(r => ({ url: r.url, title: r.title, source: r.source || 'prehrajto', dub: !!r.dub, res: r.res || null }))
+            };
+        } catch (err) {
+            console.error('Zdroj pro místnost nefunguje:', pick.url, err.message);
+        }
+    }
+    throw new Error(`Pro „${title}“ se nenašel žádný funkční zdroj`);
+}
+
+// Film search for room members (the guest server has no other access to TMDB).
+const roomTmdb = {
+    slim: m => ({
+        tmdbId: m.id, title: m.title || m.original_title || '', year: (m.release_date || '').slice(0, 4) || null,
+        posterPath: m.poster_path || null, rating: m.vote_average ? Math.round(m.vote_average * 10) / 10 : null,
+        overview: (m.overview || '').slice(0, 240)
+    }),
+    async search(q) {
+        const d = await tmdbFetch(`/search/movie?language=cs-CZ&include_adult=false&query=${encodeURIComponent(q)}`);
+        return (d.results || []).slice(0, 12).map(roomTmdb.slim);
+    },
+    async trending() {
+        const d = await tmdbFetch('/trending/movie/week?language=cs-CZ');
+        return (d.results || []).slice(0, 12).map(roomTmdb.slim);
+    },
+    async movie(id) {
+        return roomTmdb.slim(await tmdbFetch(`/movie/${id}?language=cs-CZ`));
+    }
+};
 
 // ── Search suggestions (each site's own "našeptávač") ──
 
@@ -865,7 +924,7 @@ function roomLinks(hostname, id) {
     if (pub) return { link: `${pub}/r/${id}`, public: true };
     return { link: `http://${hostname}:${GUEST_PORT || PORT}${GUEST_PORT ? '/r/' + id : '/watch.html?room=' + id}`, public: false };
 }
-const roomOpts = { checkPlayer, resolveVideo, handleStream, loadSubtitle, linkFor: roomLinks };
+const roomOpts = { checkPlayer, resolveVideo, handleStream, loadSubtitle, linkFor: roomLinks, findMovie: findMovieSource, tmdb: roomTmdb };
 app.use('/api/rooms', rooms.router(Object.assign({ canCreate: true }, roomOpts)));
 
 // ── Intros (skip-intro marks per show + season, shared by all profiles) ──
