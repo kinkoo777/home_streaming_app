@@ -22,6 +22,10 @@
         background: #000;
         color: #fff;
         height: 100vh;
+        /* Phones: 100vh includes the area behind the browser's address/tool bar, which
+           pushed the control bar (and its fullscreen button) off the bottom of the screen.
+           dvh is the visible height; old TV engines ignore it and keep 100vh. */
+        height: 100dvh;
         overflow: hidden;
         user-select: none;
       }
@@ -75,6 +79,7 @@
         position: relative;
         width: 100vw;
         height: 100vh;
+        height: 100dvh;
         background: #000;
         cursor: none;
       }
@@ -638,8 +643,21 @@
         .seek-row { margin-bottom: 8px; }
       }
 
+      /* Phones: keep every button on screen. The row was wider than a phone, so the
+         last button (fullscreen) ended up past the right edge. */
+      @media (max-width: 600px) {
+        .ctrl-btn { width: 36px; height: 36px; }
+        .controls-right { flex-shrink: 0; }
+      }
+      @media (max-width: 340px) {
+        #skip-back-btn, #skip-fwd-btn { display: none; }
+      }
+
       /* ── TOUCH NICETIES ── */
       @media (hover: none) and (pointer: coarse) {
+        /* Phones/tablets use their own volume buttons (iOS ignores the slider anyway),
+           and there is no keyboard for the shortcut help. */
+        #volume-slider, #help-btn { display: none; }
         .ctrl-btn,
         #player-back,
         .settings-item,
@@ -855,7 +873,7 @@
 
       <!-- top bar -->
       <div class="player-topbar">
-        <button id="player-back" onclick="history.back()">
+        <button id="player-back" onclick="leavePlayer()">
           <i class="bi bi-arrow-left"></i> Zpět
         </button>
         <span id="player-title"></span>
@@ -1931,14 +1949,51 @@
         }
       }
 
+      // A finished film's entry was deleted at 90 % — don't write it back.
+      function _shouldSaveProgress(minSeconds) {
+        const t = video.currentTime || _lastGoodTime
+        return !!_playerKey && _profileId() !== 'default' && t > (minSeconds || 0) &&
+          !(_watchedFired && !(_playerData && _playerData.episode))
+      }
+
       function _saveProgressToApi() {
-        const pid = _profileId()
-        if (!_playerKey || pid === 'default' || !video.currentTime) return
-        fetch(`/api/profiles/${pid}/progress/${encodeURIComponent(_playerKey)}`, {
+        if (!_shouldSaveProgress()) return Promise.resolve()
+        return fetch(`/api/profiles/${_profileId()}/progress/${encodeURIComponent(_playerKey)}`, {
           method:  'PUT',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify(_progressBody())
         }).catch(() => {})
+      }
+
+      // Save while the page is going away (closed, app sent to the background).
+      // Sent as text/plain: older Chromium builds (LG webOS TVs among them) throw on a
+      // beacon with a JSON content type, and the save was silently lost.
+      function _sendProgressBeacon() {
+        if (!_shouldSaveProgress(5)) return
+        const pid   = _profileId()
+        const token = _profileToken(pid)
+        // Beacons can't set headers — the server also accepts the token as ?t=
+        const url  = `/api/profiles/${pid}/progress/${encodeURIComponent(_playerKey)}` + (token ? '?t=' + encodeURIComponent(token) : '')
+        const body = JSON.stringify(_progressBody())
+        try {
+          // sendBeacon always POSTs — the server accepts POST as well as PUT here.
+          if (navigator.sendBeacon && navigator.sendBeacon(url, new Blob([body], { type: 'text/plain;charset=UTF-8' }))) return
+        } catch (e) {}
+        fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {})
+      }
+
+      // Back button / remote Back: save first, then leave, so the home page's
+      // Continue Watching (loaded right after) already shows where we stopped.
+      let _leaving = false
+      function leavePlayer() {
+        if (_leaving) return
+        _leaving = true
+        _stopProgressSaver()
+        video.pause()
+        let gone = false
+        const go = () => { if (!gone) { gone = true; history.back() } }
+        setTimeout(go, 1500)              // never get stuck on a slow server
+        _saveProgressToApi().then(go)
       }
 
       // Persist progress to the JSON store once a minute while playing.
@@ -1956,7 +2011,7 @@
         _progressSaveInterval = null
       }
       video.addEventListener('play',  _startProgressSaver)
-      video.addEventListener('pause', () => { _stopProgressSaver(); _saveProgressToApi() })
+      video.addEventListener('pause', () => { _stopProgressSaver(); if (!_leaving) _saveProgressToApi() })
       video.addEventListener('ended', _stopProgressSaver)
 
       let _watchedFired = false
@@ -2240,10 +2295,28 @@
           ? '<i class="bi bi-fullscreen-exit"></i>'
           : '<i class="bi bi-fullscreen"></i>'
       }
+      const canFsWrap  = !!(playerWrap.requestFullscreen || playerWrap.webkitRequestFullscreen)
+      // iPhone Safari can't make a page element fullscreen, only the <video> itself
+      // (native iOS player) — the button used to be hidden there.
+      const canFsVideo = typeof video.webkitEnterFullscreen === 'function' && video.webkitSupportsFullscreen !== false
       fullscreenBtn.addEventListener('click', () => {
         if (!fsElement()) {
-          const req = playerWrap.requestFullscreen || playerWrap.webkitRequestFullscreen
-          if (req) { const p = req.call(playerWrap); if (p && p.catch) p.catch(() => {}) }
+          if (canFsWrap) {
+            const req = playerWrap.requestFullscreen || playerWrap.webkitRequestFullscreen
+            const p = req.call(playerWrap)
+            // Phones: turn the video sideways once fullscreen (Android; ignored where unsupported).
+            const lockLandscape = () => {
+              try {
+                if (window.matchMedia('(pointer: coarse)').matches && screen.orientation && screen.orientation.lock) {
+                  screen.orientation.lock('landscape').catch(() => {})
+                }
+              } catch (e) {}
+            }
+            if (p && p.then) p.then(lockLandscape, () => {})
+            else lockLandscape()
+          } else if (canFsVideo) {
+            try { video.webkitEnterFullscreen() } catch (e) {}
+          }
         } else {
           const exit = document.exitFullscreen || document.webkitExitFullscreen
           if (exit) exit.call(document)
@@ -2252,7 +2325,7 @@
       document.addEventListener('fullscreenchange', updateFullscreenIcon)
       document.addEventListener('webkitfullscreenchange', updateFullscreenIcon)
       // TV browsers are effectively fullscreen already.
-      if (!(playerWrap.requestFullscreen || playerWrap.webkitRequestFullscreen) || /Web0S|webOS|Tizen|SmartTV/i.test(navigator.userAgent)) fullscreenBtn.style.display = 'none'
+      if (!(canFsWrap || canFsVideo) || /Web0S|webOS|Tizen|SmartTV/i.test(navigator.userAgent)) fullscreenBtn.style.display = 'none'
 
       // ── Playback speed ──
       speedBtn.addEventListener('click', e => {
@@ -2524,7 +2597,7 @@
         if (isBackKey(e)) {
           e.preventDefault()
           if (_seekTarget != null) { clearTimeout(_seekTimer); _seekTarget = null; seekOsd.classList.remove('show'); playerWrap.classList.remove('seek-preview'); return }
-          history.back()
+          leavePlayer()
           return
         }
         if (e.keyCode === 403) { e.preventDefault(); toggleSubtitles(); return }            // red
@@ -2591,17 +2664,13 @@
       })
 
       window.addEventListener('pagehide', () => {
-        const pid = _profileId()
-        if (_playerKey && pid !== 'default' && video.currentTime > 5) {
-          const token = _profileToken(pid)
-          // Beacons can't set headers — the server also accepts the token as ?t=
-          const url  = `/api/profiles/${pid}/progress/${encodeURIComponent(_playerKey)}` + (token ? '?t=' + encodeURIComponent(token) : '')
-          const body = JSON.stringify(_progressBody())
-          // sendBeacon always POSTs — the server accepts POST as well as PUT here.
-          navigator.sendBeacon
-            ? navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }))
-            : fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {})
-        }
+        _sendProgressBeacon()
+        // Tells the home page to re-read progress once this save has landed.
+        try { sessionStorage.setItem('filmbox_progress_dirty', '1') } catch (e) {}
+      })
+      // TV Home button / phone app switch: the page is only hidden, often never unloaded.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') _sendProgressBeacon()
       })
 
       // ── Start ── (last, so every const above is initialised)
