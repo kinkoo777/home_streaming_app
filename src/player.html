@@ -986,7 +986,7 @@
       const IS_TV = storedTv === '1' || (storedTv !== '0' &&
         (/Web0S|webOS|NetCast|SmartTV|SMART-TV|LG Browser|LGE|WebAppManager|Tizen|HbbTV/i.test(navigator.userAgent) || !!window.PalmSystem))
       if (IS_TV) document.body.classList.add('tv', 'kbd')
-      // Diagnostics (temporary): playback milestones → server log, to debug slow TVs.
+      // Diagnostics (?debug only, see compat.js): playback milestones → server log, to debug slow TVs.
       ;['loadstart', 'loadedmetadata', 'canplay', 'playing', 'waiting', 'stalled', 'error'].forEach(function (type) {
         let n = 0
         video.addEventListener(type, function () {

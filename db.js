@@ -11,7 +11,8 @@ function sanitizeProfile(p) {
   return { ...rest, settings: { ...DEFAULT_SETTINGS, ...(p.settings || {}) }, hasPin: !!pinHash };
 }
 
-const DATA_DIR        = path.join(__dirname, 'data');
+// FILMBOX_DATA_DIR: somewhere else for the data (the API tests use a temp folder).
+const DATA_DIR        = process.env.FILMBOX_DATA_DIR || path.join(__dirname, 'data');
 const PROFILES_FILE   = path.join(DATA_DIR, 'profiles.json');
 const FAVORITES_FILE  = path.join(DATA_DIR, 'favorites.json');
 const WATCHED_FILE    = path.join(DATA_DIR, 'watched.json');
@@ -266,4 +267,4 @@ const progress = {
   }
 };
 
-module.exports = { profiles, favorites, watched, watchlists, progress, sanitizeProfile };
+module.exports = { profiles, favorites, watched, watchlists, progress, sanitizeProfile, DATA_DIR };
