@@ -99,7 +99,9 @@ function publicVideo(room) {
     };
 }
 
-function snapshot(room, m) {
+// links: { link, public } — worked out when sent, so turning Funnel on later
+// gives an open room its public link too.
+function snapshot(room, m, links) {
     const t = now();
     return {
         type: 'hello',
@@ -107,7 +109,7 @@ function snapshot(room, m) {
         you: { id: m.id, name: m.name, role: m.role, perms: permsOf(room, m) },
         room: {
             id: room.id, hostId: room.hostId, settings: room.settings, emoji: EMOJI,
-            link: m.role === 'host' ? room.link : undefined, publicLink: room.publicLink
+            link: links.link, publicLink: links.public
         },
         video: publicVideo(room),
         videoVersion: room.videoVersion,
@@ -228,13 +230,12 @@ function router(opts) {
                 settings: { locked: false, defaultRole: 'viewer', perms: JSON.parse(JSON.stringify(DEFAULT_PERMS)) },
                 members: new Map(), chat: [], hostId: null, refreshedAt: 0, refreshing: null
             };
-            const links = opts.linkFor(req, id);
-            rm.link = links.link;
-            rm.publicLink = links.public;
+            rm.linkHost = req.hostname;          // fallback for links without a public address
+            const links = opts.linkFor(rm.linkHost, id);
             const host = addMember(rm, cleanName(b.name, 'Hostitel'), 'host');
             rm.hostId = host.id;
             rooms.set(id, rm);
-            res.status(201).json({ id, link: rm.link, public: rm.publicLink, member: { id: host.id, secret: host.secret } });
+            res.status(201).json({ id, link: links.link, public: links.public, member: { id: host.id, secret: host.secret } });
         });
     }
 
@@ -244,7 +245,8 @@ function router(opts) {
         if (!rm) return;
         const host = rm.members.get(rm.hostId);
         const v = publicVideo(rm);
-        res.json({ title: v.title, posterPath: v.posterPath, episodeLabel: v.episodeLabel, host: host ? host.name : null, locked: rm.settings.locked, count: rm.members.size, full: rm.members.size >= MAX_MEMBERS });
+        const links = opts.linkFor(rm.linkHost, rm.id);
+        res.json({ title: v.title, posterPath: v.posterPath, episodeLabel: v.episodeLabel, host: host ? host.name : null, locked: rm.settings.locked, count: rm.members.size, full: rm.members.size >= MAX_MEMBERS, link: links.link, public: links.public });
     });
 
     r.post('/:id/join', (req, res) => {
@@ -269,7 +271,7 @@ function router(opts) {
         res.write('retry: 3000\n\n');
         const wasOnline = m.conns.size > 0;
         m.conns.add(res);
-        send(res, snapshot(rm, m));
+        send(res, snapshot(rm, m, opts.linkFor(rm.linkHost, rm.id)));
         if (!wasOnline) broadcastMembers(rm);
         const ping = setInterval(() => res.write(': ping\n\n'), 20000);
         req.on('close', () => {

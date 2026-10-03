@@ -238,7 +238,7 @@ Without anything else, room links work for people on your home Wi-Fi or your Tai
 sudo tailscale funnel --bg 3001     # prints https://<pi-name>.<tailnet>.ts.net
 ```
 
-The first time, Tailscale may ask you to allow HTTPS / Funnel for your tailnet — follow the link it prints. Then put that address in `.env` and restart FilmBox, so room links use it:
+The first time, Tailscale may ask you to allow HTTPS / Funnel for your tailnet — follow the link it prints. That's it: FilmBox notices the Funnel by itself (it checks `tailscale serve status` every 30 s) and room links switch to the public address — also in rooms that are already open. If that doesn't work on your system (e.g. the service user can't run `tailscale`), set the address in `.env` and restart FilmBox; `https://` is optional:
 
 ```ini
 PUBLIC_URL=https://<pi-name>.<tailnet>.ts.net
@@ -251,6 +251,7 @@ In the player press **Společně** (or *Settings → Sledovat společně*), then
 - The link is the invitation — anyone who has it can join until you **lock** the room (*Oprávnění*) or end it. Rooms live in memory: restarting the server ends them; they also close after 30 min with nobody connected, or after 12 h.
 - Video plays straight from the video site where possible; if a friend's browser can't, it goes through the guest server — then it uses your home upload (≈ 5–8 Mbit/s per person in 1080p, 720p is picked on phones).
 - Up to 20 people per room, 20 rooms at once. Chat, reactions and joining are rate-limited.
+- Volume and quality are each person's own (the slider and the gear in the room); only play, pause and position are shared. Someone on a slow connection catches up with one jump (aimed ahead by how long jumps take there) and small speed changes, and waits a moment if it lands ahead.
 
 ### Pustit na TV
 

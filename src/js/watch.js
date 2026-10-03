@@ -236,7 +236,19 @@
   let refreshing = false
   video.addEventListener('error', () => {
     if (!videoInfo || !video.currentSrc) return
-    if (!viaProxy) { viaProxy = true; setSrc(); return }
+    if (!viaProxy) {
+      // Through FilmBox's server = through the host's home upload: keep it light.
+      viaProxy = true
+      let light = -1                                   // the best of the ≤ 720p versions
+      videoInfo.qualities.forEach((q, i) => {
+        if ((q.res || 0) <= 720 && (light < 0 || (q.res || 0) > (videoInfo.qualities[light].res || 0))) light = i
+      })
+      if (light >= 0 && (videoInfo.qualities[qualityIdx].res || 0) > 720) qualityIdx = light
+      toast('Video jde přes server hostitele — může se načítat pomaleji', 5000)
+      renderGear()
+      setSrc()
+      return
+    }
     if (refreshing) return
     refreshing = true
     toast('Obnovuji odkaz na video…')
@@ -260,20 +272,43 @@
     sync(true)
     renderPlay()
   }
-  // Plays along with the room: hard seek when far off, gentle speed change when close.
+  // Plays along with the room:
+  //  - behind by more than 3 s → one jump, aimed ahead by how long jumps take to load
+  //    here (at most every 8 s; nothing else happens while a jump is loading — on a
+  //    slow line, jumping again every second kept the video loading for ever);
+  //  - ahead by 1.5–15 s → wait there (that part is already loaded) instead of jumping back;
+  //  - close → catch up / ease back with a slightly different speed.
+  // Play / pause / seek from someone in the room (force) always apply at once.
+  let seekLead = 0              // seconds a jump takes to start playing on this connection
+  let seekAt = 0                // when the current jump started (0 = none pending)
+  let lastJump = 0
+  let holdUntil = 0             // waiting for the room to catch up
   function sync(force) {
     if (!videoInfo || video.readyState < 1) return
-    const t = target()
-    const diff = video.currentTime - t
-    if (Math.abs(diff) > (force ? 0.75 : 1.5)) {
-      video.currentTime = t
-      video.playbackRate = 1
-    } else if (state.playing && Math.abs(diff) > 0.3) {
-      video.playbackRate = diff > 0 ? 0.95 : 1.05
-    } else {
-      video.playbackRate = 1
+    if (force) holdUntil = 0
+    const loading = video.seeking || buffering
+    if (force || !loading) {
+      const t = target()
+      const diff = video.currentTime - t
+      const off = Math.abs(diff)
+      const jump = force ? off > 1 : ((diff < -3 || diff > 15) && Date.now() - lastJump > 8000)
+      if (jump) {
+        const dur = isFinite(video.duration) ? video.duration - 0.25 : Infinity
+        lastJump = Date.now()
+        seekAt = state.playing ? Date.now() : 0
+        video.currentTime = Math.min(dur, t + (state.playing ? seekLead : 0))
+        video.playbackRate = 1
+      } else if (state.playing && !loading && diff > 1.5 && !holdUntil) {
+        holdUntil = Date.now() + diff * 1000
+        video.pause()
+      } else if (state.playing && !loading && off > 0.25) {
+        video.playbackRate = diff > 0 ? (diff > 1 ? 0.9 : 0.95) : (diff < -1 ? 1.1 : 1.05)
+      } else if (!loading) {
+        video.playbackRate = 1
+      }
     }
-    if (state.playing && video.paused && !blocked && !video.ended) {
+    if (holdUntil && Date.now() >= holdUntil) holdUntil = 0
+    if (state.playing && video.paused && !blocked && !video.ended && !holdUntil) {
       const p = video.play()
       if (p && p.catch) p.catch(err => { if (err && err.name === 'NotAllowedError') setBlocked(true) })
     } else if (!state.playing && !video.paused) {
@@ -318,9 +353,30 @@
     const r = $('seek').getBoundingClientRect()
     act('seek', Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * video.duration)
   })
+  // ── Volume: everyone sets their own; remembered on this device, never sent to the room ──
+  function renderVolume() {
+    const quiet = video.muted || video.volume === 0
+    $('mute-btn').innerHTML = '<i class="bi ' + (quiet ? 'bi-volume-mute-fill' : video.volume < 0.5 ? 'bi-volume-down-fill' : 'bi-volume-up-fill') + '"></i>'
+    $('volume').value = video.muted ? 0 : video.volume
+  }
+  function setVolume(v, announce) {
+    video.volume = Math.max(0, Math.min(1, Math.round(v * 100) / 100))
+    video.muted = video.volume === 0
+    lsSet('filmbox_room_volume', String(video.volume))
+    lsSet('filmbox_room_muted', video.muted ? '1' : '0')
+    renderVolume()
+    if (announce) toast('Hlasitost ' + Math.round(video.volume * 100) + ' % (jen u vás)', 1200)
+  }
+  ;(function restoreVolume() {
+    const v = parseFloat(lsGet('filmbox_room_volume'))
+    if (isFinite(v)) video.volume = Math.max(0, Math.min(1, v))
+    video.muted = lsGet('filmbox_room_muted') === '1'
+    renderVolume()
+  })()
+  $('volume').addEventListener('input', e => setVolume(parseFloat(e.target.value)))
   $('mute-btn').addEventListener('click', () => {
-    video.muted = !video.muted
-    $('mute-btn').innerHTML = '<i class="bi ' + (video.muted ? 'bi-volume-mute-fill' : 'bi-volume-up-fill') + '"></i>'
+    if (video.muted || video.volume === 0) setVolume(video.volume || 0.5)
+    else { video.muted = true; lsSet('filmbox_room_muted', '1'); renderVolume() }
   })
   if ('mediaSession' in navigator) {
     try {
@@ -343,7 +399,8 @@
   function renderGear() {
     const menu = $('gear-menu')
     if (!videoInfo) return
-    let html = '<div class="menu-title">Kvalita</div>' + videoInfo.qualities.map((q, i) =>
+    let html = (viaProxy ? '<div class="menu-note">Přes server hostitele — při sekání zkuste nižší kvalitu</div>' : '') +
+      '<div class="menu-title">Kvalita</div>' + videoInfo.qualities.map((q, i) =>
       `<button data-q="${i}" class="${i === qualityIdx ? 'on' : ''}"><i class="bi bi-check-lg"></i>${esc(q.label || (q.res ? q.res + 'p' : 'Zdroj ' + (i + 1)))}</button>`).join('')
     if (videoInfo.subtitles.length) {
       html += '<div class="menu-title">Titulky</div>' +
@@ -381,7 +438,16 @@
     presence()
   }
   video.addEventListener('waiting', () => setBuffering(true))
-  video.addEventListener('playing', () => setBuffering(false))
+  video.addEventListener('playing', () => {
+    setBuffering(false)
+    // Learn how long a jump takes here, so the next one lands where the room will be.
+    if (seekAt) {
+      // Capped: an overshoot only means waiting a moment, but not for long.
+      const took = Math.min(6, (Date.now() - seekAt) / 1000)
+      seekLead = seekLead ? seekLead * 0.5 + took * 0.5 : took
+      seekAt = 0
+    }
+  })
   video.addEventListener('canplay', () => setBuffering(false))
   video.addEventListener('seeked', () => { if (video.readyState >= 3) setBuffering(false) })
   video.addEventListener('timeupdate', renderTime)
@@ -597,18 +663,30 @@
   }
 
   // ── Invite ──
-  function inviteLink() {
-    if (room && room.link) return room.link
-    return location.origin + location.pathname + (ON_MAIN ? '?room=' + ROOM : '')
-  }
-  $('invite-btn').addEventListener('click', () => {
-    $('invite-link').value = inviteLink()
+  function showInvite() {
+    const link = (room && room.link) || location.origin + location.pathname + (ON_MAIN ? '?room=' + ROOM : '')
+    $('invite-link').value = link
     $('invite-share').style.display = navigator.share ? '' : 'none'
-    $('invite-note').textContent = me && me.role === 'host' && room && !room.publicLink
-      ? 'Tento odkaz funguje jen na vaší domácí síti a v Tailscale. Aby se připojili přátelé přes internet, zpřístupněte server pro hosty a nastavte PUBLIC_URL (návod je v README, „Sledovat společně“).'
-      : ''
+    let note = ''
+    if (room && !room.publicLink) {
+      const host = (/^https?:\/\/([^/:]+)/.exec(link) || [])[1] || ''
+      const tailnet = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host) || /\.ts\.net$/.test(host)
+      note = (tailnet
+        ? 'Tento odkaz vede na Tailscale adresu serveru — otevřou ho jen zařízení ve vaší síti Tailscale.'
+        : 'Tento odkaz funguje jen na vaší domácí síti.') +
+        (me && me.role === 'host'
+          ? ' Pro přátele přes internet zapněte na serveru „sudo tailscale funnel --bg 3001“ — FilmBox si veřejnou adresu najde sám do půl minuty (nebo ji zadejte do PUBLIC_URL a server restartujte).'
+          : '')
+    }
+    $('invite-note').textContent = note
     $('invite').style.display = ''
     $('invite-link').select()
+  }
+  // The current link (a Funnel switched on after the room opened shows up here).
+  $('invite-btn').addEventListener('click', () => {
+    fetch(API).then(r => (r.ok ? r.json() : null)).then(info => {
+      if (info && info.link && room) { room.link = info.link; room.publicLink = info.public }
+    }).catch(() => {}).then(showInvite)
   })
   $('invite-copy').addEventListener('click', () => {
     const input = $('invite-link')
@@ -733,6 +811,8 @@
     if (k === ' ' || (k === 'Enter' && e.target === document.body)) { e.preventDefault(); togglePlay() }
     else if (k === 'ArrowLeft' && !e.target.closest('.side')) { e.preventDefault(); seekBy(-10) }
     else if (k === 'ArrowRight' && !e.target.closest('.side')) { e.preventDefault(); seekBy(10) }
+    else if (k === 'ArrowUp' && !e.target.closest('.side')) { e.preventDefault(); setVolume((video.muted ? 0 : video.volume) + 0.1, true) }
+    else if (k === 'ArrowDown' && !e.target.closest('.side')) { e.preventDefault(); setVolume((video.muted ? 0 : video.volume) - 0.1, true) }
     else if (k === 'f') $('fs-btn').click()
     else if (k === 'm') $('mute-btn').click()
   })
