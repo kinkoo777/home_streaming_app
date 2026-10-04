@@ -981,9 +981,9 @@
     const show = ON_MAIN && me && me.role === 'host' && videoInfo && videoInfo.episode && videoInfo.tmdbId
     $('next-btn').style.display = show ? '' : 'none'
   }
-  function loadScript(src) {
+  function loadScript(src, global) {
     return new Promise((resolve, reject) => {
-      if (window.FilmBoxRelevance) return resolve()
+      if (window[global]) return resolve()
       const s = document.createElement('script')
       s.src = src
       s.onload = resolve
@@ -996,10 +996,16 @@
     const btn = $('next-btn')
     btn.disabled = true
     try {
-      await loadScript('/js/relevance.js')
-      const s = v.episode.season
-      const n = v.episode.number + 1
-      const code = 'S' + String(s).padStart(2, '0') + 'E' + String(n).padStart(2, '0')
+      await loadScript('/js/relevance.js', 'FilmBoxRelevance')
+      await loadScript('/js/episodes.js', 'FilmBoxEpisodes')
+      // After a season's last episode comes the next season; nothing after the last aired one.
+      let show = null
+      try { const r = await fetch('/tmdb/details?type=tv&id=' + encodeURIComponent(v.tmdbId)); if (r.ok) show = await r.json() } catch (e) {}
+      const info = window.FilmBoxEpisodes.nextEpisode(show, v.episode.season, v.episode.number)
+      if (!info.next) throw new Error(window.FilmBoxEpisodes.noNextMessage(info))
+      const s = info.next.season
+      const n = info.next.number
+      const code = info.next.code
       const base = v.title.replace(/\s*S\d{1,2}E\d{1,3}.*$/i, '').trim()
       toast('Hledám ' + code + '…', 6000)
       const results = await (await fetch('/search?q=' + encodeURIComponent(base + ' ' + code))).json()

@@ -1029,6 +1029,7 @@
 
     <script src="js/hdr-renderer.js"></script>
     <script src="js/relevance.js"></script>
+    <script src="js/episodes.js"></script>
     <script>
       const video        = document.getElementById('video')
       // Same TV detection as the main page (tv.js): user agent, or remembered once a
@@ -2244,31 +2245,63 @@
       video.addEventListener('canplay',  _hideSpinner)
       video.addEventListener('seeked',   _hideSpinner)
 
+      // ── Which episode comes next (episodes.js) ──
+      // After a season's last episode: the next season's first one. After the last aired
+      // episode: nothing (and why). Looked up once, from the show's TMDB details.
+      let _nextEpPromise = null
+      let _nextEp = null          // the resolved answer, for the prompts that can't wait
+      function _nextEpisodeInfo() {
+        const d = _playerData
+        if (!_nextEpPromise) {
+          _nextEpPromise = fetch(`/tmdb/details?id=${d.tmdbId}&type=tv`)
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null)
+            .then(show => {
+              const info = FilmBoxEpisodes.nextEpisode(show, d.episode.season, d.episode.number)
+              if (!show) _nextEpPromise = null      // offline: ask again next time
+              _nextEp = info
+              return info
+            })
+        }
+        return _nextEpPromise
+      }
+      const _noNextEpisode = () => !!(_nextEp && !_nextEp.next)
+      // Remote / phone "next": no prompt on screen, so say what's happening in a toast.
+      function _nextEpisodeByKey() {
+        toast('Hledám další epizodu…')
+        _playNextEpisode(false).then(r => { if (r !== true) toast(r) })
+      }
+
       // ── Auto-play next episode (TV only) ──
       // `auto` = started by the end-of-episode countdown, not by a button. Counts how many
       // episodes have started on their own in a row, for "Sledujete ještě?".
+      // → true once the next episode is loading, else a message saying why not.
       async function _playNextEpisode(auto) {
         const d = _playerData
-        if (!d || !d.episode || !d.tmdbId) return false
-        const nextNum = d.episode.number + 1
-        const sNum = String(d.episode.season).padStart(2, '0')
+        if (!d || !d.episode || !d.tmdbId) return 'Další epizoda nenalezena'
+        const info = await _nextEpisodeInfo()
+        if (!info.next) return FilmBoxEpisodes.noNextMessage(info)
+        const nextSeason = info.next.season
+        const nextNum = info.next.number
+        const sNum = String(nextSeason).padStart(2, '0')
         const eNum = String(nextNum).padStart(2, '0')
         const base = (d.title || '').replace(/\s*S\d{2}E\d{2}.*$/i, '').trim()
         const query = `${base} S${sNum}E${eNum}`
+        const notFound = `Epizoda S${sNum}E${eNum} nenalezena`
         try {
           // Same sites the source picker is set to search.
           let sites = ''
           try { const l = JSON.parse(localStorage.getItem('filmbox_sources')); if (Array.isArray(l) && l.length) sites = '&sources=' + encodeURIComponent(l.join(',')) } catch (e) {}
           const r = await fetch(`/search?q=${encodeURIComponent(query)}${sites}`)
-          if (!r.ok) return false
+          if (!r.ok) return notFound
           const results = await r.json()
-          if (!results.length) return false
+          if (!results.length) return notFound
           // Uploads of exactly this episode, ranked by the profile's preferences
           // (CZ dub / original, resolution); anything at all if none carry the code.
-          const epCode = new RegExp('s0?' + d.episode.season + '\\s*e0?' + nextNum + '(?!\\d)|\\b0?' + d.episode.season + 'x0?' + nextNum + '(?!\\d)', 'i')
+          const epCode = new RegExp('s0?' + nextSeason + '\\s*e0?' + nextNum + '(?!\\d)|\\b0?' + nextSeason + 'x0?' + nextNum + '(?!\\d)', 'i')
           const exact = results.filter(r => r && r.url && epCode.test(r.title || ''))
           const pick = FilmBoxRelevance.rankSources(exact.length ? exact : results.filter(r => r && r.url), _profileSettings())[0]
-          if (!pick) return false
+          if (!pick) return notFound
           // Backups: other uploads of the same episode, same dubbing first.
           const alternatives = results
             .filter(r => r && r.url && r !== pick && epCode.test(r.title || ''))
@@ -2276,11 +2309,11 @@
             .slice(0, 6)
             .map(r => ({ url: r.url, title: r.title, source: r.source || 'prehrajto', dub: !!r.dub, res: r.res || null }))
           const href = pick && pick.url
-          if (!href) return false
+          if (!href) return notFound
           const vr = await fetch(`/get_video?url=${encodeURIComponent(href)}`)
-          if (!vr.ok) return false
+          if (!vr.ok) return notFound
           const next = await vr.json()
-          if (!next.qualities || !next.qualities.length) return false
+          if (!next.qualities || !next.qualities.length) return notFound
           sessionStorage.setItem('filmbox_player', JSON.stringify({
             title:       query,
             source:      next,
@@ -2289,14 +2322,14 @@
             tmdbId:      d.tmdbId,
             mediaType:   'tv',
             posterPath:  d.posterPath || null,
-            episode:     { season: d.episode.season, number: nextNum },
+            episode:     { season: nextSeason, number: nextNum },
             episodeLabel: `S${sNum}E${eNum}`,
             progressKey: `${d.tmdbId}:S${sNum}E${eNum}`,
             autoplayChain: auto ? (_userActive ? 1 : _autoplayChain + 1) : 0
           }))
           window.location.reload()
           return true
-        } catch (e) { return false }
+        } catch (e) { return notFound }
       }
 
       // Offer the next episode during the last 45 s (end credits).
@@ -2305,19 +2338,21 @@
       function updateNextEpisodeMini() {
         if (!_playerData || !_playerData.episode || !isFinite(video.duration) || video.duration < 300) return
         const left = video.duration - video.currentTime
-        const show = !_nextMiniDismissed && !_sleepAtEnd() && left <= 45 && left > 0.5
+        if (left <= 60 && !_nextEp) _nextEpisodeInfo()
+        const show = !_nextMiniDismissed && !_sleepAtEnd() && !_noNextEpisode() && left <= 45 && left > 0.5
         if (show !== nextMini.classList.contains('show')) {
           nextMini.classList.toggle('show', show)
           if (show && document.body.classList.contains('kbd')) document.getElementById('next-ep-mini-go').focus()
         }
-        if (show) document.getElementById('next-ep-mini-count').textContent = 'za ' + fmt(left)
+        if (show) document.getElementById('next-ep-mini-count').textContent = (_nextEp && _nextEp.next ? _nextEp.next.code + ' ' : '') + 'za ' + fmt(left)
       }
       document.getElementById('next-ep-mini-go').addEventListener('click', async () => {
         document.getElementById('next-ep-mini-count').textContent = 'hledám…'
         _nextMiniDismissed = true
-        if (!(await _playNextEpisode(false))) {
+        const r = await _playNextEpisode(false)
+        if (r !== true) {
           nextMini.classList.add('show')
-          document.getElementById('next-ep-mini-count').textContent = 'nenalezena'
+          document.getElementById('next-ep-mini-count').textContent = r
         }
       })
       document.getElementById('next-ep-mini-x').addEventListener('click', () => {
@@ -2328,6 +2363,19 @@
       function _showNextEpisodePrompt() {
         const d = _playerData
         if (!d || !d.episode) return
+        if (!_nextEp) { _nextEpisodeInfo().then(_showNextEpisodePrompt); return }
+        if (!_nextEp.next) {
+          // Last episode (of the show, or aired so far): say so, don't count down.
+          const ov = _promptOverlay('', `
+            <div class="next-ep-card">
+              <p></p>
+              <div class="next-ep-actions"><button class="next-ep-no">Zavřít</button></div>
+            </div>`)
+          ov.querySelector('p').textContent = FilmBoxEpisodes.noNextMessage(_nextEp)
+          ov.querySelector('.next-ep-no').addEventListener('click', () => ov.remove())
+          ov.querySelector('.next-ep-no').focus()
+          return
+        }
         if (_shouldAskStillWatching()) { _showStillWatchingPrompt(); return }
         const ov = document.createElement('div')
         ov.className = 'next-ep-prompt'
@@ -2335,13 +2383,13 @@
           <div class="next-ep-card">
             <p>Epizoda skončila</p>
             <div class="next-ep-actions">
-              <button class="next-ep-yes"><i class="bi bi-skip-end-fill"></i> Další epizoda <span class="next-ep-count">(10)</span></button>
+              <button class="next-ep-yes"><i class="bi bi-skip-end-fill"></i> ${_nextEp.next.number === 1 && _nextEp.next.season !== _playerData.episode.season ? 'Další řada' : 'Další epizoda'} ${_nextEp.next.code} <span class="next-ep-count">(10)</span></button>
               <button class="next-ep-no">Zavřít</button>
             </div>
           </div>`
         playerWrap.appendChild(ov)
         let n = 10, done = false
-        const go = async auto => { if (done) return; done = true; clearInterval(t); const ok = await _playNextEpisode(auto); if (!ok) ov.querySelector('p').textContent = 'Další epizoda nenalezena' }
+        const go = async auto => { if (done) return; done = true; clearInterval(t); const r = await _playNextEpisode(auto); if (r !== true) ov.querySelector('p').textContent = r }
         const t = setInterval(() => {
           n--
           const c = ov.querySelector('.next-ep-count'); if (c) c.textContent = `(${n})`
@@ -2460,7 +2508,8 @@
           </div>`)
         ov.querySelector('.next-ep-yes').addEventListener('click', async () => {
           ov.querySelector('p').textContent = 'Hledám další epizodu…'
-          if (!(await _playNextEpisode(false))) ov.querySelector('p').textContent = 'Další epizoda nenalezena'
+          const r = await _playNextEpisode(false)
+          if (r !== true) ov.querySelector('p').textContent = r
         })
         ov.querySelector('.next-ep-no').addEventListener('click', () => leavePlayer())
         ov.querySelector('.next-ep-yes').focus()
@@ -2970,7 +3019,7 @@
           case 'm':             muteBtn.click(); break
           case 'c':             toggleSubtitles(); break
           case 's':             e.preventDefault(); openSettings(); break
-          case 'MediaTrackNext': if (_playerData && _playerData.episode) _playNextEpisode(false); break
+          case 'MediaTrackNext': if (_playerData && _playerData.episode) _nextEpisodeByKey(); break
         }
       })
 
@@ -3031,7 +3080,7 @@
           case 'resume': video.play().catch(() => {}); break
           case 'seek':   skip(cmd.by); break
           case 'seekTo': if (isFinite(video.duration)) video.currentTime = Math.max(0, Math.min(video.duration - 1, cmd.to)); break
-          case 'next':   if (_isEpisode()) _playNextEpisode(false); break
+          case 'next':   if (_isEpisode()) _nextEpisodeByKey(); break
           case 'subs':   toggleSubtitles(); break
           case 'stop':   leavePlayer(); break
         }
