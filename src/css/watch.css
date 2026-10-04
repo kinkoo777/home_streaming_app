@@ -184,9 +184,10 @@ button { cursor: pointer; border: none; background: none; }
 
 .react-bar {
   display: -webkit-flex; display: flex; -webkit-justify-content: center; justify-content: center; -webkit-flex-wrap: wrap; flex-wrap: wrap;
-  padding: 8px; border-top: 1px solid var(--line); background: var(--surface); -webkit-flex-shrink: 0; flex-shrink: 0;
+  /* Same height as the chat form next to it, so the two bars line up */
+  padding: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--surface); -webkit-flex-shrink: 0; flex-shrink: 0;
 }
-.react-bar button { font-size: 22px; width: 44px; height: 40px; border-radius: 12px; margin: 0 3px; transition: transform 0.15s ease, background-color 0.15s ease; }
+.react-bar button { font-size: 22px; width: 44px; height: 42px; border-radius: 12px; margin: 0 3px; transition: transform 0.15s ease, background-color 0.15s ease; }
 .react-bar button:hover { background: var(--glass); transform: scale(1.15); }
 .react-bar button:active { transform: scale(0.9); }
 
