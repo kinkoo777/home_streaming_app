@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#08070b" />
+  <title>Kouknem — sledujte filmy s přáteli, i na dálku</title>
+  <meta name="description" content="Pošlete přátelům odkaz a sledujte film ve stejnou chvíli — se synchronizovaným přehráváním, chatem, reakcemi a hlasováním o tom, co pustit. Bez registrace a bez instalace." />
+  <meta property="og:title" content="Kouknem — sledujte filmy s přáteli, i na dálku" />
+  <meta property="og:description" content="Jeden odkaz, jedna vteřina, jeden film. Chat, reakce a hlasování o filmu — bez registrace." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="/icons/icon-512.png" />
+  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+
+  <header class="nav" id="nav">
+    <div class="wrap">
+      <a class="logo" href="/" aria-label="Kouknem — domů"><img src="/icons/favicon.svg" alt="" width="34" height="34">Kouknem</a>
+      <nav class="nav-links" aria-label="Hlavní">
+        <a href="#jak-to-funguje">Jak to funguje</a>
+        <a href="#funkce">Funkce</a>
+        <a href="#otazky">Otázky</a>
+      </nav>
+      <a class="btn btn-primary btn-sm" href="#zalozit"><i class="bi bi-plus-lg"></i> Založit místnost</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- ── Hero ── -->
+    <section class="hero" id="zalozit">
+      <div class="wrap">
+        <div>
+          <span class="pill"><span class="dot"></span> Společné sledování v reálném čase</span>
+          <h1>Kouknem spolu.<br><span class="grad">I když nejste spolu.</span></h1>
+          <p class="lead">Pošlete přátelům odkaz a sledujte film ve stejnou vteřinu — s chatem, reakcemi a hlasováním o tom, co pustit. Bez registrace, bez instalace.</p>
+
+          <form class="start" id="start-form" autocomplete="on">
+            <label class="sr-only" for="start-name">Vaše jméno</label>
+            <div class="start-row">
+              <input id="start-name" class="field" name="nickname" maxlength="24" placeholder="Jak vám mají říkat?" autocomplete="nickname" required />
+              <button class="btn btn-primary" type="submit" id="start-btn"><i class="bi bi-play-fill"></i> Založit místnost</button>
+            </div>
+            <details class="start-more">
+              <summary>Předvolby zdroje videa <i class="bi bi-chevron-down"></i></summary>
+              <div class="prefs">
+                <div>
+                  <label for="start-audio">Zvuk</label>
+                  <select id="start-audio" class="field">
+                    <option value="dub">Český dabing</option>
+                    <option value="original">Originál s titulky</option>
+                    <option value="any">Je mi to jedno</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="start-quality">Kvalita</label>
+                  <select id="start-quality" class="field">
+                    <option value="1080">1080p</option>
+                    <option value="2160">4K</option>
+                    <option value="720">720p (slabší internet)</option>
+                  </select>
+                </div>
+              </div>
+            </details>
+            <p class="start-error" id="start-error" role="alert"></p>
+            <div class="trust-row">
+              <span><i class="bi bi-check-circle-fill"></i>Přátelé nepotřebují účet</span>
+              <span><i class="bi bi-check-circle-fill"></i>Až 20 lidí v místnosti</span>
+              <span><i class="bi bi-check-circle-fill"></i>Mobil, počítač i TV</span>
+            </div>
+          </form>
+        </div>
+
+        <!-- A room, drawn in CSS -->
+        <div class="mock" aria-hidden="true">
+          <div class="mock-top"><img src="/icons/favicon.svg" alt="">Pátek s klukama <span class="live">4 sledují</span></div>
+          <div class="mock-body">
+            <div class="mock-screen">
+              <div class="mock-sun"></div>
+              <div class="mock-bar"><i class="bi bi-pause-fill"></i><div class="mock-track"><span></span></div>1:02:14</div>
+              <span class="mock-float">😂</span>
+              <span class="mock-float">🔥</span>
+              <span class="mock-float">😮</span>
+            </div>
+            <div class="mock-side">
+              <div class="mock-people">
+                <span style="background:#7c3aed">J</span><span style="background:#0ea5e9">M</span><span style="background:#f97316">T</span><span style="background:#16a34a">E</span>
+              </div>
+              <div class="mock-msg sys">Tereza se připojila</div>
+              <div class="mock-msg"><b>Martin</b>Tohle jsem nečekal 😅</div>
+              <div class="mock-msg"><b>Eva</b>Pauza na popcorn?</div>
+              <div class="mock-vote">Další film: 2 z 3 hlasů<div class="bar"><span></span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── How it works ── -->
+    <section class="section-alt" id="jak-to-funguje">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">Jak to funguje</span>
+          <h2>Tři kroky a sedíte na jednom gauči.</h2>
+          <p>Žádné „pustíme to na tři dva jedna“. Kouknem drží všechny na stejném místě filmu.</p>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <h3>Založte místnost</h3>
+            <p>Napište své jméno a klikněte. Místnost je hotová za vteřinu — bez e-mailu, bez hesla.</p>
+          </div>
+          <div class="step">
+            <h3>Pošlete odkaz</h3>
+            <p>Zkopírujte pozvánku do WhatsAppu, Messengeru nebo SMS. Kdo má odkaz, napíše jméno a je uvnitř.</p>
+          </div>
+          <div class="step">
+            <h3>Vyberte film a pusťte</h3>
+            <p>Každý může navrhnout film, všichni hlasují. Vítěz se spustí všem naráz — a vy si jen povídáte.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Features ── -->
+    <section id="funkce">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">Funkce</span>
+          <h2>Všechno, co patří ke společnému večeru.</h2>
+          <p>A nic, co by překáželo.</p>
+        </div>
+        <div class="features">
+          <div class="feature">
+            <i class="bi bi-arrow-repeat"></i>
+            <h3>Synchronizace na vteřinu</h3>
+            <p>Pauza, přetočení i spuštění platí pro všechny. Kdo se zasekne, toho Kouknem nenápadně dorovná.</p>
+          </div>
+          <div class="feature">
+            <i class="bi bi-chat-heart"></i>
+            <h3>Chat a reakce</h3>
+            <p>Pište si během filmu a posílejte emoji, které vyletí přes obraz. 😂 🔥 😱 👏</p>
+          </div>
+          <div class="feature">
+            <i class="bi bi-hand-thumbs-up"></i>
+            <h3>Hlasování o filmu</h3>
+            <p>Konec dohadování. Každý navrhne, všichni hlasují — jeden hlas na člověka, kdykoli změnitelný.</p>
+          </div>
+          <div class="feature">
+            <i class="bi bi-shield-lock"></i>
+            <h3>Role a oprávnění</h3>
+            <p>Hostitel určuje, kdo smí ovládat přehrávání, psát, reagovat nebo navrhovat. Může místnost i zamknout.</p>
+          </div>
+          <div class="feature">
+            <i class="bi bi-sliders"></i>
+            <h3>Každý po svém</h3>
+            <p>Hlasitost, kvalitu a titulky si nastaví každý sám. Sdílí se jen to, co sdílet má: obraz a čas.</p>
+          </div>
+          <div class="feature">
+            <i class="bi bi-tv"></i>
+            <h3>Na čemkoli</h3>
+            <p>Telefon, tablet, notebook i chytrá televize s prohlížečem. Ovládání šipkami a dálkovým ovladačem.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── For whom ── -->
+    <section class="section-alt">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">Pro koho</span>
+          <h2>Pro všechny, kdo chtějí koukat spolu.</h2>
+        </div>
+        <div class="uses">
+          <div class="use"><div class="emoji">💞</div><h3>Páry na dálku</h3><p>Rande u filmu, i když vás dělí kilometry nebo časová pásma.</p></div>
+          <div class="use"><div class="emoji">🍿</div><h3>Parta přátel</h3><p>Filmový večer, kde se nikdo nemusí přesouvat přes celé město.</p></div>
+          <div class="use"><div class="emoji">👨‍👩‍👧</div><h3>Rodina</h3><p>Pohádka s babičkou a dědou, i když bydlí na druhém konci republiky.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Fair to creators ── -->
+    <section>
+      <div class="wrap">
+        <div class="fair">
+          <div>
+            <span class="eyebrow">Férově k autorům</span>
+            <h2>Kouknem je nástroj pro společné sledování, ne filmová knihovna.</h2>
+            <p>Nemáme vlastní katalog filmů a k dílům třetích stran si nenárokujeme žádná práva. Pomáháme vám najít a společně přehrát videa dostupná u služeb třetích stran — a bereme vážně, když někdo upozorní na obsah, který tam být nemá.</p>
+            <div class="fair-actions">
+              <a class="btn btn-glass btn-sm" href="/copyright"><i class="bi bi-file-text"></i> Zásady autorských práv</a>
+              <a class="btn btn-glass btn-sm" href="/copyright/report"><i class="bi bi-flag"></i> Nahlásit obsah</a>
+            </div>
+          </div>
+          <ul>
+            <li><i class="bi bi-check2-circle"></i><span>Oznámení od nositelů práv posuzujeme bez zbytečného odkladu.</span></li>
+            <li><i class="bi bi-check2-circle"></i><span>Odstraněný odkaz se do místností už nevrátí — zablokujeme ho natrvalo.</span></li>
+            <li><i class="bi bi-check2-circle"></i><span>Postupujeme s ohledem na nařízení EU o digitálních službách (DSA).</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── FAQ ── -->
+    <section class="section-alt" id="otazky">
+      <div class="wrap">
+        <div class="section-head center">
+          <span class="eyebrow">Otázky</span>
+          <h2>Na co se lidé ptají</h2>
+        </div>
+        <div class="faq">
+          <details>
+            <summary>Musí mít přátelé účet nebo něco instalovat? <i class="bi bi-plus-lg"></i></summary>
+            <p>Ne. Stačí jim odkaz a jméno. Kouknem běží v prohlížeči — na telefonu, počítači i televizi.</p>
+          </details>
+          <details>
+            <summary>Kolik lidí se může dívat najednou? <i class="bi bi-plus-lg"></i></summary>
+            <p>Až 20 lidí v jedné místnosti. Do hlasování se vejde až 20 navržených filmů.</p>
+          </details>
+          <details>
+            <summary>Odkud se berou filmy? <i class="bi bi-plus-lg"></i></summary>
+            <p>Kouknem nemá vlastní filmový katalog. Údaje o filmech (názvy, plakáty) pocházejí z databáze TMDB a videa ze služeb třetích stran, které Kouknem pro zvolený film vyhledá. Za obsah na těchto službách odpovídají jejich provozovatelé; Kouknem nevlastní, nelicencuje ani neověřuje právní status těchto videí. Používejte Kouknem v souladu s právem — podrobnosti najdete v <a href="/copyright">zásadách autorských práv</a>.</p>
+          </details>
+          <details>
+            <summary>Je místnost soukromá? <i class="bi bi-plus-lg"></i></summary>
+            <p>Odkaz místnosti je náhodný a slouží jako pozvánka — připojí se jen ten, kdo ho dostane. Hostitel může místnost kdykoli zamknout, lidi odebrat nebo ji ukončit pro všechny.</p>
+          </details>
+          <details>
+            <summary>Jak dlouho místnost vydrží? <i class="bi bi-plus-lg"></i></summary>
+            <p>Až 12 hodin. Když v ní 30 minut nikdo není, sama se zavře. Nic se neukládá — chat zmizí s místností.</p>
+          </details>
+          <details>
+            <summary>Narazil jsem na obsah, který porušuje práva. Co mám dělat? <i class="bi bi-plus-lg"></i></summary>
+            <p>Pošlete nám oznámení přes <a href="/copyright/report">formulář pro nahlášení</a> nebo e-mailem na <a href="mailto:{{COPYRIGHT_EMAIL}}">{{COPYRIGHT_EMAIL}}</a>. Postup popisují naše <a href="/copyright">zásady</a>.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Final call ── -->
+    <section>
+      <div class="wrap">
+        <div class="cta">
+          <h2>Dnes večer? <span class="grad">Kouknem.</span></h2>
+          <p>Založte místnost a pošlete odkaz. Popcorn je na vás.</p>
+          <a class="btn btn-primary" href="#zalozit" id="cta-btn"><i class="bi bi-play-fill"></i> Založit místnost</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <div>
+        <a class="logo" href="/"><img src="/icons/favicon.svg" alt="" width="34" height="34">Kouknem</a>
+        <p class="tagline">Sledujte filmy s přáteli ve stejnou chvíli — ať jste kdekoli.</p>
+      </div>
+      <div>
+        <h4>Kouknem</h4>
+        <ul>
+          <li><a href="#jak-to-funguje">Jak to funguje</a></li>
+          <li><a href="#funkce">Funkce</a></li>
+          <li><a href="#otazky">Otázky</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Právní informace</h4>
+        <ul>
+          <li><a href="/copyright">Autorská práva a oznámení (Notice-and-Action)</a></li>
+          <li><a href="/copyright/report">Nahlásit obsah</a></li>
+          <li><a href="mailto:{{COPYRIGHT_EMAIL}}">{{COPYRIGHT_EMAIL}}</a></li>
+        </ul>
+      </div>
+      <p class="fine">© {{YEAR}} {{OPERATOR}} · Kouknem nevlastní díla třetích stran zobrazená nebo zpřístupněná prostřednictvím služby. Všechny ochranné známky, názvy a autorská díla patří jejich vlastníkům. Údaje o filmech poskytuje TMDB; Kouknem není s TMDB spojen ani jím podporován.</p>
+    </div>
+  </footer>
+
+  <script src="/js/landing.js"></script>
+</body>
+</html>

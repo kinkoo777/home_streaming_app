@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#08070b" />
+  <title>Report content — Kouknem</title>
+  <meta name="description" content="Notify Kouknem about allegedly illegal or infringing material accessible through the Service." />
+  <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+  <header class="nav scrolled">
+    <div class="wrap">
+      <a class="logo" href="/" aria-label="Kouknem — home"><img src="/icons/favicon.svg" alt="" width="34" height="34">Kouknem</a>
+      <a class="btn btn-glass btn-sm" href="/copyright" style="margin-left:auto"><i class="bi bi-file-text"></i> Policy</a>
+    </div>
+  </header>
+
+  <main class="legal">
+    <div class="wrap">
+      <span class="eyebrow">Notice-and-Action</span>
+      <h1>Report allegedly infringing or illegal material</h1>
+      <p class="meta">This form follows section 3 of our <a href="/copyright">Copyright, Notice-and-Action &amp; Intermediary Services Policy</a>. You can also email the same information to <a href="mailto:{{COPYRIGHT_EMAIL}}">{{COPYRIGHT_EMAIL}}</a>.</p>
+
+      <noscript><p class="form-error">This form needs JavaScript. Please email your notice to {{COPYRIGHT_EMAIL}} instead.</p></noscript>
+
+      <div id="result" class="form-result" style="display:none" role="status" tabindex="-1">
+        <h2><i class="bi bi-check-circle-fill"></i> Notice received</h2>
+        <p>Your reference number is <strong id="result-id"></strong>. Please keep it for any further communication.</p>
+        <p>We assess sufficiently precise and substantiated notices without undue delay and may contact you at the email address you provided if we need more information.</p>
+        <p style="margin-top:14px"><a class="btn btn-glass btn-sm" href="/copyright/report"><i class="bi bi-plus-lg"></i> Submit another notice</a></p>
+      </div>
+
+      <form id="report-form" class="form" novalidate>
+        <fieldset>
+          <legend>About you</legend>
+          <div class="two">
+            <div>
+              <label class="lbl" for="f-name">Full name of the notifying person or entity</label>
+              <input id="f-name" name="name" class="field" maxlength="120" autocomplete="name" required />
+              <span class="err" data-for="name"></span>
+            </div>
+            <div>
+              <label class="lbl" for="f-email">Email address</label>
+              <input id="f-email" name="email" type="email" class="field" maxlength="200" autocomplete="email" required />
+              <span class="err" data-for="email"></span>
+            </div>
+          </div>
+          <label class="check"><input type="checkbox" name="onBehalf" id="f-onbehalf"> I am submitting this notice on behalf of another person or organisation</label>
+          <div id="behalf" style="display:none; gap:16px" class="behalf">
+            <div>
+              <label class="lbl" for="f-principal">Person or organisation you represent</label>
+              <input id="f-principal" name="principal" class="field" maxlength="200" />
+              <span class="err" data-for="principal"></span>
+            </div>
+            <label class="check" style="margin-top:14px"><input type="checkbox" name="authority"> I confirm that I am authorised to act on their behalf.</label>
+            <span class="err" data-for="authority"></span>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>The material</legend>
+          <div>
+            <label class="lbl" for="f-work">Copyrighted work or other legal right concerned
+              <span class="hint">E.g. the title, year and rights holder of the film, or the right you rely on.</span></label>
+            <textarea id="f-work" name="work" class="field" maxlength="2000" rows="3" required></textarea>
+            <span class="err" data-for="work"></span>
+          </div>
+          <div>
+            <label class="lbl" for="f-material">Allegedly infringing or illegal material
+              <span class="hint">Describe the result, video or resource you are reporting.</span></label>
+            <textarea id="f-material" name="material" class="field" maxlength="2000" rows="3" required></textarea>
+            <span class="err" data-for="material"></span>
+          </div>
+          <div>
+            <label class="lbl" for="f-location">Exact URL(s) or other information to locate it
+              <span class="hint">One per line. Include the address of the video page on the third-party service where possible — it is what we block.</span></label>
+            <textarea id="f-location" name="location" class="field" maxlength="4000" rows="4" required placeholder="https://…"></textarea>
+            <span class="err" data-for="location"></span>
+          </div>
+          <div>
+            <label class="lbl" for="f-explanation">Why the material is considered unlawful
+              <span class="hint">A reasonably detailed explanation.</span></label>
+            <textarea id="f-explanation" name="explanation" class="field" maxlength="6000" rows="5" required></textarea>
+            <span class="err" data-for="explanation"></span>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Statement</legend>
+          <label class="check"><input type="checkbox" name="goodFaith" required> I confirm that the information supplied is accurate to the best of my knowledge and that this notice is submitted in good faith.</label>
+          <span class="err" data-for="goodFaith"></span>
+          <p class="muted" style="font-size:14px">Knowingly submitting false, misleading or abusive notices is not permitted (policy section 8). We use the information in this notice only to assess and act on it, to contact you about it and to keep records where reasonably necessary for legal or compliance purposes.</p>
+        </fieldset>
+
+        <p id="form-error" class="form-error" role="alert"></p>
+        <div><button class="btn btn-primary" type="submit" id="submit-btn"><i class="bi bi-send-fill"></i> Submit notice</button></div>
+      </form>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <p class="fine">© {{YEAR}} {{OPERATOR}} · <a href="/">Kouknem</a> · <a href="/copyright">Copyright policy</a></p>
+    </div>
+  </footer>
+  <script src="/js/report.js"></script>
+</body>
+</html>

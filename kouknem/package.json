@@ -1,0 +1,22 @@
+{
+  "name": "kouknem",
+  "version": "1.0.0",
+  "description": "Kouknem — watch films together with friends, anywhere, by sharing a link",
+  "main": "server.js",
+  "private": true,
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "NODE_ENV=development node --watch server.js",
+    "test": "node --test test/*.test.js",
+    "admin": "node tools/admin.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "express": "^5.2.1",
+    "jsdom": "^27.4.0",
+    "puppeteer": "^24.36.0"
+  }
+}
