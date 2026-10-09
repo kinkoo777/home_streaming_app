@@ -57,6 +57,8 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 - **Voice search** — a 🎤 in the search bar where the browser supports speech recognition (Chrome, Edge, Android, Safari): speak a title in Czech and it searches as you talk
 - **Automatic intro & credits detection** — when a season has no *Přeskočit úvod* mark yet, the server compares the audio of the playing episode with the next one (ffmpeg, first 8 min + last 4 min, lowest quality) and saves the shared opening as the season's mark and where the end credits start; *Další epizoda* then appears as the credits begin. A mark set by hand is never overwritten. Needs `ffmpeg` on the server (`sudo apt install ffmpeg`); off with `FILMBOX_AUTO_INTRO=0`
 - **Keep on the Pi** — *Settings (gear) → Stáhnout do FilmBoxu* in the player saves the film / episode on the server (with subtitles, HDR colours already fixed). From then on it plays from there — instantly, without buffering, even after the upload disappears — and appears in the *Uloženo ve FilmBoxu* row. One download at a time, resumes after a restart or an expired link, stops before the disk gets full; the Server page lists them with progress and *Smazat*
+- **FilmBox Wrapped — Rok ve FilmBoxu** — the profile's year as full-screen story slides like Spotify Wrapped: hours (films vs. series), the first title of the year, the most watched and the top 5, genre of the year, the biggest binge (most episodes of one series in a day), days with FilmBox and the longest run, favourite weekday, the best month, what it loved (👍👍), the household ranking, and a summary picture to save (PNG). Tap / arrows / OK to move on, hold to pause. From *Statistiky → Rok ve FilmBoxu* any time, and a banner on the home page in December and January
+- **Chytré „Co dnes?“** — in *Co pustit?* describe what you're in the mood for ("něco vtipného na dva, do dvou hodin, s CZ dabingem") and get five films / series that fit, each with one sentence why — chosen with the profile's likes, dislikes and history in mind (kids profiles get only children's titles). Optional: uses Claude (Anthropic API) and needs `ANTHROPIC_API_KEY`; each question costs a little; at most 20 questions per profile per hour
 - **Pause screen** — paused for 8 s with nobody touching anything, the player shows what you're watching over the dimmed picture: title, episode and its name, year, rating, length, genres, the episode's (or film's) overview and the cast. Any key, touch or mouse move hides it
 - **Timeline thumbnails** — hovering or dragging the timeline shows the picture at that moment with its time (a muted copy of the lowest quality jumps there; the film itself doesn't move). Not on TVs
 - **Ambilight** — the picture's colours glow into the black bars around it (wide films, other screen shapes); *Settings (gear) → Ambilight*, remembered per device, off by default on TVs
@@ -92,6 +94,8 @@ home_streaming_app/
 ├── notify.js           # New-episode notifications via ntfy
 ├── introdetect.js      # Automatic intro + credits detection (ffmpeg + audio fingerprints)
 ├── downloads.js        # Keep on the Pi: downloads with resume, HDR fix, subtitles
+├── wrapped.js          # The year in FilmBox (Wrapped) from the watch history
+├── aipick.js           # Chytré "Co dnes?": Claude picks titles for a described mood
 ├── subtitles.js        # SRT→WebVTT + OpenSubtitles search/download
 ├── tools/
 │   ├── guides.spec.js  # Hand-written watch guides (film lists, chronological order) + TMDB collection ids
@@ -154,6 +158,7 @@ home_streaming_app/
         ├── taste.js      # Taste profile + match percentage (shared with the server and unit tests)
         ├── voice.js      # Voice search (Web Speech API)
         ├── saved.js      # "Uloženo ve FilmBoxu" row
+        ├── wrapped.js    # "Rok ve FilmBoxu" story slides + summary picture
         ├── episodes.js   # Which episode comes next (next season after a finale; shared with unit tests)
         ├── cast-receiver.js # TV side of "Pustit na TV" (home page + player)
         ├── cast-sender.js   # Phone side: choose a TV, send, remote
@@ -212,6 +217,13 @@ OPENSUBTITLES_PASSWORD=your_password
 ```
 
 Without a key the feature simply stays hidden. Downloaded subtitles are cached in `data/subtitles/`.
+
+**Optional — Chytré „Co dnes?“.** Create an API key at [console.anthropic.com](https://console.anthropic.com) and add it; without it the box simply isn't shown:
+
+```ini
+ANTHROPIC_API_KEY=sk-ant-...
+# FILMBOX_AI_MODEL=claude-opus-5-5   # the default
+```
 
 **Optional — everything else** (all have sensible defaults):
 
@@ -449,6 +461,8 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 | `POST /api/household/parent-pin/verify` | `{ pin }` → `{ ok }` (5 wrong tries per 5 min) |
 | `PUT /api/profiles/:id` `{ kids: false, parentPin }` | Leaving kids mode needs the parent PIN when one is set |
 | `/tmdb/*?kids=1` | Children's titles only (added by the page for kids profiles) |
+| `GET /api/profiles/:id/wrapped?year=2026` | The year in FilmBox: hours, films, episodes, top titles, genres, binge, streak, months, loved, household ranking |
+| `GET /api/ai` · `POST /api/profiles/:id/ai-pick` | `{ enabled }` · `{ query }` → `{ picks: [TMDB item + why] }` (needs `ANTHROPIC_API_KEY`; 20 / hour / profile) |
 | `POST /api/profiles/:id/notify/test` | Test notification to the profile's ntfy topic |
 | `POST /api/intros/:tmdbId/:season/detect` | `{ episode, src }` → 202, detection queued (`GET` the same path for its status) |
 | `GET /api/downloads` | `{ items, free }` |

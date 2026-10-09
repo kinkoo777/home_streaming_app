@@ -142,6 +142,13 @@
 
   <main class="rows" id="rows">
 
+    <!-- December / January: "Váš rok ve FilmBoxu" (wrapped.js) -->
+    <button class="wrapped-banner" id="wrapped-banner" style="display:none">
+      <span class="wb-icon"><i class="bi bi-stars"></i></span>
+      <span class="wb-text"><b>Váš rok ve FilmBoxu</b><small>Kolik hodin, co nejvíc, největší maraton…</small></span>
+      <i class="bi bi-chevron-right"></i>
+    </button>
+
     <!-- Search results (shown after pressing Enter in search) -->
     <section class="row-section" id="search-movies-section" style="display:none">
       <div class="row-header">
@@ -562,6 +569,12 @@
         <h3 id="random-title"><i class="bi bi-shuffle"></i> Co pustit?</h3>
         <button class="sheet-close static" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
       </div>
+      <!-- Chytrý tip: describe it, AI picks (aipick.js; only when the server has a key) -->
+      <form class="ai-ask" id="ai-ask" hidden>
+        <i class="bi bi-stars"></i>
+        <input id="ai-query" class="field" maxlength="300" placeholder="Na co máte chuť? Např. něco vtipného na dva, do dvou hodin…" autocomplete="off" />
+        <button class="btn btn-accent btn-sm" type="submit">Poradit</button>
+      </form>
       <div class="random-filters">
         <div class="segmented" id="random-from" role="group" aria-label="Odkud vybírat">
           <button data-value="all" class="active">Odkudkoli</button>
@@ -604,6 +617,7 @@
       <div class="stats-head">
         <span class="eyebrow">Statistiky sledování</span>
         <h2 id="stats-title"></h2>
+        <button class="btn btn-accent btn-sm stats-wrapped" id="stats-wrapped"><i class="bi bi-stars"></i> Rok ve FilmBoxu</button>
         <div class="segmented" id="stats-period" role="group" aria-label="Období">
           <button data-period="month">Tento měsíc</button>
           <button data-period="year">Tento rok</button>
@@ -872,6 +886,7 @@
   <script src="js/profile-stats.js"></script>
   <script src="js/server-admin.js"></script>
   <script src="js/saved.js"></script>
+  <script src="js/wrapped.js"></script>
 </body>
 
 </html>

@@ -28,7 +28,9 @@ const introdetect = require('./introdetect');
 const kidsFilter = require('./kids');
 const notify = require('./notify');
 const { createDownloads } = require('./downloads');
+const { createPicker } = require('./aipick');
 const { computeStats, PERIODS } = require('./stats');
+const { computeWrapped } = require('./wrapped');
 const cast = require('./cast');
 const relevance = require('./src/js/relevance');
 const { normalizeUrl, detectFunnel } = require('./funnel');
@@ -1337,6 +1339,45 @@ app.get('/api/profiles/:id/stats', async (req, res) => {
     stats.genres = await genreShares(stats.titles);
     delete stats.titles;
     res.json(stats);
+});
+
+// ── Chytré "Co dnes?" (aipick.js; needs ANTHROPIC_API_KEY) ──
+const aiPicker = createPicker({ tmdbFetch, kidsOk: kidsFilter.kidsOk });
+app.get('/api/ai', (req, res) => res.json({ enabled: aiPicker.enabled() }));
+app.post('/api/profiles/:id/ai-pick', async (req, res) => {
+    const query = typeof (req.body && req.body.query) === 'string' ? req.body.query.trim().slice(0, 300) : '';
+    if (query.length < 3) return res.status(400).json({ error: 'Napište, na co máte chuť' });
+    const id = req.params.id;
+    const name = x => x.title + (x.mediaType === 'tv' ? ' (seriál)' : '');
+    const ratings = ratingsDB.list(id);
+    const ctx = {
+        kids: !!req.profile.kids,
+        liked: ratings.filter(r => r.rating > 0).map(name).concat(favoritesDB.list(id).map(name)),
+        disliked: ratings.filter(r => r.rating < 0).map(name),
+        watched: watchedDB.list(id).slice(0, 40).map(name),
+        lists: watchlistsDB.getByProfile(id).reduce((a, l) => a.concat((l.movies || []).map(m => m.title || m.name).filter(Boolean)), []).slice(0, 30)
+    };
+    try { res.json({ picks: await aiPicker.pick(id, query, ctx) }); }
+    catch (err) {
+        if (!err.code || err.code >= 500) console.error('AI tip:', err.message);
+        res.status(Number.isInteger(err.code) && err.code >= 400 && err.code < 600 ? err.code : 502).json({ error: err.code ? err.message : 'AI teď neodpovídá — zkuste to za chvíli' });
+    }
+});
+
+// ── FilmBox Wrapped: the year in FilmBox (wrapped.js) ── ?year=2026 (default: this year)
+app.get('/api/profiles/:id/wrapped', async (req, res) => {
+    const id = req.params.id;
+    const thisYear = new Date().getFullYear();
+    const year = Math.min(thisYear, Math.max(2000, parseInt(req.query.year, 10) || thisYear));
+    const w = computeWrapped({ history: historyDB.list(id), watched: watchedDB.list(id), progress: progressDB.getAll(id), ratings: ratingsDB.list(id) }, year);
+    w.genres = await genreShares(w._titles);
+    delete w._titles;
+    // Who in the household watched how much (names and hours only).
+    w.household = profilesDB.list().map(p => ({
+        name: p.name, me: p.id === id,
+        seconds: computeWrapped({ history: historyDB.list(p.id) }, year).seconds
+    })).filter(p => p.seconds > 0).sort((a, b) => b.seconds - a.seconds);
+    res.json(w);
 });
 
 // ── Export / wipe ──
