@@ -415,3 +415,54 @@ button { cursor: pointer; border: none; background: none; }
   .src-thumb { width: 84px; height: 48px; margin-right: 10px; }
   .modal-card.sources-card { padding: 18px 14px; }
 }
+
+/* ── Start time countdown ── */
+.countdown {
+  position: absolute; top: 50%; left: 50%; z-index: 6; -webkit-transform: translate(-50%, -50%); transform: translate(-50%, -50%);
+  display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; -webkit-align-items: center; align-items: center;
+  padding: 22px 34px; border-radius: 22px; background: rgba(7,7,10,0.78); text-align: center; pointer-events: none;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.countdown span { font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.countdown b { font-size: 64px; font-weight: 900; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.countdown small { color: var(--muted); font-size: 14px; }
+.set-row { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; }
+.set-row > * + * { margin-left: 8px; }
+.set-row input[type=time] { width: 120px; }
+
+/* ── Queue in the Výběr tab ── */
+.poll-queue:empty { display: none; }
+.poll-queue { margin: 4px 0 12px; padding: 10px 12px; border-radius: 14px; background: var(--glass, rgba(255,255,255,0.06)); }
+.pq-head { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+.pq-head i { margin-right: 6px; }
+.poll-queue ol { list-style: none; margin: 0; padding: 0; }
+.poll-queue li { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; padding: 5px 0; }
+.poll-queue li b { -webkit-flex: 1; flex: 1; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.poll-queue li small { color: var(--muted); margin: 0 8px; }
+.pq-n { width: 22px; height: 22px; border-radius: 50%; background: var(--text); color: #111; font-size: 12px; font-weight: 800; display: -webkit-inline-flex; display: inline-flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; margin-right: 8px; -webkit-flex: none; flex: none; }
+.poll-queue li button { width: 28px; height: 28px; border-radius: 8px; font-size: 12px; }
+.pi-queue { width: 38px; height: 38px; border-radius: 12px; margin-left: 6px; font-size: 16px; background: var(--glass, rgba(255,255,255,0.08)); }
+
+/* ── Voice chat ── */
+#voice-btn.on { background: #dc2626; color: #fff; border-color: #dc2626; }
+#voice-mute.on { background: rgba(220,38,38,0.25); color: #fca5a5; }
+.voice-ico { font-size: 13px; margin-left: 4px; color: #22c55e; }
+.voice-ico.muted-mic { color: var(--muted); }
+.people li .avatar { transition: box-shadow 0.15s ease; }
+.people li.speaking .avatar { box-shadow: 0 0 0 3px #22c55e, 0 0 14px rgba(34,197,94,0.6); }
+
+/* ── "Na TV" menu opens downwards from the top bar ── */
+.menu.menu-down { top: calc(100% + 8px); bottom: auto; right: 0; }
+
+/* ── On a TV: just the picture, the chat bubbles and reactions; remote keys ── */
+html.tv .side, html.tv .react-bar, html.tv #invite-btn, html.tv #leave-btn, html.tv #voice-btn, html.tv #tv-wrap { display: none !important; }
+html.tv .layout { display: block; }
+html.tv .main-col, html.tv .stage { height: calc(100vh - 64px); max-height: none; }
+html.tv .countdown b { font-size: 96px; }
+/* While choosing a film: a small pill in the corner above the poll */
+.app.lobby-mode .countdown {
+  z-index: 8; top: 12px; right: 12px; left: auto; -webkit-transform: none; transform: none;
+  -webkit-flex-direction: row; flex-direction: row; -webkit-align-items: baseline; align-items: baseline; padding: 8px 14px; border-radius: 999px;
+}
+.app.lobby-mode .countdown b { font-size: 22px; margin: 0 8px; }
+.app.lobby-mode .countdown span { font-size: 12px; }

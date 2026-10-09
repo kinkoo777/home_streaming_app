@@ -986,6 +986,11 @@ app.post('/api/cast/:id/command', (req, res) => {
         const r = castPlayCommand(req, b);
         if (r.error) return res.status(r.status).json({ error: r.error });
         command = r.command;
+    } else if (b.type === 'room') {
+        // Open a watch-together room on the TV (it joins as "Televize").
+        const room = String(b.room || '');
+        if (!/^[A-Za-z0-9_-]{16,64}$/.test(room) || !rooms._rooms.has(room)) return res.status(404).json({ error: 'Místnost nenalezena' });
+        command = { type: 'room', room };
     } else if (REMOTE_COMMANDS.includes(b.type)) {
         command = { type: b.type };
         if (b.type === 'seek') {
@@ -1014,7 +1019,15 @@ function roomLinks(hostname, id) {
     if (pub) return { link: `${pub}/r/${id}`, public: true };
     return { link: `http://${hostname}:${GUEST_PORT || PORT}${GUEST_PORT ? '/r/' + id : '/watch.html?room=' + id}`, public: false };
 }
-const roomOpts = { checkPlayer, resolveVideo, handleStream, loadSubtitle, linkFor: roomLinks, listSources: listRoomSources, findPlayer: findRoomPlayer, tmdb: roomTmdb };
+// Marathon in rooms: the episode after S{season}E{number} (next season after a finale), or null.
+const episodes = require('./src/js/episodes');
+async function nextEpisodeOf(tmdbId, season, number) {
+    let show = null;
+    try { show = await tmdbFetch(`/tv/${tmdbId}?language=cs-CZ`); } catch (e) { return null; }
+    const r = episodes.nextEpisode(show, season, number);
+    return r.next ? { season: r.next.season, number: r.next.number } : null;
+}
+const roomOpts = { checkPlayer, resolveVideo, handleStream, loadSubtitle, linkFor: roomLinks, listSources: listRoomSources, findPlayer: findRoomPlayer, tmdb: roomTmdb, nextEpisode: nextEpisodeOf };
 app.use('/api/rooms', rooms.router(Object.assign({ canCreate: true }, roomOpts)));
 
 // ── Intros (skip-intro marks per show + season, shared by all profiles) ──
