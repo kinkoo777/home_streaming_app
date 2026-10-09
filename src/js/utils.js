@@ -214,7 +214,12 @@ function setProfileToken(id, token) {
   const nativeFetch = window.fetch.bind(window)
   let prompting = false
   window.fetch = function (input, init) {
-    const url = typeof input === 'string' ? input : (input && input.url) || ''
+    let url = typeof input === 'string' ? input : (input && input.url) || ''
+    // Kids profile: every TMDB call asks for children's titles only (server.js filters).
+    if (typeof input === 'string' && /^\/tmdb\//.test(url)) {
+      const p = getActiveProfile()
+      if (p && p.kids) input = url = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'kids=1'
+    }
     const m = /^\/api\/profiles\/([^/?#]+)/.exec(url)
     if (m) {
       const token = getProfileToken(decodeURIComponent(m[1]))

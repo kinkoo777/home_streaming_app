@@ -52,6 +52,11 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 - **Protože se vám líbilo / Protože jste sledovali „X“** — up to two extra rows under *Doporučeno pro vás*, each built from one title: the latest 👍 and the latest finished one (only when they bring at least 6 titles not already on screen)
 - **ČSFD rating** — the detail shows the ČSFD score next to TMDB's (red / blue / grey like ČSFD, a link to the film there). Looked up by the Czech title (then the original one) and the year, cached for a week
 - **Kde jinde to běží** — in the detail: which streaming services have the title in Czechia, in the subscription, free, to rent or to buy (TMDB / JustWatch data, linked)
+- **Kids profiles** — *Dětský profil* when creating a profile or in its settings: only animated, family and kids titles everywhere (rows, hero, search, recommendations, browsing — no horror, thriller, crime or war; a grown-up title's detail is refused), no source search, rooms, server page or data wiping, and an orange *Děti* badge. With a household **rodičovský PIN** (*Nastavení → Rodičovský PIN*) a kids profile can only be left — or switched off — with that PIN
+- **New-episode notifications** — *Nastavení → Upozornění na nové díly*: pick a topic (*Vymyslet téma*), subscribe to it in the free **ntfy** app (Android / iPhone, no account) and the phone gets "Nový díl: Hra o trůny S02E05" when a series the profile follows (episodes in progress / watched, watched or favourite series) airs an episode it hasn't seen. Checked every hour, each episode once; *Poslat zkoušku* to try it
+- **Voice search** — a 🎤 in the search bar where the browser supports speech recognition (Chrome, Edge, Android, Safari): speak a title in Czech and it searches as you talk
+- **Automatic intro & credits detection** — when a season has no *Přeskočit úvod* mark yet, the server compares the audio of the playing episode with the next one (ffmpeg, first 8 min + last 4 min, lowest quality) and saves the shared opening as the season's mark and where the end credits start; *Další epizoda* then appears as the credits begin. A mark set by hand is never overwritten. Needs `ffmpeg` on the server (`sudo apt install ffmpeg`); off with `FILMBOX_AUTO_INTRO=0`
+- **Keep on the Pi** — *Settings (gear) → Stáhnout do FilmBoxu* in the player saves the film / episode on the server (with subtitles, HDR colours already fixed). From then on it plays from there — instantly, without buffering, even after the upload disappears — and appears in the *Uloženo ve FilmBoxu* row. One download at a time, resumes after a restart or an expired link, stops before the disk gets full; the Server page lists them with progress and *Smazat*
 - **Pause screen** — paused for 8 s with nobody touching anything, the player shows what you're watching over the dimmed picture: title, episode and its name, year, rating, length, genres, the episode's (or film's) overview and the cast. Any key, touch or mouse move hides it
 - **Timeline thumbnails** — hovering or dragging the timeline shows the picture at that moment with its time (a muted copy of the lowest quality jumps there; the film itself doesn't move). Not on TVs
 - **Ambilight** — the picture's colours glow into the black bars around it (wide films, other screen shapes); *Settings (gear) → Ambilight*, remembered per device, off by default on TVs
@@ -83,6 +88,10 @@ home_streaming_app/
 ├── rooms.js            # "Sledovat společně": rooms, roles + permissions, sync, chat, reactions, source fallback (Server-Sent Events)
 ├── admin.js            # Server page: version, updates from GitHub (pull + restart), health, recent errors
 ├── csfd.js             # ČSFD rating lookup (search page → film page, JSON-LD / rating box)
+├── kids.js             # Kids profiles: children's-titles filter for /tmdb/*
+├── notify.js           # New-episode notifications via ntfy
+├── introdetect.js      # Automatic intro + credits detection (ffmpeg + audio fingerprints)
+├── downloads.js        # Keep on the Pi: downloads with resume, HDR fix, subtitles
 ├── subtitles.js        # SRT→WebVTT + OpenSubtitles search/download
 ├── tools/
 │   ├── guides.spec.js  # Hand-written watch guides (film lists, chronological order) + TMDB collection ids
@@ -98,6 +107,9 @@ home_streaming_app/
 │   ├── progress.json     # Per-profile playback position, keyed by tmdbId or "tmdbId:S01E05" → { seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }
 │   ├── history.json      # Seconds played per profile, day and title (stats)
 │   ├── ratings.json      # 👎 / 👍 / 👍👍 per profile and title
+│   ├── household.json    # Parent PIN (bcrypt) for kids profiles
+│   ├── notified.json     # Episodes already announced per profile (ntfy)
+│   ├── downloads.json    # Saved films / episodes; the files are in data/downloads/
 │   └── intros.json       # Skip-intro marks per series + season, shared by all profiles
 └── src/
     ├── index.html
@@ -140,6 +152,8 @@ home_streaming_app/
         ├── previews.js   # Muted trailer previews: hero + card pop-out (YouTube iframe messages)
         ├── ratings.js    # 👎 / 👍 / 👍👍, taste, "% shoda", dislike filter
         ├── taste.js      # Taste profile + match percentage (shared with the server and unit tests)
+        ├── voice.js      # Voice search (Web Speech API)
+        ├── saved.js      # "Uloženo ve FilmBoxu" row
         ├── episodes.js   # Which episode comes next (next season after a finale; shared with unit tests)
         ├── cast-receiver.js # TV side of "Pustit na TV" (home page + player)
         ├── cast-sender.js   # Phone side: choose a TV, send, remote
@@ -198,6 +212,21 @@ OPENSUBTITLES_PASSWORD=your_password
 ```
 
 Without a key the feature simply stays hidden. Downloaded subtitles are cached in `data/subtitles/`.
+
+**Optional — everything else** (all have sensible defaults):
+
+```ini
+# Automatic intro / credits detection needs ffmpeg:  sudo apt install ffmpeg
+FILMBOX_AUTO_INTRO=0             # turn it off
+# Keep on the Pi
+FILMBOX_DOWNLOAD_DIR=/mnt/usb/filmbox   # where saved videos go (default data/downloads)
+FILMBOX_DOWNLOAD_MIN_FREE_GB=2          # never fill the disk beyond this
+# New-episode notifications
+NTFY_SERVER=https://ntfy.sh      # or your own ntfy server
+FILMBOX_URL=https://…            # opened when a notification is tapped
+FILMBOX_NOTIFY=0                 # turn the hourly check off
+FILMBOX_ALLOW_UPDATE=0           # hide "Aktualizovat" on the Server page
+```
 
 ### Run
 
@@ -410,6 +439,23 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 | `GET /stream?url=<cdn url>` | Range-aware video proxy that rewrites HDR colour tags to BT.709 (used for HDR-tagged files) |
 | `GET /get_subtitle?url=<url>` | Proxy + normalize a subtitle file to WebVTT (SRT auto-converted) |
 | `GET /api/sources?id=&type=movie\|tv[&season=&episode=][&audio=&quality=]` | This film's / episode's uploads, best first (the player's extra backups) |
+
+### Kids, notifications, intros, downloads
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/household` | `{ parentPin: bool }` |
+| `PUT /api/household/parent-pin` | `{ pin: '1234' \| null, currentPin }` — set / change / remove |
+| `POST /api/household/parent-pin/verify` | `{ pin }` → `{ ok }` (5 wrong tries per 5 min) |
+| `PUT /api/profiles/:id` `{ kids: false, parentPin }` | Leaving kids mode needs the parent PIN when one is set |
+| `/tmdb/*?kids=1` | Children's titles only (added by the page for kids profiles) |
+| `POST /api/profiles/:id/notify/test` | Test notification to the profile's ntfy topic |
+| `POST /api/intros/:tmdbId/:season/detect` | `{ episode, src }` → 202, detection queued (`GET` the same path for its status) |
+| `GET /api/downloads` | `{ items, free }` |
+| `GET /api/downloads/find?key=movie:603\|tv:1399:S01E02` | The saved copy of a title, if any |
+| `POST /api/downloads` | `{ player, src }` → queued download |
+| `POST /api/downloads/:id/retry`, `DELETE /api/downloads/:id` | Retry a failed one / delete the copy |
+| `GET /downloads/:id/video`, `GET /downloads/:id/sub/:n` | The saved video (ranges) and its subtitles |
 
 ### Server page
 

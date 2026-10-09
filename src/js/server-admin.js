@@ -77,7 +77,42 @@
         : '<button class="btn btn-primary" id="server-update-btn"><i class="bi bi-arrow-repeat"></i> Aktualizovat a restartovat</button><p class="settings-hint">Přehrávání a místnosti se na chvíli přeruší.</p>'}`
   }
 
+  // ── Saved in FilmBox (downloads) ──
+  let _dlTimer = null
+  function renderDownloads() {
+    return getJson('/api/downloads').then(res => {
+      const items = res.items || []
+      const box = $('server-downloads')
+      if (!items.length) { box.innerHTML = ''; return }
+      const used = items.reduce((s, d) => s + (d.status === 'done' ? d.size || 0 : d.done || 0), 0)
+      box.innerHTML = `<h4 class="block-title">Uloženo ve FilmBoxu <span class="muted-inline">${fmtBytes(used)}</span></h4><ul class="server-dl">${items.map(d => {
+        const pct = d.size ? Math.floor((d.done || 0) / d.size * 100) : 0
+        const state = d.status === 'done' ? fmtBytes(d.size) + (d.label ? ' · ' + escapeHtml(d.label) : '')
+          : d.status === 'failed' ? 'Chyba: ' + escapeHtml(d.error || '')
+          : d.status === 'queued' ? 'Ve frontě' : 'Stahuji ' + pct + ' % z ' + fmtBytes(d.size)
+        return `<li data-id="${escapeHtml(d.id)}"><div class="server-dl-main"><b>${escapeHtml(d.title)}</b><span>${state}</span>` +
+          (d.status === 'downloading' ? `<div class="server-dl-bar"><i style="width:${pct}%"></i></div>` : '') + '</div>' +
+          (d.status === 'failed' ? '<button class="btn btn-ghost btn-sm" data-dl="retry">Znovu</button>' : '') +
+          '<button class="btn btn-ghost btn-sm" data-dl="delete" aria-label="Smazat"><i class="bi bi-trash"></i></button></li>'
+      }).join('')}</ul>`
+      clearTimeout(_dlTimer)
+      if (items.some(d => d.status === 'downloading' || d.status === 'queued') && !modal.classList.contains('hidden')) _dlTimer = setTimeout(renderDownloads, 3000)
+    }).catch(() => {})
+  }
+  modal.addEventListener('click', e => {
+    const b = e.target.closest('[data-dl]')
+    if (!b) return
+    const id = b.closest('[data-id]').dataset.id
+    if (b.dataset.dl === 'delete') {
+      if (!window.confirm('Smazat uloženou kopii?')) return
+      fetch('/api/downloads/' + encodeURIComponent(id), { method: 'DELETE' }).then(() => { renderDownloads(); if (window.reloadSaved) window.reloadSaved() })
+    } else {
+      fetch('/api/downloads/' + encodeURIComponent(id) + '/retry', { method: 'POST' }).then(renderDownloads)
+    }
+  })
+
   function load() {
+    renderDownloads()
     $('server-update').innerHTML = '<p class="server-line"><i class="bi bi-arrow-repeat spin"></i> Hledám aktualizace…</p>'
     getJson('/api/admin/status').then(st => {
       renderStatus(st)

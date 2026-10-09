@@ -1212,6 +1212,9 @@
         } catch (e) { return 'default' }
       }
       // Profile preferences (Nastavení → Přehrávání): audioPref, qualityPref, subLang, stillWatching.
+      function _isKidsProfile() {
+        try { const r = sessionStorage.getItem('filmbox_active_profile'); return !!(r && JSON.parse(r).kids) } catch (e) { return false }
+      }
       function _profileSettings() {
         try {
           const r = sessionStorage.getItem('filmbox_active_profile')
@@ -1743,7 +1746,7 @@
           tr.label = s.label || ('Titulky ' + (i + 1))
           // Online subtitles come from our own /subs/ route; the rest is proxied so
           // cross-origin .vtt/.srt loads (and SRT converts)
-          tr.src   = s.src.indexOf('/subs/') === 0 ? s.src : `/get_subtitle?url=${encodeURIComponent(s.src)}`
+          tr.src   = s.src.indexOf('/subs/') === 0 || s.src.indexOf('/downloads/') === 0 ? s.src : `/get_subtitle?url=${encodeURIComponent(s.src)}`
           if (s.online) tr.addEventListener('error', () => toast('Titulky se nepodařilo stáhnout (možná vyčerpán denní limit)', 5000))
           video.appendChild(tr)
           tr.track.mode = 'disabled'
@@ -1907,7 +1910,12 @@
           add(menuItem({ label: 'Rychlost', sub: true, value: speedLabel(_speed), onClick: () => openSettingsPage('speed') }))
           add(menuItem({ label: 'Ambilight', hint: 'Barvy obrazu prosvítí do černých pruhů', value: _ambi ? 'Zapnuto' : 'Vypnuto', onClick: () => { setAmbilight(!_ambi); renderSettings() } }))
           add(menuItem({ label: 'Časovač vypnutí', sub: true, value: sleepLabel(), onClick: () => openSettingsPage('sleep') }))
-          if (!IS_TV) add(menuItem({ label: 'Sledovat společně', hint: 'Pozvat přátele odkazem', onClick: () => { closeSettings(); startTogether() } }))
+          if (_downloadKey() && !_isKidsProfile()) add(menuItem({
+            label: _download && _download.status === 'done' ? 'Kopie ve FilmBoxu' : 'Stáhnout do FilmBoxu',
+            hint: _download ? (_download.status === 'done' ? (currentQ && currentQ.local ? 'Hraje odsud — bez sekání' : 'Přehrát odsud') : 'Ukládá se na server') : 'Uloží se na server — pak hraje hned a bez sekání',
+            value: _downloadLabel(), onClick: _downloadClick
+          }))
+          if (!IS_TV && !_isKidsProfile()) add(menuItem({ label: 'Sledovat společně', hint: 'Pozvat přátele odkazem', onClick: () => { closeSettings(); startTogether() } }))
           if (_tvs.length && !IS_TV) add(menuItem({ label: 'Pustit na TV', sub: true, value: _tvs.length === 1 ? _tvs[0].name : _tvs.length + ' TV', onClick: () => openSettingsPage('handoff') }))
           if (_isEpisode()) {
             const intro = currentIntro()
@@ -2472,7 +2480,10 @@
         if (!_playerData || !_playerData.episode || !isFinite(video.duration) || video.duration < 300) return
         const left = video.duration - video.currentTime
         if (left <= 60 && !_nextEp) _nextEpisodeInfo()
-        const show = !_nextMiniDismissed && !_sleepAtEnd() && !_noNextEpisode() && left <= 45 && left > 0.5
+        // Where the credits start (found automatically, introdetect.js), else the last 45 s.
+        const intro = currentIntro()
+        const creditsAt = intro && intro.credits ? Math.max(20, Math.min(300, intro.credits)) : 45
+        const show = !_nextMiniDismissed && !_sleepAtEnd() && !_noNextEpisode() && left <= creditsAt && left > 0.5
         if (show !== nextMini.classList.contains('show')) {
           nextMini.classList.toggle('show', show)
           if (show && document.body.classList.contains('kbd')) document.getElementById('next-ep-mini-go').focus()
@@ -2584,8 +2595,44 @@
         if (!_isEpisode()) return
         fetch(`/api/intros/${_playerData.tmdbId}`)
           .then(r => (r.ok ? r.json() : []))
-          .then(list => { _intros = Array.isArray(list) ? list : []; renderSettings() })
+          .then(list => {
+            _intros = Array.isArray(list) ? list : []
+            renderSettings()
+            const mine = _intros.filter(i => i.season === _playerData.episode.season)[0]
+            if (!mine || !mine.credits) requestAutoIntro(!mine)
+          })
           .catch(() => {})
+      }
+
+      // No mark for this season yet: the server compares this episode with the next one
+      // (introdetect.js) and saves the intro + where the credits start; we check back.
+      let _autoIntroAsked = false
+      function requestAutoIntro(announce) {
+        if (_autoIntroAsked || !source || !source.qualities.length) return
+        _autoIntroAsked = true
+        const d = _playerData
+        const low = source.qualities.filter(q => !q.local).sort((a, b) => (a.res || 9999) - (b.res || 9999))[0]
+        if (!low) return
+        fetch(`/api/intros/${d.tmdbId}/${d.episode.season}/detect`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ episode: d.episode.number, src: low.src })
+        }).then(r => r.ok ? r.json() : null).then(job => {
+          if (!job || (job.status !== 'queued' && job.status !== 'running')) return
+          let tries = 0
+          const t = setInterval(() => {
+            if (++tries > 12) return clearInterval(t)
+            fetch(`/api/intros/${d.tmdbId}/${d.episode.season}/detect`).then(r => r.json()).then(st => {
+              if (st.status === 'queued' || st.status === 'running') return
+              clearInterval(t)
+              fetch(`/api/intros/${d.tmdbId}`).then(r => r.ok ? r.json() : []).then(list => {
+                _intros = Array.isArray(list) ? list : _intros
+                renderSettings()
+                const mine = _intros.filter(i => i.season === d.episode.season)[0]
+                if (announce && mine && mine.auto && video.currentTime < mine.end) toast('Úvod rozpoznán — Přeskočit úvod je připravené', 5000)
+              })
+            }).catch(() => {})
+          }, 40000)
+        }).catch(() => {})
       }
 
       function updateSkipIntro() {
@@ -3496,14 +3543,86 @@
         if (pauseScreen.classList.contains('show') || _pauseTimer) hidePauseScreen()
       }, { capture: true, passive: true }))
 
+      // ── Keep on the Pi (downloads.js on the server) ──
+      // A copy saved in FilmBox plays from there (instant, no buffering); the gear menu
+      // saves the one playing now.
+      let _download = null, _downloadTimer = null
+      function _downloadKey() {
+        const d = _playerData
+        if (!d || !d.tmdbId) return null
+        if (d.mediaType === 'tv') return d.episode ? `tv:${d.tmdbId}:S${String(d.episode.season).padStart(2, '0')}E${String(d.episode.number).padStart(2, '0')}` : null
+        return 'movie:' + d.tmdbId
+      }
+      function _localQuality(d) {
+        return { src: d.video, label: 'Z FilmBoxu' + (d.label ? ' · ' + d.label : ''), res: d.res || null, local: true }
+      }
+      function _useLocalCopy(d) {
+        if (!d || d.status !== 'done' || source.qualities.some(q => q.local)) return null
+        const q = _localQuality(d)
+        source.qualities.unshift(q)
+        if (!(source.subtitles || []).length && d.subtitles && d.subtitles.length) source.subtitles = d.subtitles.slice()
+        return q
+      }
+      function _findDownload() {
+        const key = _downloadKey()
+        if (!key) return Promise.resolve(null)
+        return fetch('/api/downloads/find?key=' + encodeURIComponent(key))
+          .then(r => r.ok ? r.json() : {}).then(d => { _download = d && d.id ? d : null; return _download })
+          .catch(() => null)
+      }
+      function _watchDownload() {
+        clearInterval(_downloadTimer)
+        if (!_download || (_download.status !== 'queued' && _download.status !== 'downloading')) return
+        _downloadTimer = setInterval(() => _findDownload().then(d => {
+          if (settingsOpen()) renderSettings()
+          if (!d || (d.status !== 'queued' && d.status !== 'downloading')) {
+            clearInterval(_downloadTimer)
+            if (d && d.status === 'done') { _useLocalCopy(d); toast('Uloženo ve FilmBoxu — příště to hraje odsud', 5000) }
+            if (d && d.status === 'failed') toast('Stahování se nepovedlo: ' + (d.error || ''), 6000)
+          }
+        }), 8000)
+      }
+      function _downloadLabel() {
+        const d = _download
+        if (!d) return null
+        if (d.status === 'done') return '✓ uloženo'
+        if (d.status === 'failed') return 'chyba — znovu'
+        if (d.status === 'queued') return 've frontě'
+        return d.size ? Math.floor(d.done / d.size * 100) + ' %' : 'začíná…'
+      }
+      function _downloadClick() {
+        const d = _download
+        if (d && d.status === 'done') {
+          const q = source.qualities.filter(x => x.local)[0] || _useLocalCopy(d)
+          if (q && currentQ !== q) { playQuality(q, video.currentTime, !video.paused); toast('Hraje kopie z FilmBoxu') }
+          return
+        }
+        if (d && d.status === 'failed') {
+          fetch(`/api/downloads/${d.id}/retry`, { method: 'POST' }).then(r => r.json()).then(x => { _download = x; _watchDownload(); renderSettings() })
+          return
+        }
+        if (d) return
+        const player = Object.assign({}, _playerData, { source: Object.assign({}, source, { qualities: source.qualities.filter(q => !q.local) }) })
+        delete player.alternatives
+        const q = currentQ && !currentQ.local ? currentQ : null
+        fetch('/api/downloads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player, src: q ? q.src : null }) })
+          .then(r => r.json().then(b => { if (!r.ok) throw new Error(b.error || 'Chyba'); return b }))
+          .then(x => { _download = x; _watchDownload(); renderSettings(); toast('Stahuji do FilmBoxu — klidně se dívejte dál', 5000) })
+          .catch(err => toast('Stáhnout nejde: ' + err.message, 5000))
+      }
+
       async function boot() {
         if (!source || !source.qualities.length) {
           showError('Pro toto video nejsou k dispozici žádné zdroje.')
           return
         }
-        if (linksExpired() && source.pageUrl) await refreshSource()
+        // Saved in FilmBox? Then from there.
+        const saved = source.qualities.some(q => q.local) ? null : await _findDownload()
+        const localQ = _useLocalCopy(saved) || source.qualities.filter(q => q.local)[0]
+        _watchDownload()
+        if (!localQ && linksExpired() && source.pageUrl) await refreshSource()
         buildSubtitleTracks()
-        playQuality(pickQuality(), 0, true)
+        playQuality(localQ || pickQuality(), 0, true)
         loadIntros()
       }
       if (_playerData) boot()

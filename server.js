@@ -21,9 +21,13 @@ const { fetchVideoPage, fetchFastsharePage, fetchSledujtetoPage, getMp4Info, han
 const sec = require('./security');
 const subtitles = require('./subtitles');
 const { srtToVtt } = subtitles;
-const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB, intros: introsDB, history: historyDB, ratings: ratingsDB, sanitizeProfile, DATA_DIR } = require('./db');
+const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB, intros: introsDB, history: historyDB, ratings: ratingsDB, household: householdDB, sanitizeProfile, DATA_DIR } = require('./db');
 const taste = require('./src/js/taste');
 const csfd = require('./csfd');
+const introdetect = require('./introdetect');
+const kidsFilter = require('./kids');
+const notify = require('./notify');
+const { createDownloads } = require('./downloads');
 const { computeStats, PERIODS } = require('./stats');
 const cast = require('./cast');
 const relevance = require('./src/js/relevance');
@@ -142,6 +146,10 @@ async function tmdbFetch(path) {
 }
 
 // ── TMDB proxy endpoints ──
+// ── Kids profiles (kids.js): ?kids=1 → children's titles only ──
+const { KIDS_DISCOVER, NOT_FOR_KIDS } = kidsFilter;
+app.use('/tmdb', kidsFilter.middleware);
+
 app.get('/tmdb/search', async (req, res) => {
     const q = req.query.q;
     if (!q) return res.status(400).json({ error: 'Chybí q' });
@@ -151,7 +159,8 @@ app.get('/tmdb/search', async (req, res) => {
 });
 
 app.get('/tmdb/hero', async (req, res) => {
-    try { res.json(await tmdbFetch('/trending/movie/week?language=cs-CZ')); }
+    const p = req.kids ? `/discover/movie?language=cs-CZ&with_genres=10751&sort_by=popularity.desc&${KIDS_DISCOVER}` : '/trending/movie/week?language=cs-CZ';
+    try { res.json(await tmdbFetch(p)); }
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -257,7 +266,12 @@ app.get('/tmdb/movies', async (req, res) => {
         trending:  '/trending/all/week?language=cs-CZ',
         top_rated: '/movie/top_rated?language=cs-CZ'
     };
-    const p = paths[req.query.type];
+    const kidsPaths = {
+        popular:   `/discover/movie?language=cs-CZ&with_genres=10751&sort_by=popularity.desc&${KIDS_DISCOVER}`,
+        trending:  `/discover/movie?language=cs-CZ&with_genres=16&sort_by=popularity.desc&${KIDS_DISCOVER}`,
+        top_rated: `/discover/movie?language=cs-CZ&with_genres=10751&sort_by=vote_average.desc&vote_count.gte=300&${KIDS_DISCOVER}`
+    };
+    const p = (req.kids ? kidsPaths : paths)[req.query.type];
     if (!p) return res.status(400).json({ error: 'Neznámý type' });
     const page = Math.min(500, Math.max(1, parseInt(req.query.page, 10) || 1));   // TMDB caps at 500
     try { res.json(await tmdbFetch(p + `&page=${page}`)); }
@@ -285,6 +299,10 @@ app.get('/tmdb/discover', async (req, res) => {
     if (sort === 'newest') q.set(type === 'tv' ? 'first_air_date.lte' : 'primary_release_date.lte', new Date().toISOString().slice(0, 10));
     const genre = sec.toId(req.query.genre);
     if (genre) q.set('with_genres', String(genre));
+    if (req.kids) {
+        if (!genre) q.set('with_genres', type === 'tv' ? '10762' : '10751');
+        q.set('without_genres', NOT_FOR_KIDS.join(','));
+    }
     // Year range (decade chips in the UI): from / to, inclusive.
     const from = sec.toId(req.query.from), to = sec.toId(req.query.to);
     const field = type === 'tv' ? 'first_air_date' : 'primary_release_date';
@@ -1012,6 +1030,39 @@ app.put('/api/intros/:tmdbId/:season', (req, res) => {
     introsDB.set(tmdbId, season, marks);
     res.json({ ok: true, season, ...marks });
 });
+// ── Automatic intro + credits detection (introdetect.js, needs ffmpeg) ──
+// The player asks for it when a season has no mark yet: { episode, src } where src is
+// this episode's (lowest quality) CDN link. The other episode is found like rooms do.
+const introDetector = introdetect.createDetector({
+    intros: introsDB,
+    findEpisodeSrc: async (tmdbId, season, number) => {
+        try {
+            const p = await findRoomPlayer({ tmdbId, mediaType: 'tv', episode: { season, number } }, {});
+            const low = p.source.qualities.slice().sort((a, b) => (a.res || 9999) - (b.res || 9999))[0];
+            return low ? low.src : null;
+        } catch (e) { return null; }
+    }
+});
+app.post('/api/intros/:tmdbId/:season/detect', async (req, res) => {
+    if (process.env.FILMBOX_AUTO_INTRO === '0') return res.status(403).json({ error: 'Rozpoznávání úvodů je vypnuté' });
+    const tmdbId = sec.toId(req.params.tmdbId);
+    const season = sec.season(req.params.season);
+    const episode = parseInt(req.body && req.body.episode, 10);
+    const src = req.body && req.body.src;
+    if (!tmdbId || !season || !(episode > 0 && episode < 1000)) return res.status(400).json({ error: 'Neplatné parametry' });
+    if (typeof src !== 'string' || !isAllowedCdnUrl(src)) return res.status(400).json({ error: 'Nepovolený odkaz na video' });
+    if (!(await introdetect.hasFfmpeg())) return res.status(501).json({ error: 'Na serveru chybí ffmpeg' });
+    const job = introDetector.request({ tmdbId, season, episode, src });
+    res.status(202).json({ status: job.status });
+});
+app.get('/api/intros/:tmdbId/:season/detect', (req, res) => {
+    const tmdbId = sec.toId(req.params.tmdbId);
+    const season = sec.season(req.params.season);
+    if (!tmdbId || season == null) return res.status(400).json({ error: 'Neplatné parametry' });
+    const job = introDetector.status(tmdbId, season);
+    res.json(job ? { status: job.status, error: job.error || null } : { status: 'none' });
+});
+
 app.delete('/api/intros/:tmdbId/:season', (req, res) => {
     const tmdbId = sec.toId(req.params.tmdbId);
     const season = sec.season(req.params.season);
@@ -1055,7 +1106,7 @@ app.post('/api/profiles', (req, res) => {
     const { changes, error } = sec.profileChanges(req.body, true);
     if (error) return res.status(400).json({ error });
     try {
-        const profile = profilesDB.create({ name: changes.name, picture: changes.picture || null, theme: changes.theme || 'dark' });
+        const profile = profilesDB.create({ name: changes.name, picture: changes.picture || null, theme: changes.theme || 'dark', kids: !!changes.kids });
         res.status(201).json(sanitizeProfile(profile));
     } catch (err) {
         res.status(err.code === 409 ? 409 : 400).json({ error: err.message });
@@ -1063,6 +1114,37 @@ app.post('/api/profiles', (req, res) => {
 });
 
 // Verify a PIN attempt → { ok, token }. Rate-limited; doesn't need a session.
+// ── Household: parent PIN for kids profiles ──
+app.get('/api/household', (req, res) => res.json({ parentPin: householdDB.hasParentPin() }));
+function parentPinOk(req, res, pin) {
+    const wait = sec.retryAfter(req, 'parent');
+    if (wait) {
+        res.set('Retry-After', String(wait));
+        res.status(429).json({ error: `Příliš mnoho pokusů — zkuste to za ${Math.ceil(wait / 60)} min` });
+        return false;
+    }
+    if (!householdDB.checkParentPin(pin)) { sec.recordFailure(req, 'parent'); return null; }
+    sec.clearFailures(req, 'parent');
+    return true;
+}
+app.post('/api/household/parent-pin/verify', (req, res) => {
+    if (!householdDB.hasParentPin()) return res.json({ ok: true });
+    const ok = parentPinOk(req, res, req.body && req.body.pin);
+    if (ok !== false) res.json({ ok: !!ok });
+});
+// { pin: '1234' | null, currentPin } — changing or removing it needs the current one.
+app.put('/api/household/parent-pin', (req, res) => {
+    const b = req.body || {};
+    if (householdDB.hasParentPin()) {
+        const ok = parentPinOk(req, res, b.currentPin);
+        if (ok === false) return;
+        if (!ok) return res.status(403).json({ error: 'Nesprávný současný rodičovský PIN' });
+    }
+    try { householdDB.setParentPin(b.pin == null ? null : String(b.pin)); }
+    catch (err) { return res.status(400).json({ error: err.message }); }
+    res.json({ ok: true, parentPin: householdDB.hasParentPin() });
+});
+
 app.post('/api/profiles/:id/pin/verify', (req, res) => {
     const id = req.params.id;
     const profile = profilesDB.get(id);
@@ -1099,6 +1181,16 @@ app.get('/api/profiles/:id', (req, res) => {
 app.put('/api/profiles/:id', (req, res) => {
     const { changes, error } = sec.profileChanges(req.body, false);
     if (error) return res.status(400).json({ error });
+    // A kids profile becomes a normal one only with the parent PIN (when there is one).
+    if (changes.kids === false && req.profile.kids && householdDB.hasParentPin()) {
+        const wait = sec.retryAfter(req, 'parent');
+        if (wait) return res.status(429).json({ error: `Příliš mnoho pokusů — zkuste to za ${Math.ceil(wait / 60)} min` });
+        if (!householdDB.checkParentPin(req.body.parentPin)) {
+            sec.recordFailure(req, 'parent');
+            return res.status(403).json({ error: 'Vyžadován rodičovský PIN', parentPinRequired: true });
+        }
+        sec.clearFailures(req, 'parent');
+    }
     try {
         res.json(sanitizeProfile(profilesDB.update(req.params.id, changes)));
     } catch (err) {
@@ -1272,6 +1364,65 @@ app.delete('/api/profiles/:id/data', (req, res) => {
     ratingsDB.deleteByProfile(id);
     tasteCache.delete(id);
     res.json({ ok: true });
+});
+
+// ── New-episode notifications via ntfy (notify.js) ──
+const notifier = notify.createNotifier({
+    dataDir: DATA_DIR,
+    profiles: profilesDB, progress: progressDB, watched: watchedDB, favorites: favoritesDB,
+    tmdbFetch,
+    post: notify.ntfyPost(process.env.NTFY_SERVER || 'https://ntfy.sh')
+});
+if (process.env.FILMBOX_NOTIFY !== '0') notifier.start();
+app.post('/api/profiles/:id/notify/test', async (req, res) => {
+    const topic = req.profile.settings && req.profile.settings.ntfyTopic;
+    if (!topic) return res.status(400).json({ error: 'Nejdřív uložte téma' });
+    try {
+        await notifier.publish(topic, 'FilmBox: upozornění fungují 🎉', 'Až u seriálů, které sledujete, vyjde nový díl, dáme vědět sem.');
+        res.json({ ok: true });
+    } catch (err) { res.status(502).json({ error: 'ntfy není dostupné: ' + err.message }); }
+});
+
+// ── Keep on the Pi (downloads.js) ──
+const downloads = createDownloads({
+    dir: process.env.FILMBOX_DOWNLOAD_DIR || path.join(DATA_DIR, 'downloads'),
+    dataDir: DATA_DIR,
+    resolveVideo, getMp4Info, loadSubtitle, isAllowedCdnUrl, UA
+});
+app.get('/api/downloads', async (req, res) => {
+    const free = await downloads.freeBytes();
+    res.json({ items: downloads.list(), free: Number.isFinite(free) ? free : null });
+});
+app.get('/api/downloads/find', (req, res) => {
+    const key = String(req.query.key || '');
+    if (!/^(movie:\d+|tv:\d+:S\d{2}E\d{2,3})$/.test(key)) return res.status(400).json({ error: 'Neplatný klíč' });
+    res.json(downloads.find(key) || {});
+});
+// { player (as the player has it), src: the quality to keep }
+app.post('/api/downloads', (req, res) => {
+    const b = req.body || {};
+    const bad = checkPlayer(b.player);
+    if (bad) return res.status(400).json({ error: bad });
+    try { res.status(201).json(downloads.add(b.player, typeof b.src === 'string' ? b.src : null)); }
+    catch (err) { res.status(err.code === 400 ? 400 : 500).json({ error: err.message }); }
+});
+app.post('/api/downloads/:id/retry', (req, res) => {
+    const d = downloads.retry(String(req.params.id));
+    if (!d) return res.status(404).json({ error: 'Nenalezeno' });
+    res.json(d);
+});
+app.delete('/api/downloads/:id', async (req, res) => {
+    res.json({ ok: await downloads.remove(String(req.params.id)) });
+});
+app.get('/downloads/:id/video', (req, res) => {
+    const f = downloads.videoFile(String(req.params.id));
+    if (!f) return res.status(404).json({ error: 'Nenalezeno' });
+    res.sendFile(f, { headers: { 'Content-Type': 'video/mp4' } });
+});
+app.get('/downloads/:id/sub/:n', (req, res) => {
+    const f = downloads.subFile(String(req.params.id), parseInt(req.params.n, 10));
+    if (!f) return res.status(404).json({ error: 'Nenalezeno' });
+    res.sendFile(f, { headers: { 'Content-Type': 'text/vtt; charset=utf-8' } });
 });
 
 // ── Server page: version, updates, health (admin.js) ──

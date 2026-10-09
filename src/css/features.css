@@ -242,3 +242,12 @@ body.kbd .remote-main button:focus { outline: none; box-shadow: 0 0 0 3px var(--
 .server-errlist ul { list-style: none; margin: 10px 0 0; padding: 0; font-size: 13px; }
 .server-errlist li { padding: 8px 0; border-top: 1px solid var(--line); word-break: break-word; }
 .server-errlist time { color: var(--muted); margin-right: 8px; }
+.muted-inline { color: var(--muted); font-weight: 500; font-size: 14px; margin-left: 6px; }
+.server-dl { list-style: none; margin: 0; padding: 0; }
+.server-dl li { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.server-dl li > * + * { margin-left: 8px; }
+.server-dl-main { -webkit-flex: 1; flex: 1; min-width: 0; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; }
+.server-dl-main b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.server-dl-main span { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.server-dl-bar { height: 4px; border-radius: 4px; background: var(--surface-3, rgba(255,255,255,0.12)); margin-top: 6px; overflow: hidden; }
+.server-dl-bar i { display: block; height: 100%; background: var(--accent); transition: width 0.6s ease; }

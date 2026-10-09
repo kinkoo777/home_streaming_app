@@ -150,6 +150,10 @@ function profileChanges(b, creating) {
         if (b.theme !== 'dark' && b.theme !== 'light') return { error: 'Neplatný motiv' };
         changes.theme = b.theme;
     }
+    if (b.kids !== undefined) {
+        if (typeof b.kids !== 'boolean') return { error: 'Neplatná hodnota kids' };
+        changes.kids = b.kids;
+    }
     if (b.picture !== undefined) {
         if (b.picture !== null && !(typeof b.picture === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(b.picture) && b.picture.length <= MAX_PICTURE)) {
             return { error: 'Neplatný obrázek' };
@@ -164,6 +168,13 @@ function profileChanges(b, creating) {
             if (b.settings[k] === undefined) continue;
             if (!SETTINGS_CHOICES[k].includes(b.settings[k])) return { error: 'Neplatné nastavení: ' + k };
             s[k] = b.settings[k];
+        }
+        // ntfy topic for new-episode notifications ('' = off)
+        const topic = b.settings.ntfyTopic;
+        if (topic !== undefined) {
+            if (topic === null || topic === '') s.ntfyTopic = '';
+            else if (typeof topic === 'string' && /^[A-Za-z0-9_-]{6,64}$/.test(topic)) s.ntfyTopic = topic;
+            else return { error: 'Téma ntfy: 6–64 znaků, jen písmena bez diakritiky, číslice, - a _' };
         }
         // Version of the "what's new" video this profile has already seen.
         const seen = b.settings.seenWhatsNew;
