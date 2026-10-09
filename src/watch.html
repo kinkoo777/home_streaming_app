@@ -42,6 +42,12 @@
       </div>
       <button id="lobby-btn" class="btn btn-glass btn-sm" style="display:none" title="Zastavit film a vybrat jiný"><i class="bi bi-collection-play"></i><span> Jiný film</span></button>
       <button id="next-btn" class="btn btn-glass btn-sm" style="display:none"><i class="bi bi-skip-end-fill"></i><span> Další díl</span></button>
+      <button id="voice-btn" class="btn btn-glass btn-sm" title="Hlasový hovor s ostatními"><i class="bi bi-mic-fill"></i><span> Hlas</span></button>
+      <button id="voice-mute" class="btn btn-glass btn-sm" style="display:none" title="Ztlumit / zapnout mikrofon" aria-label="Ztlumit mikrofon"><i class="bi bi-mic-mute-fill"></i></button>
+      <div class="menu-wrap" id="tv-wrap" style="display:none">
+        <button id="tv-btn" class="btn btn-glass btn-sm" title="Pustit místnost na televizi" aria-haspopup="menu"><i class="bi bi-tv"></i><span> Na TV</span></button>
+        <div class="menu menu-down" id="tv-menu" role="menu"></div>
+      </div>
       <button id="invite-btn" class="btn btn-glass btn-sm"><i class="bi bi-person-plus-fill"></i><span> Pozvat</span></button>
       <button id="leave-btn" class="btn btn-ghost btn-sm"><i class="bi bi-box-arrow-right"></i><span> Odejít</span></button>
     </header>
@@ -55,6 +61,8 @@
           <div class="reactions-layer" id="reactions-layer" aria-hidden="true"></div>
           <div class="stage-chat" id="stage-chat" aria-hidden="true"></div>
           <div class="stage-msg" id="stage-msg" role="status"></div>
+          <!-- Planned start: a countdown until the film starts by itself -->
+          <div class="countdown" id="countdown" style="display:none"><span>Začínáme za</span><b id="countdown-left">0:00</b><small id="countdown-at"></small></div>
           <div class="spinner" id="spinner"><i class="bi bi-arrow-repeat"></i></div>
           <div class="tap-play" id="tap-play" style="display:none">
             <button id="tap-play-btn" class="btn btn-primary btn-lg"><i class="bi bi-play-fill"></i> Spustit</button>

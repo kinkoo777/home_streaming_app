@@ -681,3 +681,40 @@ body:not(.dark) .source-tags .t-subs { color: #a16207; }
 }
 #whatsnew-progress-fill { width: 0; height: 100%; background: var(--accent-grad); }
 body.tv .whatsnew-actions .btn { height: 56px; padding: 0 26px; font-size: 19px; }
+
+/* ═════════════ Ratings, match, ČSFD, providers (ratings.js, detail.js) ═════════════ */
+.rate-group { display: -webkit-inline-flex; display: inline-flex; -webkit-align-items: center; align-items: center; margin-left: 4px; }
+.rate-group > * + * { margin-left: 4px; }
+.rate-btn {
+  width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2);
+  color: var(--text); font-size: 17px; cursor: pointer; display: -webkit-inline-flex; display: inline-flex;
+  -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center;
+  transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+.rate-btn:hover { transform: scale(1.08); border-color: var(--text); }
+.rate-btn.on { background: var(--text); color: var(--bg, #000); border-color: var(--text); }
+.rate-btn .dbl { position: relative; display: inline-block; width: 22px; height: 18px; }
+.rate-btn .dbl i { position: absolute; top: 0; font-size: 15px; }
+.rate-btn .dbl i:first-child { left: 0; }
+.rate-btn .dbl i:last-child { left: 7px; top: 2px; }
+body.kbd .rate-btn:focus { box-shadow: 0 0 0 3px var(--accent); outline: none; }
+
+.match-badge { color: #22c55e; font-weight: 700; white-space: nowrap; }
+.match-badge:not(.high) { color: var(--muted); }
+.csfd-badge { font-weight: 700; text-decoration: none; padding: 2px 8px; border-radius: 6px; color: #fff; white-space: nowrap; }
+.csfd-badge.good { background: #ba0305; }
+.csfd-badge.mid { background: #658db4; }
+.csfd-badge.bad { background: #535353; }
+
+.detail-providers .prov-group { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-flex-wrap: wrap; flex-wrap: wrap; margin-bottom: 10px; }
+.prov-label { width: 150px; color: var(--muted); font-size: 14px; }
+.prov-list { display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap; }
+.prov {
+  display: -webkit-inline-flex; display: inline-flex; -webkit-align-items: center; align-items: center;
+  margin: 4px 8px 4px 0; padding: 4px 10px 4px 4px; border-radius: 10px; background: var(--surface-2);
+  border: 1px solid var(--line); color: var(--text); text-decoration: none; font-size: 14px;
+}
+.prov img { width: 28px; height: 28px; border-radius: 7px; margin-right: 8px; }
+.prov:hover { border-color: var(--text); }
+.prov-note { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
+@media (max-width: 600px) { .prov-label { width: 100%; margin-bottom: 4px; } }

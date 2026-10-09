@@ -29,6 +29,7 @@
   let members = []
   let qualityIdx = 0
   let viaProxy = false
+  let refreshedVersion = -1        // the video version that came from a link refresh
   let subIdx = -1
   let blocked = false           // autoplay refused until the next tap
   let buffering = false
@@ -37,6 +38,12 @@
   let ended = false
   let poll = { items: [], finding: null, error: null }
   let lastPollError = null
+  let startAt = null            // planned start (epoch ms, server clock)
+  let queue = []                // films to play one after another
+  let marathon = false          // series: the next episode starts by itself
+  // On a TV (the LG app, or opened from "Na TV" with ?tv=1): big picture, remote keys.
+  const IS_TV = /[?&]tv=1/.test(location.search) || /Web0S|webOS|Tizen|SMART-TV|SmartTV|HbbTV|NetCast/i.test(navigator.userAgent)
+  if (IS_TV) document.documentElement.classList.add('tv')
 
   function lsGet(k) { try { return localStorage.getItem(k) } catch (e) { return null } }
   function lsSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v) } catch (e) {} }
@@ -80,13 +87,22 @@
     $('join').style.display = ''
     $('app').style.display = 'none'
     $('join-title').textContent = info.title + (info.episodeLabel && info.title.indexOf(info.episodeLabel) < 0 ? ' ' + info.episodeLabel : '')
-    $('join-sub').textContent = (info.host ? 'Zve vás ' + info.host : 'Místnost') + ' · ' + info.count + (info.count === 1 ? ' člověk' : info.count < 5 ? ' lidé' : ' lidí') + ' uvnitř'
+    $('join-sub').textContent = (info.host ? 'Zve vás ' + info.host : 'Místnost') + ' · ' + info.count + (info.count === 1 ? ' člověk' : info.count < 5 ? ' lidé' : ' lidí') + ' uvnitř' +
+      (info.startAt ? ' · začátek ' + clock(info.startAt) : '')
     if (info.posterPath) { $('join-poster').src = 'https://image.tmdb.org/t/p/w342' + info.posterPath; $('join-poster').style.display = '' }
     if (info.locked) { $('join-error').textContent = 'Hostitel místnost zamkl — noví lidé se teď připojit nemohou.'; return }
     if (info.full) { $('join-error').textContent = 'Místnost je plná.'; return }
     $('join-form').style.display = ''
     $('join-name').value = lsGet('filmbox_room_name') || profileName() || ''
+    // A TV sent here from a phone joins by itself.
+    if (IS_TV && /[?&]tv=1/.test(location.search)) { $('join-name').value = 'Televize'; $('join-form').requestSubmit ? $('join-form').requestSubmit() : $('join-form').dispatchEvent(new Event('submit', { cancelable: true })); return }
     $('join-name').focus()
+  }
+  // 20:00 (today) / zítra 20:00
+  function clock(t) {
+    const d = new Date(t), today = new Date()
+    const hm = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0')
+    return d.toDateString() === today.toDateString() ? 've ' + hm : 'zítra v ' + hm
   }
   function profileName() {
     try { const p = JSON.parse(sessionStorage.getItem('filmbox_active_profile') || 'null'); return p && p.name } catch (e) { return null }
@@ -146,7 +162,12 @@
         $('chat-list').innerHTML = ''
         msg.chat.forEach(m => addChat(m, true))
         poll = msg.poll || poll
+        startAt = msg.startAt || null
+        queue = msg.queue || []
+        marathon = !!msg.marathon
         renderAll()
+        renderCountdown()
+        initTvButton()
         if (msg.videoVersion !== videoVersion) loadVideo(msg.video, msg.videoVersion)
         applyState(msg.state)
         break
@@ -155,6 +176,7 @@
         if (msg.by && me && msg.by.id !== me.id) stageMsg(msg.by.name + ' ' + ({ play: 'spustil přehrávání', pause: 'pozastavil', seek: 'přetočil na ' + fmt(msg.state.position) })[msg.action])
         break
       case 'video':
+        refreshedVersion = msg.refreshed ? msg.videoVersion : -1
         loadVideo(msg.video, msg.videoVersion)
         applyState(msg.state)
         if (!msg.refreshed && msg.video) stageMsg('Hraje: ' + msg.video.title)
@@ -169,6 +191,22 @@
         members = msg.members
         renderPeople()
         renderStatus()
+        voiceSync()
+        break
+      case 'schedule':
+        startAt = msg.startAt || null
+        renderCountdown()
+        renderSettings()
+        if (msg.started) stageMsg('Začínáme! 🍿')
+        break
+      case 'queue':
+        queue = msg.queue || []
+        marathon = !!msg.marathon
+        renderPoll()
+        renderGear()
+        break
+      case 'signal':
+        voiceSignal(msg.from, msg.data)
         break
       case 'you':
         me = msg.you
@@ -177,7 +215,7 @@
         break
       case 'switching':
         if (msg.error) toast(msg.error, 6000)
-        else stageMsg((msg.by || 'Někdo') + ' přepíná zdroj videa…')
+        else stageMsg(msg.next ? 'Pouštím další…' : msg.auto ? 'Zdroj nefunguje — hledám jiný…' : (msg.by || 'Někdo') + ' přepíná zdroj videa…')
         break
       case 'chat': addChat(msg.message); break
       case 'reaction': floatReaction(msg.emoji, msg.from.name); break
@@ -274,8 +312,13 @@
     }
     if (refreshing) return
     refreshing = true
-    toast('Obnovuji odkaz na video…')
-    api('POST', '/refresh').catch(err => toast(err.message, 4000)).then(() => { refreshing = false })
+    // Fresh links that still don't play → tell the server; it moves the room to another upload.
+    const failed = refreshedVersion === videoVersion
+    if (!failed) toast('Obnovuji odkaz na video…')
+    api('POST', '/refresh', failed ? { failed: true, videoVersion: videoVersion } : undefined)
+      .then(r => { if (r && r.waiting) toast('Video se vám nedaří načíst — zkuste nižší kvalitu nebo počkejte, než se přidá ještě někdo', 7000) })
+      .catch(err => toast(err.message, 4000))
+      .then(() => { refreshing = false })
   })
   video.addEventListener('loadedmetadata', () => { sync(true); renderTime() })
 
@@ -424,7 +467,9 @@
     if (!videoInfo) return
     // Another upload for everyone — for those who control playback, when the film is known.
     const canSwitch = me && me.perms.control && videoInfo.tmdbId && (videoInfo.mediaType !== 'tv' || videoInfo.episode)
+    const canMarathon = me && me.perms.control && videoInfo.mediaType === 'tv' && videoInfo.episode
     let html = (canSwitch ? '<button class="menu-action" data-sources="1"><i class="bi bi-collection-play"></i>Jiný zdroj videa…</button>' : '') +
+      (canMarathon ? `<button class="menu-action" data-marathon="1"><i class="bi ${marathon ? 'bi-toggle-on' : 'bi-toggle-off'}"></i>Maraton — další díly samy</button>` : '') +
       (viaProxy ? '<div class="menu-note">Přes server hostitele — při sekání zkuste nižší kvalitu</div>' : '') +
       '<div class="menu-title">Kvalita</div>' + videoInfo.qualities.map((q, i) =>
       `<button data-q="${i}" class="${i === qualityIdx ? 'on' : ''}"><i class="bi bi-check-lg"></i>${esc(q.label || (q.res ? q.res + 'p' : 'Zdroj ' + (i + 1)))}</button>`).join('')
@@ -444,6 +489,10 @@
     if (b.dataset.sources) {
       $('gear-menu').classList.remove('open')
       openSources({ mode: 'switch', title: videoInfo.title })
+      return
+    }
+    if (b.dataset.marathon) {
+      api('POST', '/marathon', { on: !marathon }).catch(err => toast(err.message))
       return
     }
     if (b.dataset.q != null) {
@@ -537,9 +586,9 @@
         if (me.perms.kick && rank[m.role] < rank[me.role]) tools += `<button class="kick" data-mid="${esc(m.id)}" data-name="${esc(m.name)}" title="Odebrat z místnosti" aria-label="Odebrat ${esc(m.name)}"><i class="bi bi-person-x-fill"></i></button>`
       }
       return `
-        <li class="${m.online ? '' : 'offline'}">
+        <li class="${m.online ? '' : 'offline'}${speaking[m.id] ? ' speaking' : ''}" data-mid="${esc(m.id)}">
           <span class="avatar" style="background:${avatarColor(m.name)}">${esc(m.name.charAt(0).toUpperCase())}</span>
-          <span class="who"><b>${esc(m.name)}${self ? ' <small>(vy)</small>' : ''}</b><small class="role ${m.role}">${ROLE_NAMES[m.role]}${status ? ' · ' + status : ''}</small></span>
+          <span class="who"><b>${esc(m.name)}${self ? ' <small>(vy)</small>' : ''}${m.voice ? ` <i class="bi ${m.muted ? 'bi-mic-mute-fill muted-mic' : 'bi-mic-fill'} voice-ico" title="${m.muted ? 'V hovoru, ztlumený' : 'V hovoru'}"></i>` : ''}</b><small class="role ${m.role}">${ROLE_NAMES[m.role]}${status ? ' · ' + status : ''}</small></span>
           ${tools}
         </li>`
     }).join('')
@@ -580,6 +629,15 @@
         </table>
         <p class="muted small">Hostitel smí vždy všechno. Role jednotlivých lidí měníte v záložce Lidé.</p>
       </div>
+      <div class="set-group">
+        <span class="set-label">Začátek ${startAt ? '<small>' + esc(clock(startAt)) + '</small>' : '<small>kdykoli — pouštíte ručně</small>'}</span>
+        <div class="set-row">
+          <input type="time" class="field" id="set-start" value="${startAt ? (d => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'))(new Date(startAt)) : ''}" aria-label="Čas začátku">
+          <button class="btn btn-glass btn-sm" id="set-start-save"><i class="bi bi-alarm"></i> Naplánovat</button>
+          ${startAt ? '<button class="btn btn-ghost btn-sm" id="set-start-clear">Zrušit</button>' : ''}
+        </div>
+        <p class="muted small">V daný čas se film všem spustí sám (do té doby odpočet). Pozvánka čas ukáže.</p>
+      </div>
       <button class="btn btn-danger" id="set-close"><i class="bi bi-x-circle"></i> Ukončit místnost pro všechny</button>`
   }
   function saveSettings(change) {
@@ -599,6 +657,16 @@
     const b = e.target.closest('#set-default [data-role]')
     if (b) { saveSettings({ defaultRole: b.dataset.role }); return }
     if (e.target.closest('#set-close')) closeRoom()
+    if (e.target.closest('#set-start-clear')) api('POST', '/schedule', { at: null }).catch(err => toast(err.message))
+    if (e.target.closest('#set-start-save')) {
+      const v = $('set-start').value
+      if (!/^\d{1,2}:\d{2}$/.test(v)) { toast('Zadejte čas, např. 20:00'); return }
+      const parts = v.split(':').map(Number)
+      const d = new Date(now())
+      d.setHours(parts[0], parts[1], 0, 0)
+      if (d.getTime() < now() + 60000) d.setDate(d.getDate() + 1)       // already past today → tomorrow
+      api('POST', '/schedule', { at: d.getTime() }).then(() => toast('Začátek ' + clock(d.getTime()))).catch(err => toast(err.message))
+    }
   })
 
   // ── Choosing a film together ──
@@ -681,6 +749,11 @@
       if (b.dataset.act === 'vote') api('POST', '/poll/' + id + '/vote').catch(err => toast(err.message))
       else if (b.dataset.act === 'remove') api('DELETE', '/poll/' + id).catch(err => toast(err.message))
       else if (b.dataset.act === 'play') startFromPoll(b.dataset.id, b.dataset.title)
+      else if (b.dataset.act === 'queue') api('POST', '/queue', { item: b.dataset.id }).then(() => toast('Ve frontě')).catch(err => toast(err.message))
+    })
+    box.addEventListener('click', e => {
+      const u = e.target.closest('[data-unqueue]')
+      if (u) api('DELETE', '/queue/' + encodeURIComponent(u.dataset.unqueue)).catch(err => toast(err.message))
     })
     box.querySelector('.poll-foot').addEventListener('click', e => {
       const b = e.target.closest('[data-act="play"]')
@@ -822,10 +895,15 @@
                 <i class="bi ${mine ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up'}"></i><span>${i.votes}</span>
               </button>
               ${canPlay ? `<button class="pi-play" data-act="play" data-id="${esc(i.id)}" data-title="${esc(i.title)}" title="Pustit teď všem"${poll.finding ? ' disabled' : ''}><i class="bi bi-play-fill"></i></button>` : ''}
+              ${canPlay && videoInfo ? `<button class="pi-queue" data-act="queue" data-id="${esc(i.id)}" title="Do fronty — pustí se po aktuálním filmu"><i class="bi bi-list-ol"></i></button>` : ''}
               ${removable ? `<button class="pi-remove" data-act="remove" data-id="${esc(i.id)}" title="Odebrat návrh"><i class="bi bi-x-lg"></i></button>` : ''}
             </div>
           </li>`
       }).join('') : `<p class="poll-empty">${me.perms.suggest ? 'Zatím žádné návrhy — vyhledejte film nahoře.' : 'Zatím žádné návrhy.'}</p>`
+      let qBox = box.querySelector('.poll-queue')
+      if (!qBox) { qBox = document.createElement('div'); qBox.className = 'poll-queue'; box.insertBefore(qBox, box.querySelector('.poll-status')) }
+      qBox.innerHTML = queue.length ? `<div class="pq-head"><i class="bi bi-list-ol"></i> Fronta — pustí se po sobě</div><ol>${queue.map((q, n) =>
+        `<li><span class="pq-n">${n + 1}</span><b>${esc(q.title)}</b><small>${esc(q.year || '')}</small>${canPlay ? `<button data-unqueue="${esc(q.id)}" title="Vyřadit z fronty" aria-label="Vyřadit ${esc(q.title)}"><i class="bi bi-x-lg"></i></button>` : ''}</li>`).join('')}</ol>` : ''
       box.querySelector('.poll-foot').innerHTML = canPlay && leader
         ? `<button class="btn btn-primary poll-winner" data-act="play" data-id="${esc(leader.id)}" data-title="${esc(leader.title)}"${poll.finding ? ' disabled' : ''}><i class="bi bi-trophy-fill"></i> Pustit vítěze: ${esc(leader.title)} (${leader.votes})</button>`
         : !canPlay && items.length ? '<p class="muted small">Film pustí hostitel' + (room && room.settings.perms.moderator.control ? ' nebo moderátor' : '') + '.</p>' : ''
@@ -981,9 +1059,9 @@
     const show = ON_MAIN && me && me.role === 'host' && videoInfo && videoInfo.episode && videoInfo.tmdbId
     $('next-btn').style.display = show ? '' : 'none'
   }
-  function loadScript(src) {
+  function loadScript(src, global) {
     return new Promise((resolve, reject) => {
-      if (window.FilmBoxRelevance) return resolve()
+      if (window[global]) return resolve()
       const s = document.createElement('script')
       s.src = src
       s.onload = resolve
@@ -996,10 +1074,16 @@
     const btn = $('next-btn')
     btn.disabled = true
     try {
-      await loadScript('/js/relevance.js')
-      const s = v.episode.season
-      const n = v.episode.number + 1
-      const code = 'S' + String(s).padStart(2, '0') + 'E' + String(n).padStart(2, '0')
+      await loadScript('/js/relevance.js', 'FilmBoxRelevance')
+      await loadScript('/js/episodes.js', 'FilmBoxEpisodes')
+      // After a season's last episode comes the next season; nothing after the last aired one.
+      let show = null
+      try { const r = await fetch('/tmdb/details?type=tv&id=' + encodeURIComponent(v.tmdbId)); if (r.ok) show = await r.json() } catch (e) {}
+      const info = window.FilmBoxEpisodes.nextEpisode(show, v.episode.season, v.episode.number)
+      if (!info.next) throw new Error(window.FilmBoxEpisodes.noNextMessage(info))
+      const s = info.next.season
+      const n = info.next.number
+      const code = info.next.code
       const base = v.title.replace(/\s*S\d{1,2}E\d{1,3}.*$/i, '').trim()
       toast('Hledám ' + code + '…', 6000)
       const results = await (await fetch('/search?q=' + encodeURIComponent(base + ' ' + code))).json()
@@ -1067,6 +1151,204 @@
   setInterval(() => { if (!video.paused) saveProgress(false) }, 60000)
   video.addEventListener('pause', () => saveProgress(false))
   window.addEventListener('pagehide', () => saveProgress(true))
+
+  // ── End of the film: the queue / marathon goes on (the server checks it really ended) ──
+  video.addEventListener('ended', () => {
+    if (!creds || !videoInfo) return
+    api('POST', '/ended', { videoVersion, duration: video.duration }).catch(() => {})
+  })
+
+  // ── Planned start: countdown on the stage ──
+  let cdTimer = null
+  function renderCountdown() {
+    clearInterval(cdTimer)
+    const box = $('countdown')
+    const tick = () => {
+      const left = startAt ? Math.round((startAt - now()) / 1000) : 0
+      if (left <= 0) { box.style.display = 'none'; clearInterval(cdTimer); return }
+      box.style.display = ''
+      const h = Math.floor(left / 3600), m = Math.floor(left % 3600 / 60), sec = left % 60
+      $('countdown-left').textContent = (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0')
+      $('countdown-at').textContent = (videoInfo ? videoInfo.title + ' · ' : '') + clock(startAt)
+    }
+    tick()
+    if (startAt) cdTimer = setInterval(tick, 1000)
+  }
+
+  // ── "Na TV": open this room on a TV with FilmBox (home server only) ──
+  let tvChecked = false
+  function initTvButton() {
+    if (tvChecked || !ON_MAIN || IS_TV) return
+    tvChecked = true
+    fetch('/api/cast/devices').then(r => r.ok ? r.json() : []).then(list => {
+      const tvs = (Array.isArray(list) ? list : list.devices || []).filter(d => d && d.id)
+      if (!tvs.length) return
+      $('tv-wrap').style.display = ''
+      $('tv-menu').innerHTML = '<div class="menu-title">Pustit místnost na</div>' + tvs.map(d => `<button data-tv="${esc(d.id)}"><i class="bi bi-tv"></i>${esc(d.name || 'Televize')}</button>`).join('')
+    }).catch(() => {})
+  }
+  $('tv-btn').addEventListener('click', e => { e.stopPropagation(); $('tv-menu').classList.toggle('open') })
+  document.addEventListener('click', () => $('tv-menu').classList.remove('open'))
+  $('tv-menu').addEventListener('click', e => {
+    const b = e.target.closest('[data-tv]')
+    if (!b) return
+    $('tv-menu').classList.remove('open')
+    fetch('/api/cast/' + encodeURIComponent(b.dataset.tv) + '/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'room', room: ROOM }) })
+      .then(r => r.json().then(x => { if (!r.ok) throw new Error(x.error || 'Nepovedlo se') }))
+      .then(() => toast('Televize se připojuje do místnosti…', 5000))
+      .catch(err => toast(err.message))
+  })
+
+  // ── Voice chat ── WebRTC browser to browser (the server only passes the
+  // signalling). Whoever joins calls everyone already in. Needs https (or localhost).
+  const ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }]
+  const voice = { on: false, muted: false, stream: null, peers: {}, early: {} }
+  const speaking = {}
+  let audioCtx = null, levelTimer = null
+  const meters = {}               // member id → analyser
+  const lastLoud = {}             // member id → when they were last loud (the ring stays 0.7 s)
+  function voiceSignalSend(to, data) { api('POST', '/signal', { to, data }).catch(() => {}) }
+  function newPeer(id) {
+    const pc = new RTCPeerConnection({ iceServers: ICE })
+    voice.stream.getTracks().forEach(t => pc.addTrack(t, voice.stream))
+    pc.onicecandidate = e => { if (e.candidate) voiceSignalSend(id, { candidate: e.candidate.toJSON ? e.candidate.toJSON() : e.candidate }) }
+    const peer = { pc, pending: [], audio: null }
+    pc.ontrack = e => {
+      if (!peer.audio) {
+        peer.audio = document.createElement('audio')
+        peer.audio.autoplay = true
+        peer.audio.setAttribute('playsinline', '')
+        document.body.appendChild(peer.audio)
+      }
+      peer.audio.srcObject = e.streams[0]
+      const p = peer.audio.play()
+      if (p && p.catch) p.catch(() => {})
+      meter(id, e.streams[0])
+    }
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed') toast('Hlas s někým se nespojil — síť možná blokuje přímé spojení', 6000)
+    }
+    voice.peers[id] = peer
+    ;(voice.early[id] || []).forEach(c => peer.pending.push(c))
+    delete voice.early[id]
+    return peer
+  }
+  async function flush(peer) {
+    while (peer.pending.length) { try { await peer.pc.addIceCandidate(peer.pending.shift()) } catch (e) {} }
+  }
+  async function voiceCall(id) {
+    const peer = newPeer(id)
+    await peer.pc.setLocalDescription(await peer.pc.createOffer())
+    voiceSignalSend(id, { sdp: peer.pc.localDescription.toJSON ? peer.pc.localDescription.toJSON() : peer.pc.localDescription })
+  }
+  async function voiceSignal(from, data) {
+    if (!voice.on || !data) return
+    let peer = voice.peers[from]
+    try {
+      if (data.sdp && data.sdp.type === 'offer') {
+        if (peer) closePeer(from)
+        peer = newPeer(from)
+        await peer.pc.setRemoteDescription(data.sdp)
+        await peer.pc.setLocalDescription(await peer.pc.createAnswer())
+        voiceSignalSend(from, { sdp: peer.pc.localDescription.toJSON ? peer.pc.localDescription.toJSON() : peer.pc.localDescription })
+        flush(peer)
+      } else if (data.sdp && peer) {
+        await peer.pc.setRemoteDescription(data.sdp)
+        flush(peer)
+      } else if (data.candidate) {
+        if (!peer) (voice.early[from] = voice.early[from] || []).push(data.candidate)
+        else if (peer.pc.remoteDescription) await peer.pc.addIceCandidate(data.candidate)
+        else peer.pending.push(data.candidate)
+      }
+    } catch (e) { /* a broken handshake: the next join retries */ }
+  }
+  function closePeer(id) {
+    const p = voice.peers[id]
+    if (!p) return
+    try { p.pc.close() } catch (e) {}
+    if (p.audio) { p.audio.srcObject = null; p.audio.remove() }
+    delete voice.peers[id]
+    delete meters[id]
+    delete speaking[id]
+  }
+  // People who left the call (or the room) → hang up on them.
+  function voiceSync() {
+    if (!voice.on) return
+    const inCall = {}
+    members.forEach(m => { if (m.voice && m.online) inCall[m.id] = true })
+    Object.keys(voice.peers).forEach(id => { if (!inCall[id]) closePeer(id) })
+  }
+  // Who's speaking: a quick level meter per stream → a ring around them in Lidé.
+  function meter(id, stream) {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)()
+      // Created after the microphone prompt, Chrome starts it suspended — wake it up.
+      if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {})
+      const an = audioCtx.createAnalyser()
+      an.fftSize = 2048
+      audioCtx.createMediaStreamSource(stream).connect(an)
+      meters[id] = an
+    } catch (e) { return }
+    if (levelTimer) return
+    const buf = new Uint8Array(2048)
+    levelTimer = setInterval(() => {
+      const t = Date.now()
+      Object.keys(meters).forEach(mid => {
+        meters[mid].getByteTimeDomainData(buf)
+        let sum = 0
+        for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v }
+        if (Math.sqrt(sum / buf.length) > 0.04 && !(mid === (me && me.id) && voice.muted)) lastLoud[mid] = t
+        const on = t - (lastLoud[mid] || 0) < 700
+        if (!!speaking[mid] !== on) {
+          speaking[mid] = on
+          const li = document.querySelector('#people li[data-mid="' + mid + '"]')
+          if (li) li.classList.toggle('speaking', on)
+        }
+      })
+    }, 120)
+  }
+  async function voiceJoin() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.RTCPeerConnection) {
+      toast('Hlas tu nejde — prohlížeč pouští mikrofon jen přes https (odkaz pro přátele)', 7000)
+      return
+    }
+    try { voice.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }) }
+    catch (e) { toast('Mikrofon není povolený'); return }
+    let res
+    try { res = await api('POST', '/voice', { on: true, muted: false }) }
+    catch (err) { voice.stream.getTracks().forEach(t => t.stop()); voice.stream = null; toast(err.message); return }
+    voice.on = true
+    voice.muted = false
+    meter(me.id, voice.stream)
+    renderVoice()
+    ;(res.peers || []).forEach(id => voiceCall(id))
+  }
+  function voiceLeave() {
+    Object.keys(voice.peers).forEach(closePeer)
+    if (voice.stream) voice.stream.getTracks().forEach(t => t.stop())
+    voice.stream = null
+    voice.on = false
+    delete meters[me && me.id]
+    renderVoice()
+    api('POST', '/voice', { on: false }).catch(() => {})
+  }
+  function renderVoice() {
+    $('voice-btn').classList.toggle('on', voice.on)
+    $('voice-btn').innerHTML = voice.on ? '<i class="bi bi-telephone-x-fill"></i><span> Odejít z hlasu</span>' : '<i class="bi bi-mic-fill"></i><span> Hlas</span>'
+    $('voice-mute').style.display = voice.on ? '' : 'none'
+    $('voice-mute').classList.toggle('on', voice.muted)
+    $('voice-mute').innerHTML = '<i class="bi ' + (voice.muted ? 'bi-mic-mute-fill' : 'bi-mic-fill') + '"></i>'
+  }
+  $('voice-btn').addEventListener('click', () => { if (voice.on) voiceLeave(); else voiceJoin() })
+  document.addEventListener('click', () => { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(() => {}) }, true)
+  $('voice-mute').addEventListener('click', () => {
+    voice.muted = !voice.muted
+    if (voice.stream) voice.stream.getAudioTracks().forEach(t => { t.enabled = !voice.muted })
+    renderVoice()
+    api('POST', '/voice', { on: true, muted: voice.muted }).catch(() => {})
+  })
+  window.addEventListener('pagehide', () => { if (voice.on) voiceLeave() })
+  if (IS_TV) $('voice-btn').style.display = 'none'
 
   // ── Keyboard / TV remote ──
   document.addEventListener('keydown', e => {

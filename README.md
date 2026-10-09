@@ -21,7 +21,7 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 - **Per-episode watch state** — each episode in the detail view shows *Zhlédnuto* (watched), a progress bar with minutes left, or *Další na řadě* (next up); a season summary ("Zhlédnuto 3 z 10" + Pokračovat) and ✓ on fully watched seasons; episodes can be marked watched/unwatched by hand. Finished episodes stay in the progress store flagged `finished` (Continue Watching skips them)
 - **What's new video** — the first time each profile is opened after an update, a short full-screen video shows the new features (Skip button, TV Back key; falls back to muted with a *Zapnout zvuk* button if the browser blocks sound). Seen state is stored per profile on the server, so it plays once per profile, not per device
 - **Film series & watch guides** — a *Filmové série* row with hand-made guides (MCU, Star Wars, Wizarding World, Fast & Furious, Alien) and popular TMDB collections, each card showing "Viděno X z N". A guide opens a sheet with a **Podle vydání / Chronologicky** order toggle (remembered per guide), numbered films, ✓ marks, *Další na řadě* and a *Pokračovat* button. A film's detail shows **Součást série** with the whole collection in order, your progress and links to the full series/guide
-- **Next episode during the credits** — a "Další epizoda" card with a countdown in the last 45 s of an episode
+- **Next episode during the credits** — a "Další epizoda" card with a countdown in the last 45 s of an episode. After a season's last episode it continues with the next season's first; after the last episode of the show (or the newest one aired) it says so — *To byl poslední díl seriálu* / *Další díl vyjde 12. 10.* — instead of searching for an episode that doesn't exist
 - **Search** — live TMDB search with dropdown and search history; <kbd>Enter</kbd> shows a full results grid
 - **Detail modal** — backdrop header, poster, genres, cast (with characters), overview, trailer, season/episode browser with episode stills and per-episode progress, similar titles
 - **Source picker (prehraj.to)** — only real films/episodes are shown: results must match the title (search text, Czech or original TMDB name), be long enough (films ≥ 40 min, episodes ≥ 8 min), not be clips/trailers/gameplay/music videos, and for episodes carry the right SxxEyy/2x03 code; film searches drop series episodes. "Zobrazit vše" reveals the hidden rest. Results as cards with thumbnail, duration, size, quality and CZ-dub/subtitle tags, filters and a recommended pick; plays in the FilmBox player (quality, HDR fix, subtitles, resume)
@@ -43,6 +43,31 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 - **Sleep timer** — *Settings (gear) → Časovač vypnutí* in the player: at the end of this episode / film or after 15–90 minutes the video pauses (position saved) behind a black "Dobrou noc" screen; survives the jump to the next episode
 - **Skip intro** — mark a series' opening once in the player (*Settings → Úvod seriálu*: "Začátek úvodu je teď", "Konec úvodu je teď"); every episode of that season — and of seasons nobody has marked yet — then shows *Přeskočit úvod*. Marks are shared by all profiles
 - **Watching stats** — *Nastavení → Statistiky*: hours watched this month / year / in total (films vs. series), finished films and episodes, days with watching and the longest run of days, the last 12 months as columns, top genres and the most watched titles. Time is counted from playback the player reports (only real playing, never seeking); finished titles include older history
+- **Automatic source fallback** — when an upload stops working (deleted, blocked, keeps failing even with fresh links) the player moves on to the next one at the same second; once the backups that came from the source picker are used up it asks the server for the rest of that film's / episode's uploads (best first by the profile's playback preferences). Rooms do the same for everyone: the server switches the room when the upload's page is gone, or when fresh links still don't play for someone allowed to control playback or for two people (one guest's bad connection alone doesn't switch the film); the chat says *Zdroj přestal fungovat — přepnuto na jiný*
+- **Playback speed** — *Settings (gear) → Rychlost* in the player: 0,5× – 2×, or <kbd>&lt;</kbd> / <kbd>&gt;</kbd>; kept for the session, so the next episode plays at the same speed
+- **Server page** — *Nastavení → Server a aktualizace*: which version runs, the changes waiting on GitHub and **Aktualizovat a restartovat** (git pull → `npm ci` when the dependencies changed → restart; the page waits for the server and reloads), plus uptime, free disk space, memory, CPU temperature, open rooms, Funnel and the last errors. A red dot on the button means an update is waiting. See *Updating*
+- **Trailer previews** — like Netflix: 2.5 s after a hero slide appears its trailer fades in behind the text (muted; 🔇/🔊 button; the carousel waits until it ends; paused when you scroll away, open a window or hover a card). With a mouse, resting on a card for 0.7 s pops out a bigger preview with the trailer, rating, year, genres and *Přehrát* / *Můj seznam* / *Detail*. Czech trailers first, English when there's none (also in the trailer window). Off on TVs, with *Omezit animace*, with data saving, or per profile (*Nastavení → Přehrávat ukázky při procházení*)
+- **👎 / 👍 / 👍👍 ratings** — *Nelíbí se mi / Líbí se mi / Miluju to* in the detail, in the card pop-out (👍 opens the three choices) and at the end of a film (or after a series' last episode: *Jak se vám film líbil?*). Pressing the same one again takes it back. 👎 titles never appear in recommendations or *Co pustit?*; 👍 ones become seeds for them. Saved per profile (`data/ratings.json`, in the export, wiped with the data)
+- **% shoda** — "98 % shoda" in the detail and the card pop-out: how well a title's genres fit the profile's taste (built from ratings, favourites, watched and started titles — a dislike weighs most) plus its TMDB rating. Shown once the profile has rated / watched at least 3 titles; green from 80 %
+- **Protože se vám líbilo / Protože jste sledovali „X“** — up to two extra rows under *Doporučeno pro vás*, each built from one title: the latest 👍 and the latest finished one (only when they bring at least 6 titles not already on screen)
+- **ČSFD rating** — the detail shows the ČSFD score next to TMDB's (red / blue / grey like ČSFD, a link to the film there). Looked up by the Czech title (then the original one) and the year, cached for a week
+- **Kde jinde to běží** — in the detail: which streaming services have the title in Czechia, in the subscription, free, to rent or to buy (TMDB / JustWatch data, linked)
+- **Kids profiles** — *Dětský profil* when creating a profile or in its settings: only animated, family and kids titles everywhere (rows, hero, search, recommendations, browsing — no horror, thriller, crime or war; a grown-up title's detail is refused), no source search, rooms, server page or data wiping, and an orange *Děti* badge. With a household **rodičovský PIN** (*Nastavení → Rodičovský PIN*) a kids profile can only be left — or switched off — with that PIN
+- **New-episode notifications** — *Nastavení → Upozornění na nové díly*: pick a topic (*Vymyslet téma*), subscribe to it in the free **ntfy** app (Android / iPhone, no account) and the phone gets "Nový díl: Hra o trůny S02E05" when a series the profile follows (episodes in progress / watched, watched or favourite series) airs an episode it hasn't seen. Checked every hour, each episode once; *Poslat zkoušku* to try it
+- **Voice search** — a 🎤 in the search bar where the browser supports speech recognition (Chrome, Edge, Android, Safari): speak a title in Czech and it searches as you talk
+- **Automatic intro & credits detection** — when a season has no *Přeskočit úvod* mark yet, the server compares the audio of the playing episode with the next one (ffmpeg, first 8 min + last 4 min, lowest quality) and saves the shared opening as the season's mark and where the end credits start; *Další epizoda* then appears as the credits begin. A mark set by hand is never overwritten. Needs `ffmpeg` on the server (`sudo apt install ffmpeg`); off with `FILMBOX_AUTO_INTRO=0`
+- **Keep on the Pi** — *Settings (gear) → Stáhnout do FilmBoxu* in the player saves the film / episode on the server (with subtitles, HDR colours already fixed). From then on it plays from there — instantly, without buffering, even after the upload disappears — and appears in the *Uloženo ve FilmBoxu* row. One download at a time, resumes after a restart or an expired link, stops before the disk gets full; the Server page lists them with progress and *Smazat*
+- **FilmBox Wrapped — Rok ve FilmBoxu** — the profile's year as full-screen story slides like Spotify Wrapped: hours (films vs. series), the first title of the year, the most watched and the top 5, genre of the year, the biggest binge (most episodes of one series in a day), days with FilmBox and the longest run, favourite weekday, the best month, what it loved (👍👍), the household ranking, and a summary picture to save (PNG). Tap / arrows / OK to move on, hold to pause. From *Statistiky → Rok ve FilmBoxu* any time, and a banner on the home page in December and January
+- **Chytré „Co dnes?“** — in *Co pustit?* describe what you're in the mood for ("něco vtipného na dva, do dvou hodin, s CZ dabingem") and get five films / series that fit, each with one sentence why — chosen with the profile's likes, dislikes and history in mind (kids profiles get only children's titles). Optional: uses Claude (Anthropic API) and needs `ANTHROPIC_API_KEY`; each question costs a little; at most 20 questions per profile per hour
+- **Watch party extras** (rooms):
+  - **Planned start** — the host sets a time (*Oprávnění → Začátek*, e.g. 20:00); everyone sees a countdown, the invite shows the time, and the film starts for all by itself (without a film yet, the room is reminded to pick). A waiting room stays open even with nobody in it
+  - **Queue / marathon** — *Do fronty* (list icon) on a proposal lines films up; when one ends, the next starts for everyone. For series, gear → *Maraton* plays the following episodes (next season after a finale) on their own
+  - **Rooms on the TV** — *Na TV* in the room (home network) sends it to a TV with FilmBox open: the TV joins as *Televize* with just the picture, reactions and chat bubbles; OK = play / pause, ◀ ▶ = ±10 s (when allowed)
+  - **Voice chat** — *Hlas*: talk while watching (up to 6 people, browser to browser via WebRTC; FilmBox only passes the handshake). Mute button, 🎤 in *Lidé* and a green ring around whoever is speaking. Browsers allow the microphone only on https — fine through the Funnel link; at home use the https address from *Install as an app*. Some strict networks block direct connections (no relay server)
+- **Pause screen** — paused for 8 s with nobody touching anything, the player shows what you're watching over the dimmed picture: title, episode and its name, year, rating, length, genres, the episode's (or film's) overview and the cast. Any key, touch or mouse move hides it
+- **Timeline thumbnails** — hovering or dragging the timeline shows the picture at that moment with its time (a muted copy of the lowest quality jumps there; the film itself doesn't move). Not on TVs
+- **Ambilight** — the picture's colours glow into the black bars around it (wide films, other screen shapes); *Settings (gear) → Ambilight*, remembered per device, off by default on TVs
+- **Install as an app** — on https (or localhost) FilmBox installs to the phone home screen / desktop like an app, opens faster and keeps posters cached; see *Install as an app*
 - **Fully responsive** — 360 px phone → tablet → laptop → large TV
 
 ## Tech Stack
@@ -67,7 +92,15 @@ home_streaming_app/
 ├── cache.js            # Response cache (TMDB 30 min for lists, 6 h for details), kept on disk
 ├── stats.js            # Watching stats from the watch history (hours, finished titles, months, streaks)
 ├── cast.js             # "Pustit na TV": TV receivers (Server-Sent Events), commands, playback state
-├── rooms.js            # "Sledovat společně": rooms, roles + permissions, sync, chat, reactions (Server-Sent Events)
+├── rooms.js            # "Sledovat společně": rooms, roles + permissions, sync, chat, reactions, source fallback (Server-Sent Events)
+├── admin.js            # Server page: version, updates from GitHub (pull + restart), health, recent errors
+├── csfd.js             # ČSFD rating lookup (search page → film page, JSON-LD / rating box)
+├── kids.js             # Kids profiles: children's-titles filter for /tmdb/*
+├── notify.js           # New-episode notifications via ntfy
+├── introdetect.js      # Automatic intro + credits detection (ffmpeg + audio fingerprints)
+├── downloads.js        # Keep on the Pi: downloads with resume, HDR fix, subtitles
+├── wrapped.js          # The year in FilmBox (Wrapped) from the watch history
+├── aipick.js           # Chytré "Co dnes?": Claude picks titles for a described mood
 ├── subtitles.js        # SRT→WebVTT + OpenSubtitles search/download
 ├── tools/
 │   ├── guides.spec.js  # Hand-written watch guides (film lists, chronological order) + TMDB collection ids
@@ -82,9 +115,14 @@ home_streaming_app/
 │   ├── watchlists.json   # Per-profile array of named lists { id, name, movies[] }
 │   ├── progress.json     # Per-profile playback position, keyed by tmdbId or "tmdbId:S01E05" → { seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }
 │   ├── history.json      # Seconds played per profile, day and title (stats)
+│   ├── ratings.json      # 👎 / 👍 / 👍👍 per profile and title
+│   ├── household.json    # Parent PIN (bcrypt) for kids profiles
+│   ├── notified.json     # Episodes already announced per profile (ntfy)
+│   ├── downloads.json    # Saved films / episodes; the files are in data/downloads/
 │   └── intros.json       # Skip-intro marks per series + season, shared by all profiles
 └── src/
     ├── index.html
+    ├── sw.js             # Service worker: installable app, app shell + TMDB images cache
     ├── media/whats-new.mp4 # "What's new" video (not in git — copy it in manually)
     ├── guides/guides.json # Generated watch guides + collections (node tools/build-guides.js)
     ├── player.html       # Video player (quality, subtitles, HDR fix, remote controls)
@@ -119,6 +157,14 @@ home_streaming_app/
         ├── upcoming.js   # "Nové díly" + "Brzy vyjde" rows and the release calendar
         ├── random.js     # "Co pustit?" random pick
         ├── profile-stats.js # Watching stats sheet
+        ├── server-admin.js # Server page (version, updates, health)
+        ├── previews.js   # Muted trailer previews: hero + card pop-out (YouTube iframe messages)
+        ├── ratings.js    # 👎 / 👍 / 👍👍, taste, "% shoda", dislike filter
+        ├── taste.js      # Taste profile + match percentage (shared with the server and unit tests)
+        ├── voice.js      # Voice search (Web Speech API)
+        ├── saved.js      # "Uloženo ve FilmBoxu" row
+        ├── wrapped.js    # "Rok ve FilmBoxu" story slides + summary picture
+        ├── episodes.js   # Which episode comes next (next season after a finale; shared with unit tests)
         ├── cast-receiver.js # TV side of "Pustit na TV" (home page + player)
         ├── cast-sender.js   # Phone side: choose a TV, send, remote
         ├── browse.js     # "Procházet" genre / decade browser
@@ -177,6 +223,28 @@ OPENSUBTITLES_PASSWORD=your_password
 
 Without a key the feature simply stays hidden. Downloaded subtitles are cached in `data/subtitles/`.
 
+**Optional — Chytré „Co dnes?“.** Create an API key at [console.anthropic.com](https://console.anthropic.com) and add it; without it the box simply isn't shown:
+
+```ini
+ANTHROPIC_API_KEY=sk-ant-...
+# FILMBOX_AI_MODEL=claude-opus-5-5   # the default
+```
+
+**Optional — everything else** (all have sensible defaults):
+
+```ini
+# Automatic intro / credits detection needs ffmpeg:  sudo apt install ffmpeg
+FILMBOX_AUTO_INTRO=0             # turn it off
+# Keep on the Pi
+FILMBOX_DOWNLOAD_DIR=/mnt/usb/filmbox   # where saved videos go (default data/downloads)
+FILMBOX_DOWNLOAD_MIN_FREE_GB=2          # never fill the disk beyond this
+# New-episode notifications
+NTFY_SERVER=https://ntfy.sh      # or your own ntfy server
+FILMBOX_URL=https://…            # opened when a notification is tapped
+FILMBOX_NOTIFY=0                 # turn the hourly check off
+FILMBOX_ALLOW_UPDATE=0           # hide "Aktualizovat" on the Server page
+```
+
 ### Run
 
 ```bash
@@ -196,6 +264,29 @@ On an LG TV, open the same address in the webOS browser.
 | 🟢 Green | My list | Settings (quality, subtitles, colours) |
 | 🟡 Yellow | Profile settings | — |
 | 🔵 Blue | Switch profile | — |
+
+### Updating
+
+*Nastavení → Server a aktualizace* shows the changes waiting on GitHub; **Aktualizovat a restartovat** pulls them (`git pull --ff-only` on the branch the server runs from), runs `npm ci --omit=dev` only when `package.json` / `package-lock.json` changed, and restarts FilmBox. How it comes back depends on how it was started:
+
+| Started with | After the update |
+|---|---|
+| systemd service | exits with code 75 — the service needs `Restart=on-failure` (or `always`) |
+| pm2 | exits, pm2 starts it again |
+| Docker | exits with code 75 — needs a restart policy |
+| a terminal / `nohup node server.js` | starts its own replacement (output in `filmbox.log`), which waits until the port is free |
+
+If the server has hand-edited files, `git pull` refuses and the page shows the error — sort it out in a terminal (`git status`). Set `FILMBOX_ALLOW_UPDATE=0` to hide the button (the page still shows the version and health). By hand it's still `git pull && npm ci --omit=dev` (when dependencies changed) and a restart.
+
+### Install as an app
+
+Browsers only allow installing (and the offline cache) on `https://` or `localhost`. At home over plain `http://192.168…:3000` FilmBox works as before, just without the install option. To get https inside your tailnet only (not public), let Tailscale serve the main port on another https port — the Funnel for rooms keeps 443:
+
+```bash
+sudo tailscale serve --bg --https=8443 3000
+```
+
+Then open `https://<your-pi>.<tailnet>.ts.net:8443` on the phone and choose *Add to Home screen* / *Install app*.
 
 ### What's new video
 
@@ -314,6 +405,16 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 | `PUT`/`POST` | `/api/profiles/:id/progress/:key` | Save position + metadata `{ seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }` (POST = page-close beacon) |
 | `DELETE` | `/api/profiles/:id/progress/:key` | Remove a single Continue Watching entry |
 
+### Ratings & taste
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/profiles/:id/ratings` | The profile's ratings, newest first: `[{ tmdbId, mediaType, rating: -1\|1\|2, title, posterPath, ratedAt }]` |
+| `PUT /api/profiles/:id/ratings/:mediaType/:tmdbId` | `{ rating: -1\|0\|1\|2, title, posterPath }` — 0 removes it |
+| `GET /api/profiles/:id/taste` | `{ genres: { [genreId]: -1…1 }, disliked, liked, n }` from ratings, favourites, watched, in progress (rebuilt at most every 10 min or after a rating) |
+| `GET /api/csfd?title=&original=&year=` | ČSFD rating `{ rating, votes, url }` or `{ rating: null }` |
+| `GET /tmdb/providers?id=&type=` | Streaming services in Czechia `{ link, flatrate, free, ads, rent, buy }` |
+
 ### Data export / wipe
 
 | Method | Endpoint | Description |
@@ -354,6 +455,39 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 | `GET /get_video?url=<url>` | Read the video page → `{ name, duration, pageUrl, qualities: [{ src, label, res, hdr, transfer }], subtitles: [{ src, label, lang, default }] }` (Puppeteer fallback) |
 | `GET /stream?url=<cdn url>` | Range-aware video proxy that rewrites HDR colour tags to BT.709 (used for HDR-tagged files) |
 | `GET /get_subtitle?url=<url>` | Proxy + normalize a subtitle file to WebVTT (SRT auto-converted) |
+| `GET /api/sources?id=&type=movie\|tv[&season=&episode=][&audio=&quality=]` | This film's / episode's uploads, best first (the player's extra backups) |
+
+### Kids, notifications, intros, downloads
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/household` | `{ parentPin: bool }` |
+| `PUT /api/household/parent-pin` | `{ pin: '1234' \| null, currentPin }` — set / change / remove |
+| `POST /api/household/parent-pin/verify` | `{ pin }` → `{ ok }` (5 wrong tries per 5 min) |
+| `PUT /api/profiles/:id` `{ kids: false, parentPin }` | Leaving kids mode needs the parent PIN when one is set |
+| `/tmdb/*?kids=1` | Children's titles only (added by the page for kids profiles) |
+| `POST /api/rooms/:id/schedule` | `{ at: epoch ms \| null }` — host; start time (countdown, starts by itself) |
+| `POST /api/rooms/:id/queue` · `DELETE /api/rooms/:id/queue/:qid` | `{ item: poll item id }` — queue a proposal / remove it (control) |
+| `POST /api/rooms/:id/marathon` · `POST /api/rooms/:id/ended` | `{ on }` (control) · `{ videoVersion, duration }` — the video ended here; the next queued film / episode starts |
+| `POST /api/rooms/:id/voice` · `POST /api/rooms/:id/signal` | `{ on, muted }` → `{ peers }` · `{ to, data }` — WebRTC signalling to one member (voice members only, ≤ 64 KB) |
+| `POST /api/cast/:id/command` `{ type: 'room', room }` | Open a room on that TV |
+| `GET /api/profiles/:id/wrapped?year=2026` | The year in FilmBox: hours, films, episodes, top titles, genres, binge, streak, months, loved, household ranking |
+| `GET /api/ai` · `POST /api/profiles/:id/ai-pick` | `{ enabled }` · `{ query }` → `{ picks: [TMDB item + why] }` (needs `ANTHROPIC_API_KEY`; 20 / hour / profile) |
+| `POST /api/profiles/:id/notify/test` | Test notification to the profile's ntfy topic |
+| `POST /api/intros/:tmdbId/:season/detect` | `{ episode, src }` → 202, detection queued (`GET` the same path for its status) |
+| `GET /api/downloads` | `{ items, free }` |
+| `GET /api/downloads/find?key=movie:603\|tv:1399:S01E02` | The saved copy of a title, if any |
+| `POST /api/downloads` | `{ player, src }` → queued download |
+| `POST /api/downloads/:id/retry`, `DELETE /api/downloads/:id` | Retry a failed one / delete the copy |
+| `GET /downloads/:id/video`, `GET /downloads/:id/sub/:n` | The saved video (ranges) and its subtitles |
+
+### Server page
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/admin/status` | Version (commit, date, subject, branch), uptime, memory, disk, CPU temperature, rooms, Funnel, last 30 errors |
+| `GET /api/admin/updates` | Changes on GitHub not yet on the server (`git fetch`, at most once a minute) |
+| `POST /api/admin/update` | Pull, install if needed, restart (202; `GET /api/admin/update` shows the step) — off with `FILMBOX_ALLOW_UPDATE=0` |
 
 TMDB and search responses are cached for 5 minutes (in memory and in `data/tmdb-cache.json`, so they survive restarts). The headless browser used as a fallback for `/get_video` starts on first use, restarts if it crashes, runs at most 2 tabs and closes after 10 minutes idle.
 

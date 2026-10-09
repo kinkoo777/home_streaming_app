@@ -18,6 +18,11 @@
 // recommended one (listSources / findPlayer in server.js). Whoever may control
 // playback can also switch the playing film to another upload.
 //
+// Also: a start time (the room waits with a countdown and starts by itself), a
+// queue of films to play one after another and "marathon" mode for series (the
+// next episode starts when one ends), and voice chat — the server only passes
+// WebRTC signalling between members; the sound goes browser to browser.
+//
 // The router is mounted twice: on the main app (home network — can create rooms)
 // and on the guest app (GUEST_PORT, the one exposed to the internet — can only
 // join existing rooms, see server.js).
@@ -30,6 +35,8 @@ const MAX_MEMBERS = 20;
 const CHAT_KEEP = 100;
 const OFFLINE_DROP = 2 * 60 * 1000;      // a member without a connection this long leaves
 const EMPTY_CLOSE = 30 * 60 * 1000;      // a room nobody is connected to closes
+const MAX_VOICE = 6;                     // voice chat is a mesh: everyone sends to everyone
+const MAX_QUEUE = 20;
 const MAX_AGE = 12 * 60 * 60 * 1000;
 const ROLES = ['host', 'moderator', 'viewer'];
 const RANK = { host: 3, moderator: 2, viewer: 1 };
@@ -92,7 +99,7 @@ function permsOf(room, m) {
 }
 
 function publicMember(m) {
-    return { id: m.id, name: m.name, role: m.role, online: m.conns.size > 0, buffering: !!m.buffering, position: m.position || 0 };
+    return { id: m.id, name: m.name, role: m.role, online: m.conns.size > 0, buffering: !!m.buffering, position: m.position || 0, voice: !!m.voice, muted: !!m.muted };
 }
 
 // What members see of the video: no page URL, just what playing it needs.
@@ -129,7 +136,10 @@ function snapshot(room, m, links) {
         state: Object.assign({}, room.state, { position: positionAt(room.state, t), updatedAt: t }),
         members: [...room.members.values()].map(publicMember),
         chat: room.chat.slice(-50),
-        poll: publicPoll(room)
+        poll: publicPoll(room),
+        startAt: room.startAt || null,
+        queue: room.queue || [],
+        marathon: !!room.marathon
     };
 }
 
@@ -188,6 +198,7 @@ function removeMember(room, m, notice) {
 }
 
 function closeRoom(room, reason) {
+    clearTimeout(room.startTimer);
     for (const m of room.members.values()) for (const res of m.conns) { send(res, { type: 'closed', reason }); res.end(); }
     rooms.delete(room.id);
 }
@@ -206,7 +217,9 @@ setInterval(() => {
         }
         if (changed) broadcastMembers(room);
         const anyone = [...room.members.values()].some(m => m.conns.size);
-        if ((!anyone && t - room.lastActive > EMPTY_CLOSE) || t - room.createdAt > MAX_AGE) closeRoom(room, 'Místnost vypršela');
+        // A room waiting for its start time stays open for it even with nobody connected.
+        const waiting = room.startAt && t < room.startAt + EMPTY_CLOSE;
+        if ((!anyone && !waiting && t - room.lastActive > EMPTY_CLOSE) || t - room.createdAt > MAX_AGE) closeRoom(room, 'Místnost vypršela');
     }
 }, 30 * 1000).unref();
 
@@ -282,7 +295,7 @@ function router(opts) {
         const host = rm.members.get(rm.hostId);
         const v = publicVideo(rm) || { title: 'Vybíráme film', posterPath: null, episodeLabel: null };
         const links = opts.linkFor(rm.linkHost, rm.id);
-        res.json({ title: v.title, posterPath: v.posterPath, episodeLabel: v.episodeLabel, choosing: !rm.player, host: host ? host.name : null, locked: rm.settings.locked, count: rm.members.size, full: rm.members.size >= MAX_MEMBERS, link: links.link, public: links.public });
+        res.json({ title: v.title, posterPath: v.posterPath, episodeLabel: v.episodeLabel, choosing: !rm.player, host: host ? host.name : null, locked: rm.settings.locked, count: rm.members.size, full: rm.members.size >= MAX_MEMBERS, link: links.link, public: links.public, startAt: rm.startAt || null });
     });
 
     r.post('/:id/join', (req, res) => {
@@ -314,6 +327,7 @@ function router(opts) {
             clearInterval(ping);
             m.conns.delete(res);
             m.lastSeen = now();
+            if (!m.conns.size) m.voice = m.muted = false;          // gone → out of the call too
             if (!m.conns.size && rm.members.has(m.id) && rooms.has(rm.id)) broadcastMembers(rm);
         });
     });
@@ -458,8 +472,56 @@ function router(opts) {
         rm.player = player;
         rm.videoVersion++;
         rm.state = { playing: !!player && playing !== false, position: player && Number.isFinite(position) && position > 0 ? position : 0, updatedAt: t };
+        if (note !== 'switch' && note !== 'fallback') rm.triedUrls = null;   // a new film: every upload counts again
         broadcast(rm, { type: 'video', video: publicVideo(rm), videoVersion: rm.videoVersion, state: rm.state, serverTime: t });
-        systemMessage(rm, player ? (note === 'switch' ? 'Jiný zdroj: ' + publicVideo(rm).title : 'Hraje: ' + publicVideo(rm).title + (note || '')) : 'Vybíráme další film');
+        systemMessage(rm, !player ? 'Vybíráme další film'
+            : note === 'switch' ? 'Jiný zdroj: ' + publicVideo(rm).title
+            : note === 'fallback' ? 'Zdroj přestal fungovat — přepnuto na jiný' + (player.sourceSite ? ' (' + player.sourceSite + ')' : '')
+            : 'Hraje: ' + publicVideo(rm).title + (note || ''));
+    }
+
+    // ── Automatic fallback: the upload stopped working → the next one, same second ──
+    // Tries the backup uploads found with the film first, then (TMDB titles) the rest of
+    // the list. Uploads already tried for this film are skipped; at most 8 attempts.
+    function fallback(rm) {
+        if (rm.switching || !rm.player) return;
+        rm.switching = true;
+        const version = rm.videoVersion;
+        const tried = rm.triedUrls || (rm.triedUrls = new Set());
+        if (rm.player.source.pageUrl) tried.add(rm.player.source.pageUrl);
+        broadcast(rm, { type: 'switching', auto: true });
+        const what = currentWhat(rm);
+        const stale = () => !rooms.has(rm.id) || rm.videoVersion !== version;
+        (async () => {
+            let candidates = (rm.player.alternatives || []).filter(a => a && !tried.has(a.url));
+            let listed = !what || !opts.listSources;
+            for (let attempts = 0; attempts < 8;) {
+                if (!candidates.length) {
+                    if (listed) break;
+                    listed = true;
+                    try { candidates = (await opts.listSources(what, rm.prefs)).sources.filter(c => !tried.has(c.url)); } catch (e) { break; }
+                    if (stale()) return;
+                    continue;
+                }
+                const alt = candidates.shift();
+                tried.add(alt.url);
+                attempts++;
+                try {
+                    const source = await opts.resolveVideo(alt.url);
+                    if (stale()) return;
+                    const player = Object.assign({}, rm.player, {
+                        source, sourceSite: alt.source || null,
+                        alternatives: candidates.slice(0, 6).map(c => ({ url: c.url, title: c.title, source: c.source, dub: c.dub, res: c.res }))
+                    });
+                    if (opts.checkPlayer(player)) continue;
+                    setVideo(rm, player, positionAt(rm.state, now()), 'fallback', rm.state.playing);
+                    return;
+                } catch (err) {
+                    console.error('Záložní zdroj nefunguje:', alt.url, err.message);
+                }
+            }
+            if (!stale()) broadcast(rm, { type: 'switching', error: 'Video nejde přehrát a žádný další zdroj nefunguje — zkuste vybrat jiný' });
+        })().finally(() => { rm.switching = false; });
     }
 
     // The upload someone picked in the source chooser (or none = recommended).
@@ -661,29 +723,47 @@ function router(opts) {
     });
 
     // The video links expired / stopped working → fetch fresh ones (at most every 30 s).
+    // { failed: true, videoVersion } = even the fresh links don't play here. Reported by
+    // someone allowed to control playback, or by two people, that switches the room to
+    // another upload (one guest's bad connection alone doesn't).
     r.post('/:id/refresh', async (req, res) => {
         const rm = room(req, res);
         if (!rm) return;
         const m = member(req, res, rm);
         if (!m) return;
-        const pageUrl = rm.player && rm.player.source.pageUrl;
-        if (!pageUrl) return res.status(400).json({ error: 'Video nejde obnovit' });
-        try {
-            if (!rm.refreshing && now() - rm.refreshedAt > 30000) {
-                const version = rm.videoVersion;
-                rm.refreshing = opts.resolveVideo(pageUrl).then(fresh => {
-                    if (rm.videoVersion !== version) return;          // the host changed the video meanwhile
-                    rm.player = Object.assign({}, rm.player, { source: fresh });
-                    rm.videoVersion++;
-                    const t = now();
-                    broadcast(rm, { type: 'video', video: publicVideo(rm), videoVersion: rm.videoVersion, state: Object.assign({}, rm.state, { position: positionAt(rm.state, t), updatedAt: t }), serverTime: t, refreshed: true });
-                }).finally(() => { rm.refreshedAt = now(); rm.refreshing = null; });
+        if (!rm.player) return res.status(400).json({ error: 'Video nejde obnovit' });
+        const b = req.body || {};
+        if (b.failed === true && Number(b.videoVersion) === rm.videoVersion && rm.refreshedVersion === rm.videoVersion) {
+            if (!rm.failReports || rm.failReports.version !== rm.videoVersion) rm.failReports = { version: rm.videoVersion, ids: new Set() };
+            rm.failReports.ids.add(m.id);
+            const online = [...rm.members.values()].filter(x => x.conns.size).length;
+            if (permsOf(rm, m).control || rm.failReports.ids.size >= Math.min(2, online)) {
+                fallback(rm);
+                return res.status(202).json({ ok: true, switching: true });
             }
-            if (rm.refreshing) await rm.refreshing;
-            res.json({ ok: true, videoVersion: rm.videoVersion });
-        } catch (err) {
-            res.status(502).json({ error: 'Nepodařilo se obnovit odkaz na video' });
+            return res.json({ ok: true, waiting: true });
         }
+        const pageUrl = rm.player.source.pageUrl;
+        if (!pageUrl) return res.status(400).json({ error: 'Video nejde obnovit' });
+        if (!rm.refreshing && now() - rm.refreshedAt > 30000) {
+            const version = rm.videoVersion;
+            rm.refreshing = opts.resolveVideo(pageUrl).then(fresh => {
+                if (rm.videoVersion !== version) return true;      // the host changed the video meanwhile
+                rm.player = Object.assign({}, rm.player, { source: fresh });
+                rm.videoVersion++;
+                rm.refreshedVersion = rm.videoVersion;
+                const t = now();
+                broadcast(rm, { type: 'video', video: publicVideo(rm), videoVersion: rm.videoVersion, state: Object.assign({}, rm.state, { position: positionAt(rm.state, t), updatedAt: t }), serverTime: t, refreshed: true });
+                return true;
+            }, err => {
+                // The upload itself is gone (deleted, blocked) → another one.
+                console.error('Zdroj místnosti nejde obnovit:', pageUrl, err.message);
+                if (rooms.has(rm.id) && rm.videoVersion === version) fallback(rm);
+                return false;
+            }).finally(() => { rm.refreshedAt = now(); rm.refreshing = null; });
+        }
+        const ok = rm.refreshing ? await rm.refreshing : true;
+        res.json({ ok: true, videoVersion: rm.videoVersion, switching: !ok || !!rm.switching });
     });
 
     // Host: end the room for everyone.
@@ -721,6 +801,170 @@ function router(opts) {
         } catch (err) {
             res.status(502).json({ error: 'Titulky se nepodařilo načíst' });
         }
+    });
+
+    // ── Start time ── { at: epoch ms | null }. Host only. Up to 11 h ahead (rooms live 12 h).
+    // At that moment the film starts for everyone (or, without one, the room is reminded to pick).
+    function armSchedule(rm) {
+        clearTimeout(rm.startTimer);
+        if (!rm.startAt) return;
+        rm.startTimer = setTimeout(() => {
+            if (!rooms.has(rm.id) || !rm.startAt) return;
+            rm.startAt = null;
+            broadcast(rm, { type: 'schedule', startAt: null, started: true });
+            if (rm.player) {
+                const t = now();
+                rm.state = { playing: true, position: rm.state.playing ? positionAt(rm.state, t) : rm.state.position, updatedAt: t };
+                broadcast(rm, { type: 'sync', state: rm.state, serverTime: t, by: { id: null, name: 'FilmBox' }, action: 'play' });
+                systemMessage(rm, 'Je čas — začínáme! 🍿');
+            } else {
+                systemMessage(rm, 'Je čas — vyberte film (Výběr)');
+            }
+        }, Math.max(0, rm.startAt - now()));
+        if (rm.startTimer.unref) rm.startTimer.unref();
+    }
+    r.post('/:id/schedule', (req, res) => {
+        const rm = room(req, res);
+        if (!rm) return;
+        const m = member(req, res, rm);
+        if (!m) return;
+        if (m.role !== 'host') return res.status(403).json({ error: 'Začátek nastavuje jen hostitel' });
+        const at = (req.body || {}).at;
+        if (at == null) {
+            rm.startAt = null;
+        } else {
+            const t = Number(at);
+            const lead = opts.scheduleLeadMs != null ? opts.scheduleLeadMs : 30 * 1000;
+            if (!Number.isFinite(t) || t < now() + lead || t > now() + 11 * 3600 * 1000 || t > rm.createdAt + MAX_AGE - 30 * 60 * 1000) {
+                return res.status(400).json({ error: 'Začátek může být nejdřív za minutu a nejpozději za 11 hodin' });
+            }
+            rm.startAt = Math.round(t);
+            if (rm.player && rm.state.playing) {        // wait paused at the beginning
+                rm.state = { playing: false, position: positionAt(rm.state, now()), updatedAt: now() };
+                broadcast(rm, { type: 'sync', state: rm.state, serverTime: now(), by: { id: m.id, name: m.name }, action: 'pause' });
+            }
+        }
+        armSchedule(rm);
+        broadcast(rm, { type: 'schedule', startAt: rm.startAt || null });
+        if (rm.startAt) {
+            const d = new Date(rm.startAt);
+            systemMessage(rm, `${m.name} naplánoval začátek na ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`);
+        }
+        res.json({ ok: true, startAt: rm.startAt || null });
+    });
+
+    // ── Queue + marathon ──
+    function broadcastQueue(rm) {
+        broadcast(rm, { type: 'queue', queue: rm.queue || [], marathon: !!rm.marathon });
+    }
+    // A proposal from the poll → the end of the queue ({ item: poll item id }).
+    r.post('/:id/queue', (req, res) => {
+        const rm = room(req, res);
+        if (!rm) return;
+        const m = member(req, res, rm);
+        if (!m || !need(res, rm, m, 'control')) return;
+        const item = rm.poll.items.find(it => it.id === String((req.body || {}).item));
+        if (!item) return res.status(404).json({ error: 'Návrh nenalezen' });
+        rm.queue = rm.queue || [];
+        if (rm.queue.some(q => q.tmdbId === item.tmdbId)) return res.status(409).json({ error: 'Už je ve frontě' });
+        if (rm.queue.length >= MAX_QUEUE) return res.status(400).json({ error: 'Fronta je plná' });
+        rm.queue.push({ id: token(6), tmdbId: item.tmdbId, title: item.title, year: item.year, posterPath: item.posterPath, by: m.name });
+        rm.poll.items = rm.poll.items.filter(it => it !== item);
+        broadcastPoll(rm);
+        broadcastQueue(rm);
+        res.json({ ok: true });
+    });
+    r.delete('/:id/queue/:qid', (req, res) => {
+        const rm = room(req, res);
+        if (!rm) return;
+        const m = member(req, res, rm);
+        if (!m || !need(res, rm, m, 'control')) return;
+        const before = (rm.queue || []).length;
+        rm.queue = (rm.queue || []).filter(q => q.id !== req.params.qid);
+        if (rm.queue.length === before) return res.status(404).json({ error: 'Nenalezeno' });
+        broadcastQueue(rm);
+        res.json({ ok: true });
+    });
+    r.post('/:id/marathon', (req, res) => {
+        const rm = room(req, res);
+        if (!rm) return;
+        const m = member(req, res, rm);
+        if (!m || !need(res, rm, m, 'control')) return;
+        rm.marathon = !!(req.body || {}).on;
+        broadcastQueue(rm);
+        systemMessage(rm, rm.marathon ? m.name + ' zapnul maraton — další díly poběží samy' : 'Maraton vypnut');
+        res.json({ ok: true, marathon: rm.marathon });
+    });
+    // The video ended here ({ videoVersion, duration }). When the room really is at the
+    // end, the next queued film starts — or, in a marathon, the next episode.
+    r.post('/:id/ended', (req, res) => {
+        const rm = room(req, res);
+        if (!rm) return;
+        const m = member(req, res, rm);
+        if (!m) return;
+        const b = req.body || {};
+        const duration = Number(b.duration);
+        const pos = positionAt(rm.state, now());
+        if (Number(b.videoVersion) !== rm.videoVersion || rm.advancing || !rm.player) return res.json({ ok: true, next: false });
+        if (!(Number.isFinite(duration) && duration >= 120 && pos >= duration - 25)) return res.json({ ok: true, next: false });
+        const next = (rm.queue || [])[0];
+        const what = next ? { tmdbId: next.tmdbId, mediaType: 'movie', episode: null } : (rm.marathon && opts.nextEpisode ? 'episode' : null);
+        if (!what) return res.json({ ok: true, next: false });
+        rm.advancing = true;
+        const version = rm.videoVersion;
+        res.status(202).json({ ok: true, next: true });
+        (async () => {
+            let target = what;
+            if (what === 'episode') {
+                const cur = currentWhat(rm);
+                const ep = cur && cur.episode ? await opts.nextEpisode(cur.tmdbId, cur.episode.season, cur.episode.number) : null;
+                if (!ep) { systemMessage(rm, 'Konec maratonu — další díl zatím není'); return; }
+                target = { tmdbId: cur.tmdbId, mediaType: 'tv', episode: ep };
+            } else {
+                rm.queue = rm.queue.filter(q => q !== next);
+                broadcastQueue(rm);
+            }
+            broadcast(rm, { type: 'switching', auto: true, next: true });
+            const player = await opts.findPlayer(target, rm.prefs, null);
+            if (!rooms.has(rm.id) || rm.videoVersion !== version) return;
+            const bad = opts.checkPlayer(player);
+            if (bad) throw new Error(bad);
+            setVideo(rm, player, 0, next ? ' (z fronty)' : ' (maraton)');
+        })().catch(err => {
+            if (rooms.has(rm.id)) broadcast(rm, { type: 'switching', error: 'Další se nepodařilo pustit: ' + (err.message || '') });
+        }).finally(() => { rm.advancing = false; });
+    });
+
+    // ── Voice chat: who's in it, and WebRTC signalling between two members ──
+    r.post('/:id/voice', (req, res) => {
+        const rm = room(req, res);
+        if (!rm) return;
+        const m = member(req, res, rm);
+        if (!m) return;
+        const b = req.body || {};
+        const on = !!b.on;
+        if (on && !m.voice && [...rm.members.values()].filter(x => x.voice).length >= MAX_VOICE) {
+            return res.status(409).json({ error: 'V hlasovém hovoru je už ' + MAX_VOICE + ' lidí' });
+        }
+        const joined = on && !m.voice;
+        m.voice = on;
+        m.muted = on && !!b.muted;
+        broadcastMembers(rm);
+        if (joined) systemMessage(rm, m.name + ' se připojil do hlasu 🎤');
+        res.json({ ok: true, peers: [...rm.members.values()].filter(x => x.voice && x !== m).map(x => x.id) });
+    });
+    r.post('/:id/signal', (req, res) => {
+        const rm = room(req, res);
+        if (!rm) return;
+        const m = member(req, res, rm);
+        if (!m) return;
+        const b = req.body || {};
+        const to = rm.members.get(String(b.to || ''));
+        if (!to || to === m || !m.voice) return res.status(400).json({ error: 'Neplatný příjemce' });
+        const data = b.data;
+        if (!data || typeof data !== 'object' || JSON.stringify(data).length > 64 * 1024) return res.status(400).json({ error: 'Neplatná data' });
+        for (const c of to.conns) send(c, { type: 'signal', from: m.id, data });
+        res.json({ ok: true });
     });
 
     return r;

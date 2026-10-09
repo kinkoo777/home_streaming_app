@@ -55,3 +55,8 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
 
 const footerYear = document.getElementById('footer-year')
 if (footerYear) footerYear.textContent = new Date().getFullYear()
+
+// ── Installable app + faster start (sw.js). Browsers allow it on https:// / localhost only. ──
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}) })
+}

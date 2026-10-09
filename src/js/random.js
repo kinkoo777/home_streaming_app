@@ -33,6 +33,7 @@
       const type = typeOf(m)
       const item = Object.assign({}, m, { media_type: type })
       if (isWatched(m.id, type) || inProgress(m.id, type)) return
+      if (window.isDisliked && window.isDisliked(m.id, type)) return
       out[keyOf(item)] = item
     }
     if (filters.from !== 'recommended' && typeof getLists === 'function') getLists().forEach(l => l.movies.forEach(add))
@@ -140,8 +141,51 @@
     if (b) b.focus()
   }
 
+  // ── Chytrý tip (AI): a sentence → five titles, each with why ──
+  const aiForm = document.getElementById('ai-ask')
+  let _aiChecked = false
+  function checkAi() {
+    if (_aiChecked) return
+    _aiChecked = true
+    fetch('/api/ai').then(r => r.json()).then(s => { aiForm.hidden = !s.enabled }).catch(() => {})
+  }
+  aiForm.addEventListener('submit', async e => {
+    e.preventDefault()
+    const q = document.getElementById('ai-query').value.trim()
+    if (q.length < 3) return
+    const p = getActiveProfile()
+    result.innerHTML = '<div class="ai-thinking"><i class="bi bi-stars"></i> Vybírám podle vás…</div>'
+    try {
+      const r = await fetch(`/api/profiles/${encodeURIComponent(p.id)}/ai-pick`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: q }) })
+      const b = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(b.error || 'Nepovedlo se')
+      if (!b.picks.length) { result.innerHTML = '<div class="random-none"><i class="bi bi-emoji-neutral"></i><p>Nic vhodného jsem nenašel — zkuste to popsat jinak.</p></div>'; return }
+      rememberMovies(b.picks)
+      result.innerHTML = '<ul class="ai-picks">' + b.picks.map(m => {
+        const title = m.title || m.name
+        const year = (m.release_date || m.first_air_date || '').slice(0, 4)
+        return `<li data-id="${m.id}" data-type="${m.media_type}" data-title="${escapeHtml(title)}" data-poster="${escapeHtml(m.poster_path || '')}">
+          <img src="${tmdbImg(m.poster_path, 'w154')}" alt="">
+          <div class="ai-pick-info"><b>${escapeHtml(title)}</b><small>${[year, m.media_type === 'tv' ? 'Seriál' : 'Film', m.vote_average ? '★ ' + Number(m.vote_average).toFixed(1) : ''].filter(Boolean).join(' · ')}</small><p>${escapeHtml(m.why || '')}</p></div>
+          <div class="ai-pick-actions"><button class="btn btn-primary btn-sm" data-ai="play" aria-label="Přehrát"><i class="bi bi-play-fill"></i></button><button class="btn btn-glass btn-sm" data-ai="detail" aria-label="Detail"><i class="bi bi-info-circle"></i></button></div>
+        </li>`
+      }).join('') + '</ul>'
+    } catch (err) {
+      result.innerHTML = `<div class="random-none"><i class="bi bi-exclamation-circle"></i><p>${escapeHtml(err.message)}</p></div>`
+    }
+  })
+  result.addEventListener('click', e => {
+    const b = e.target.closest('[data-ai]')
+    const li = e.target.closest('.ai-picks li')
+    if (!li) return
+    const id = parseInt(li.dataset.id, 10), type = li.dataset.type, title = li.dataset.title
+    if (b && b.dataset.ai === 'play') { closeModal(modal); openPrehrajSearch(title, id, type, li.dataset.poster || null) }
+    else openDetailModal(id, type, title)
+  })
+
   async function open() {
     if (!hasActiveProfile()) { showToast('Nejprve vyberte profil'); return }
+    checkAi()
     openModal(modal, () => closeModal(modal))
     if (await loadPool()) {
       pick()

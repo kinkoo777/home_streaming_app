@@ -371,3 +371,15 @@ body.kbd .search-clear:focus { color: #fff; background: rgba(255,255,255,0.08); 
 .search-footer kbd { display: inline-block; padding: 1px 6px; border-radius: 5px; background: rgba(255,255,255,0.1); font-family: inherit; font-size: 11px; color: #d4d4d8; }
 
 #search-mobile-btn, #search-close-mobile { display: none; }
+
+/* Voice search (voice.js) */
+.voice-btn {
+  -webkit-flex: none; flex: none; width: 32px; height: 32px; margin-right: 6px; border-radius: 50%;
+  border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 15px;
+  display: -webkit-inline-flex; display: inline-flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+.voice-btn:hover { color: var(--text); background: var(--glass, rgba(255,255,255,0.08)); }
+.voice-btn.listening { color: #fff; background: var(--accent); -webkit-animation: fb-voice 1.2s ease-in-out infinite; animation: fb-voice 1.2s ease-in-out infinite; }
+@-webkit-keyframes fb-voice { 50% { box-shadow: 0 0 0 8px rgba(244,63,94,0.25); } }
+@keyframes fb-voice { 50% { box-shadow: 0 0 0 8px rgba(244,63,94,0.25); } }

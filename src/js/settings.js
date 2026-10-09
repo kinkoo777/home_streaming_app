@@ -86,6 +86,11 @@
     $('settings-reduce-motion').checked = !!s.reduceMotion
     $('settings-autoplay').checked = s.autoplayTrailers !== false
     $('settings-still-watching').checked = s.stillWatching !== false
+    $('settings-previews').checked = s.previews !== false
+    $('settings-kids').checked = !!profile.kids
+    $('settings-ntfy').value = s.ntfyTopic || ''
+    $('settings-ntfy-status').textContent = s.ntfyTopic ? '· zapnuto' : '· vypnuto'
+    syncParentPin()
     syncChoices(s)
     modal.querySelector('.overlay-card').scrollTop = 0
     openModal(modal, closeSettings)
@@ -95,7 +100,9 @@
   function closeSettings() { closeModal(modal) }
 
   // ── PIN prompt (used by intro.js when entering a locked profile) ──
-  window.openPinPrompt = function (profile) {
+  // opts: { title, verify(pin) → Promise<bool> } for PINs other than a profile's;
+  // then resolves with the PIN (or false when cancelled).
+  window.openPinPrompt = function (profile, opts) {
     return new Promise(resolve => {
       const pinModal   = $('pin-prompt-modal')
       const input      = $('pin-prompt-input')
@@ -103,7 +110,7 @@
       const cancelBtn  = $('pin-prompt-cancel')
       const backdrop   = $('pin-backdrop')
 
-      $('pin-prompt-title').textContent = `PIN profilu „${profile.name}“`
+      $('pin-prompt-title').textContent = opts && opts.title ? opts.title : `PIN profilu „${profile.name}“`
       input.value = ''
       let done = false
 
@@ -121,6 +128,13 @@
         const pin = input.value.trim()
         if (!pin) { input.focus(); return }
         try {
+          if (opts && opts.verify) {
+            if (await opts.verify(pin)) { cleanup(pin); return }
+            input.classList.add('shake')
+            input.value = ''
+            setTimeout(() => input.classList.remove('shake'), 420)
+            return
+          }
           const res = await apiFetch(`/api/profiles/${profile.id}/pin/verify`, jsonBody('POST', { pin }))
           if (res.ok) { setProfileToken(profile.id, res.token); cleanup(true) }
           else {
@@ -145,6 +159,83 @@
       setTimeout(() => input.focus(), 60)
     })
   }
+
+  // ── Parent PIN (kids profiles) ──
+  // → '' when none is set, the PIN when entered right, false when cancelled.
+  window.askParentPin = async function () {
+    let has = false
+    try { has = (await (await fetch('/api/household')).json()).parentPin } catch (e) {}
+    if (!has) return ''
+    return window.openPinPrompt(null, {
+      title: 'Rodičovský PIN',
+      verify: async pin => {
+        const r = await fetch('/api/household/parent-pin/verify', jsonBody('POST', { pin }))
+        const b = await r.json().catch(() => ({}))
+        if (r.status === 429) showToast(b.error || 'Příliš mnoho pokusů')
+        return !!b.ok
+      }
+    })
+  }
+  const fourDigits = { title: 'Nový rodičovský PIN (4 číslice)', verify: async pin => /^\d{4}$/.test(pin) }
+  async function syncParentPin() {
+    let has = false
+    try { has = (await (await fetch('/api/household')).json()).parentPin } catch (e) {}
+    $('settings-parent-status').textContent = has ? '· nastaven' : '· nenastaven'
+    $('settings-parent-set').innerHTML = '<i class="bi bi-shield-lock"></i> ' + (has ? 'Změnit' : 'Nastavit')
+    $('settings-parent-remove').hidden = !has
+  }
+  async function putParentPin(pin) {
+    const current = await window.askParentPin()
+    if (current === false) return
+    const res = await fetch('/api/household/parent-pin', jsonBody('PUT', { pin, currentPin: current || undefined }))
+    const b = await res.json().catch(() => ({}))
+    showToast(res.ok ? (pin ? 'Rodičovský PIN uložen' : 'Rodičovský PIN odebrán') : (b.error || 'Chyba'))
+    syncParentPin()
+  }
+  $('settings-parent-set').addEventListener('click', async () => {
+    const pin = await window.openPinPrompt(null, fourDigits)
+    if (pin) putParentPin(pin)
+  })
+  $('settings-parent-remove').addEventListener('click', () => putParentPin(null))
+  $('settings-kids').addEventListener('change', async e => {
+    const on = e.target.checked
+    let parentPin
+    if (!on) {
+      parentPin = await window.askParentPin()
+      if (parentPin === false) { e.target.checked = true; return }
+    }
+    try {
+      const updated = await saveProfile(on ? { kids: true } : { kids: false, parentPin: parentPin || undefined })
+      showToast(updated.kids ? 'Dětský profil zapnut' : 'Dětský profil vypnut')
+      if (window.reloadHomeRows) window.reloadHomeRows()
+      else setTimeout(() => location.reload(), 600)
+    } catch (err) { e.target.checked = !on; showToast('Chyba: ' + err.message) }
+  })
+
+  // ── New-episode notifications (ntfy topic) ──
+  $('settings-ntfy-new').addEventListener('click', () => {
+    const p = getActiveProfile()
+    const slug = String((p && p.name) || 'filmbox').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '').slice(0, 12) || 'profil'
+    const rnd = Math.random().toString(36).slice(2, 8) + Math.random().toString(36).slice(2, 6)
+    $('settings-ntfy').value = 'filmbox-' + slug + '-' + rnd
+  })
+  $('settings-ntfy-save').addEventListener('click', async () => {
+    const topic = $('settings-ntfy').value.trim()
+    try {
+      const updated = await saveProfile({ settings: { ntfyTopic: topic } })
+      $('settings-ntfy-status').textContent = updated.settings.ntfyTopic ? '· zapnuto' : '· vypnuto'
+      showToast(topic ? 'Uloženo — v aplikaci ntfy odebírejte téma ' + topic : 'Upozornění vypnuta')
+    } catch (err) { showToast('Chyba: ' + err.message) }
+  })
+  $('settings-ntfy-test').addEventListener('click', async () => {
+    const p = getActiveProfile()
+    if (!p) return
+    try {
+      const r = await fetch(`/api/profiles/${encodeURIComponent(p.id)}/notify/test`, { method: 'POST' })
+      const b = await r.json().catch(() => ({}))
+      showToast(r.ok ? 'Odesláno — zkontrolujte telefon' : (b.error || 'Nepodařilo se odeslat'))
+    } catch (err) { showToast('Chyba: ' + err.message) }
+  })
 
   // ── Wiring ──
   $('settings-btn').addEventListener('click', openSettings)
@@ -222,6 +313,12 @@
     catch (err) { showToast('Chyba: ' + err.message) }
   })
 
+  $('settings-previews').addEventListener('change', async e => {
+    if (!e.target.checked && window.stopPreviews) window.stopPreviews()
+    try { await saveProfile({ settings: { previews: e.target.checked } }) }
+    catch (err) { showToast('Chyba: ' + err.message) }
+  })
+
   $('settings-still-watching').addEventListener('change', async e => {
     try { await saveProfile({ settings: { stillWatching: e.target.checked } }) }
     catch (err) { showToast('Chyba: ' + err.message) }
@@ -265,7 +362,7 @@
     try {
       await apiFetch(`/api/profiles/${active.id}/data`, { method: 'DELETE' })
       window._profileProgress = {}
-      await Promise.all([window.reloadWatched(), window.reloadWatchlist(), window.reloadFavorites()])
+      await Promise.all([window.reloadWatched(), window.reloadWatchlist(), window.reloadFavorites(), window.reloadRatings ? window.reloadRatings() : null])
       window.reloadContinueWatching()
       showToast('Data vymazána')
     } catch (err) { showToast('Chyba: ' + err.message) }

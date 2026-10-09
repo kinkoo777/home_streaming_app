@@ -33,6 +33,43 @@ function syncDetailButtons() {
 }
 window.syncDetailListButton = syncDetailButtons
 
+// ČSFD rating next to TMDB's (red ≥ 70 %, blue 30–69 %, grey below — like ČSFD).
+function loadCsfd(seq, title, original, year) {
+  const q = 'title=' + encodeURIComponent(title || '') + '&original=' + encodeURIComponent(original || '') + '&year=' + encodeURIComponent(year || '')
+  fetch('/api/csfd?' + q).then(r => r.ok ? r.json() : null).then(c => {
+    if (!c || c.rating == null || seq !== _detailSeq) return
+    const cls = c.rating >= 70 ? 'good' : c.rating >= 30 ? 'mid' : 'bad'
+    const a = document.createElement('a')
+    a.className = 'csfd-badge ' + cls
+    a.href = c.url
+    a.target = '_blank'
+    a.rel = 'noopener noreferrer'
+    a.title = 'Hodnocení na ČSFD' + (c.votes ? ' (' + c.votes.toLocaleString('cs-CZ') + ' hodnocení)' : '')
+    a.textContent = 'ČSFD ' + c.rating + ' %'
+    const meta = $d('detail-meta')
+    meta.appendChild(document.createTextNode('  ·  '))
+    meta.appendChild(a)
+  }).catch(() => {})
+}
+
+// "Kde jinde to běží" — streaming services in Czechia (data: JustWatch via TMDB).
+function loadProviders(seq, id, type) {
+  fetch(`/tmdb/providers?id=${id}&type=${type}`).then(r => r.ok ? r.json() : null).then(p => {
+    if (!p || seq !== _detailSeq) return
+    const groups = [['flatrate', 'V předplatném'], ['free', 'Zdarma'], ['ads', 'Zdarma s reklamami'], ['rent', 'K zapůjčení'], ['buy', 'Ke koupi']]
+      .map(([k, label]) => [label, (p[k] || []).slice(0, 8)]).filter(g => g[1].length)
+    if (!groups.length) return
+    const box = $d('detail-providers')
+    box.innerHTML = '<h4 class="block-title">Kde jinde to běží</h4>' + groups.map(([label, list]) =>
+      `<div class="prov-group"><span class="prov-label">${label}</span><div class="prov-list">${list.map(x =>
+        `<a class="prov" href="${escapeHtml(p.link || '#')}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(x.provider_name)}">` +
+        (x.logo_path ? `<img src="${tmdbImg(x.logo_path, 'w92')}" alt="" loading="lazy">` : '') +
+        `<span>${escapeHtml(x.provider_name)}</span></a>`).join('')}</div></div>`).join('') +
+      '<p class="prov-note">Údaje: JustWatch</p>'
+    box.style.display = 'block'
+  }).catch(() => {})
+}
+
 window.openDetailModal = async function (id, type, title) {
   const seq = ++_detailSeq
   type = type === 'tv' ? 'tv' : 'movie'
@@ -53,6 +90,9 @@ window.openDetailModal = async function (id, type, title) {
   $d('detail-series').innerHTML       = ''
   $d('detail-seasons').innerHTML      = ''
   $d('detail-similar-grid').innerHTML = ''
+  $d('detail-providers').style.display = 'none'
+  $d('detail-providers').innerHTML    = ''
+  if (window.renderRateGroup) window.renderRateGroup($d('detail-rate'), _detailMovie)
   const backdrop = $d('detail-backdrop')
   backdrop.classList.remove('loaded')
   backdrop.removeAttribute('src')
@@ -86,6 +126,7 @@ window.openDetailModal = async function (id, type, title) {
       first_air_date: d.first_air_date, media_type: type, runtime: d.runtime
     }
     rememberMovies([_detailMovie])
+    if (window.renderRateGroup) window.renderRateGroup($d('detail-rate'), _detailMovie)
 
     if (d.backdrop_path) {
       backdrop.onload = () => backdrop.classList.add('loaded')
@@ -109,7 +150,10 @@ window.openDetailModal = async function (id, type, title) {
     else if (d.number_of_seasons) bits.push(d.number_of_seasons + (d.number_of_seasons === 1 ? ' řada' : d.number_of_seasons < 5 ? ' řady' : ' řad'))
     if (d.vote_average) bits.push(`<span class="rating-inline"><i class="bi bi-star-fill"></i> ${Number(d.vote_average).toFixed(1)}</span>`)
     if (d.original_title && d.original_title !== movieTitle) bits.push(escapeHtml(d.original_title))
-    $d('detail-meta').innerHTML = bits.join('  ·  ')
+    const match = window.matchBadge ? window.matchBadge(d) : ''
+    $d('detail-meta').innerHTML = (match ? match + '  ' : '') + bits.join('  ·  ')
+    loadCsfd(seq, movieTitle, d.original_title || d.original_name, year)
+    loadProviders(seq, id, type)
 
     $d('detail-genres').innerHTML = (d.genres || [])
       .map(g => `<span class="genre-tag">${escapeHtml(g.name)}</span>`).join('')

@@ -6,9 +6,10 @@ const bcrypt = require('bcryptjs');
 // qualityPref: '2160' | '1080' | '720'  — preferred upload resolution
 // subLang: 'device' (last choice on that device) | 'off' | 'cze' | 'slo' | 'eng'
 // stillWatching: ask "Sledujete ještě?" after 3 episodes played in a row
+// previews: muted trailers in the hero and when hovering a card (never on TVs)
 const DEFAULT_SETTINGS = {
   reduceMotion: false, autoplayTrailers: true,
-  audioPref: 'dub', qualityPref: '1080', subLang: 'device', stillWatching: true
+  audioPref: 'dub', qualityPref: '1080', subLang: 'device', stillWatching: true, previews: true
 };
 
 // Strip pinHash before sending a profile to the client; expose only a boolean.
@@ -27,6 +28,8 @@ const WATCHLISTS_FILE = path.join(DATA_DIR, 'watchlists.json');
 const PROGRESS_FILE   = path.join(DATA_DIR, 'progress.json');
 const INTROS_FILE     = path.join(DATA_DIR, 'intros.json');
 const HISTORY_FILE    = path.join(DATA_DIR, 'history.json');
+const RATINGS_FILE    = path.join(DATA_DIR, 'ratings.json');
+const HOUSEHOLD_FILE  = path.join(DATA_DIR, 'household.json');
 
 function ensure() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -70,7 +73,7 @@ const profiles = {
     return read(PROFILES_FILE).find(p => p.id === id) || null;
   },
 
-  create({ name, picture = null, theme = 'dark' }) {
+  create({ name, picture = null, theme = 'dark', kids = false }) {
     const all = read(PROFILES_FILE);
     if (all.some(p => p.name === name)) {
       const err = new Error('Profile name already exists');
@@ -79,6 +82,7 @@ const profiles = {
     }
     const p = {
       id: newId(), name, picture, theme,
+      kids: !!kids,
       pinHash: null,
       settings: { ...DEFAULT_SETTINGS },
       createdAt: new Date().toISOString()
@@ -312,15 +316,18 @@ const history = {
 // shared by every profile: [{ tmdbId, season, start, end, updatedAt }].
 
 const intros = {
+  // auto: found by introdetect.js (a mark set by hand replaces it);
+  // credits: seconds before the end where the end credits start (also automatic).
   list(tmdbId) {
     return read(INTROS_FILE)
       .filter(i => i.tmdbId === tmdbId)
-      .map(({ season, start, end }) => ({ season, start, end }));
+      .map(({ season, start, end, auto, credits }) => Object.assign({ season, start, end },
+        auto ? { auto: true } : {}, credits ? { credits } : {}));
   },
 
-  set(tmdbId, season, { start, end }) {
+  set(tmdbId, season, { start, end, auto, credits }) {
     const all = read(INTROS_FILE).filter(i => !(i.tmdbId === tmdbId && i.season === season));
-    all.push({ tmdbId, season, start, end, updatedAt: new Date().toISOString() });
+    all.push(Object.assign({ tmdbId, season, start, end }, auto ? { auto: true } : {}, credits ? { credits } : {}, { updatedAt: new Date().toISOString() }));
     write(INTROS_FILE, all);
   },
 
@@ -333,4 +340,54 @@ const intros = {
   }
 };
 
-module.exports = { profiles, favorites, watched, watchlists, progress, intros, history, localDate, sanitizeProfile, DATA_DIR };
+// ── Ratings ── 👎 (-1) / 👍 (1) / 👍👍 (2) per profile and title:
+// [{ profileId, tmdbId, mediaType, rating, title, posterPath, ratedAt }]
+
+const ratings = {
+  list(profileId) {
+    return read(RATINGS_FILE)
+      .filter(r => r.profileId === profileId)
+      .sort((a, b) => b.ratedAt.localeCompare(a.ratedAt));
+  },
+
+  // rating 0 removes it. → the stored entry, or null when removed
+  set(profileId, { tmdbId, mediaType, rating, title, posterPath = null }) {
+    tmdbId = Number(tmdbId);
+    const all = read(RATINGS_FILE).filter(r => !(r.profileId === profileId && r.tmdbId === tmdbId && r.mediaType === mediaType));
+    if (!rating) { write(RATINGS_FILE, all); return null; }
+    const r = { profileId, tmdbId, mediaType, rating, title, posterPath, ratedAt: new Date().toISOString() };
+    write(RATINGS_FILE, [r, ...all]);
+    return r;
+  },
+
+  deleteByProfile(profileId) {
+    write(RATINGS_FILE, read(RATINGS_FILE).filter(r => r.profileId !== profileId));
+  }
+};
+
+// ── Household ── things shared by the whole home: the parent PIN (kids profiles).
+// { parentPinHash }
+function readHousehold() {
+  try { const h = JSON.parse(fs.readFileSync(HOUSEHOLD_FILE, 'utf8')); return h && typeof h === 'object' && !Array.isArray(h) ? h : {}; }
+  catch (e) { return {}; }
+}
+const household = {
+  hasParentPin() { return !!readHousehold().parentPinHash; },
+  checkParentPin(pin) {
+    const h = readHousehold();
+    return !!h.parentPinHash && bcrypt.compareSync(String(pin || ''), h.parentPinHash);
+  },
+  // 4 digits, or null to remove it
+  setParentPin(pin) {
+    const h = readHousehold();
+    if (pin == null || pin === '') delete h.parentPinHash;
+    else {
+      if (!/^\d{4}$/.test(String(pin))) { const err = new Error('PIN musí mít 4 číslice'); err.code = 400; throw err; }
+      h.parentPinHash = bcrypt.hashSync(String(pin), 10);
+    }
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(HOUSEHOLD_FILE, JSON.stringify(h, null, 2));
+  }
+};
+
+module.exports = { profiles, favorites, watched, watchlists, progress, intros, history, ratings, household, localDate, sanitizeProfile, DATA_DIR };

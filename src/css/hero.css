@@ -184,3 +184,22 @@ body:not(.dark) .hero-shade {
 .hero.paused .hero-dot.active::after { -webkit-animation-play-state: paused; animation-play-state: paused; }
 @keyframes fb-dot-fill { from { width: 0; } to { width: 100%; } }
 body.kbd .hero-dot:focus { box-shadow: 0 0 0 3px #fff; }
+
+/* ── Muted trailer behind the hero text (previews.js) ── */
+.hero-video {
+  position: absolute; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden;
+  opacity: 0; transition: opacity 1.2s ease; pointer-events: none;
+}
+.hero-video.show { opacity: 1; }
+/* 16:9 player scaled to cover the hero (the YouTube iframe can't object-fit) */
+.hero-video iframe {
+  position: absolute; top: 50%; left: 50%; border: 0;
+  width: 100vw; height: 56.25vw; min-height: 100%; min-width: 177.78vh;
+  -webkit-transform: translate(-50%, -50%) scale(1.15); transform: translate(-50%, -50%) scale(1.15);
+}
+.hero.previewing .hero-img { opacity: 0; }
+.hero.previewing .hero-desc { opacity: 0; max-height: 0; margin: 0; overflow: hidden; }
+.hero-desc { transition: opacity 0.6s ease, max-height 0.6s ease; max-height: 12em; }
+.hero.previewing .hero-dot.active::after { -webkit-animation-play-state: paused; animation-play-state: paused; }
+.hero-mute { position: absolute; right: 4vw; bottom: 22%; z-index: 3; display: none; width: 46px; height: 46px; border-radius: 50%; }
+.hero.previewing .hero-mute { display: -webkit-inline-flex; display: inline-flex; }

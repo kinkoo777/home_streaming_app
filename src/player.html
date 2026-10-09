@@ -85,6 +85,65 @@
       }
 
       #player-wrap.controls-visible { cursor: default; }
+      /* own stacking context, so the Ambilight canvas can sit under the video */
+      #player-wrap { isolation: isolate; }
+
+      /* ── Ambilight ── a 48×27 copy of the picture, blurred into the bars */
+      #ambilight {
+        position: absolute; z-index: -1; display: none;
+        -webkit-filter: blur(60px) saturate(1.5); filter: blur(60px) saturate(1.5);
+        opacity: 0.55; pointer-events: none;
+        -webkit-transform: scale(1.12); transform: scale(1.12);
+        transition: opacity 1s ease;
+      }
+      #player-wrap.ambilight #ambilight { display: block; }
+      #player-wrap.ambilight.is-paused #ambilight { opacity: 0.3; }
+
+      /* ── Pause screen ── */
+      #pause-screen {
+        position: absolute; inset: 0; top: 0; right: 0; bottom: 0; left: 0; z-index: 4;
+        display: flex; align-items: center;
+        padding: 0 6vw;
+        background: linear-gradient(90deg, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.6) 45%, rgba(0,0,0,0.15) 100%);
+        opacity: 0; visibility: hidden; pointer-events: none;
+        transition: opacity 0.8s ease, visibility 0s linear 0.8s;
+      }
+      #pause-screen.show { opacity: 1; visibility: visible; transition: opacity 0.8s ease; }
+      .ps-inner { max-width: 640px; }
+      .ps-eyebrow { color: #a1a1aa; font-size: 15px; letter-spacing: 0.04em; }
+      #ps-title { font-size: 44px; font-weight: 800; line-height: 1.1; margin: 8px 0 10px; color: #fff; }
+      #ps-sub { font-size: 20px; font-weight: 600; color: #fff; margin: 0 0 10px; }
+      #ps-sub:empty, #ps-cast:empty, #ps-meta:empty { display: none; }
+      #ps-meta { color: #d4d4d8; font-size: 15px; margin: 0 0 14px; }
+      #ps-overview { color: #e4e4e7; font-size: 17px; line-height: 1.5; margin: 0 0 14px;
+        display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+      #ps-cast { color: #a1a1aa; font-size: 14px; margin: 0; }
+      body.tv #ps-title { font-size: 56px; }
+      body.tv #ps-overview { font-size: 22px; }
+      body.tv #ps-sub { font-size: 26px; }
+      @media (max-width: 640px) {
+        #ps-title { font-size: 28px; }
+        #ps-overview { font-size: 15px; -webkit-line-clamp: 3; }
+      }
+
+      /* ── Timeline thumbnail (hover / drag) ── */
+      #seek-thumb {
+        display: none; position: absolute; bottom: 18px; left: 0;
+        -webkit-transform: translateX(-50%); transform: translateX(-50%);
+        flex-direction: column; align-items: center; pointer-events: none; z-index: 3;
+      }
+      #seek-thumb.show { display: flex; }
+      #seek-thumb-video {
+        display: none; width: 192px; height: 108px; object-fit: cover;
+        border-radius: 8px; background: #111; border: 2px solid rgba(255,255,255,0.85);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.6); margin-bottom: 6px;
+      }
+      #seek-thumb.has-frame #seek-thumb-video { display: block; }
+      #seek-thumb-time {
+        padding: 3px 8px; border-radius: 6px; background: rgba(0,0,0,0.75); color: #fff;
+        font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+      }
+      @media (max-width: 640px) { #seek-thumb-video { width: 144px; height: 81px; } }
 
       video {
         width: 100%;
@@ -908,7 +967,20 @@
 
     <div id="player-wrap" style="display:none">
 
+      <!-- Ambilight: the picture's colours glowing into the black bars around it -->
+      <canvas id="ambilight" width="48" height="27" aria-hidden="true"></canvas>
       <video id="video" preload="auto" playsinline></video>
+      <!-- Paused for a while: what you're watching (title, episode, overview, cast) -->
+      <div id="pause-screen" aria-hidden="true">
+        <div class="ps-inner">
+          <span class="ps-eyebrow">Sledujete</span>
+          <h2 id="ps-title"></h2>
+          <p id="ps-sub"></p>
+          <p id="ps-meta"></p>
+          <p id="ps-overview"></p>
+          <p id="ps-cast"></p>
+        </div>
+      </div>
       <!-- HDR → SDR tone-mapped picture (see js/hdr-renderer.js) -->
       <canvas id="hdr-canvas"></canvas>
       <!-- subtitles are drawn here (not natively) so they also show over the canvas -->
@@ -969,6 +1041,7 @@
             <dt><kbd>↑</kbd> / <kbd>↓</kbd></dt><dd>Hlasitost</dd>
             <dt><kbd>M</kbd></dt><dd>Ztlumit</dd>
             <dt><kbd>F</kbd></dt><dd>Celá obrazovka</dd>
+            <dt><kbd>&lt;</kbd> <kbd>&gt;</kbd></dt><dd>Pomaleji / rychleji</dd>
             <dt><kbd>Podržet</kbd></dt><dd>2× rychlost</dd>
             <dt><kbd>S</kbd></dt><dd>Nastavení (kvalita, titulky, barvy)</dd>
             <dt><kbd>C</kbd></dt><dd>Titulky zap / vyp</dd>
@@ -986,6 +1059,7 @@
             <div id="seek-buffered" style="width:0%"></div>
             <div id="seek-filled" style="width:0%"></div>
             <div id="seek-scrub"><span id="seek-scrub-time">0:00</span></div>
+            <div id="seek-thumb" aria-hidden="true"><video id="seek-thumb-video" muted playsinline preload="none"></video><span id="seek-thumb-time"></span></div>
           </div>
           <span class="time-label" id="time-total" style="cursor:pointer" title="Přepnout na zbývající čas">0:00</span>
         </div>
@@ -1029,6 +1103,7 @@
 
     <script src="js/hdr-renderer.js"></script>
     <script src="js/relevance.js"></script>
+    <script src="js/episodes.js"></script>
     <script>
       const video        = document.getElementById('video')
       // Same TV detection as the main page (tv.js): user agent, or remembered once a
@@ -1137,6 +1212,9 @@
         } catch (e) { return 'default' }
       }
       // Profile preferences (Nastavení → Přehrávání): audioPref, qualityPref, subLang, stillWatching.
+      function _isKidsProfile() {
+        try { const r = sessionStorage.getItem('filmbox_active_profile'); return !!(r && JSON.parse(r).kids) } catch (e) { return false }
+      }
       function _profileSettings() {
         try {
           const r = sessionStorage.getItem('filmbox_active_profile')
@@ -1330,16 +1408,47 @@
       }
 
       // ── Switch to a backup upload (another site / file) at the same position ──
+      // The backups the source picker passed along come first; once they're used up, the
+      // server lists the rest of this film's / episode's uploads (once per page).
       let _switching = false
+      let _moreListed = false
+      const _triedUrls = new Set()
+      async function _listMoreAlternatives() {
+        const d = _playerData
+        if (_moreListed || !d || !d.tmdbId) return
+        _moreListed = true
+        const tv = d.mediaType === 'tv'
+        if (tv && !d.episode) return
+        const st = _profileSettings()
+        const q = `id=${encodeURIComponent(d.tmdbId)}&type=${tv ? 'tv' : 'movie'}` +
+          (tv ? `&season=${d.episode.season}&episode=${d.episode.number}` : '') +
+          (st.audioPref ? '&audio=' + encodeURIComponent(st.audioPref) : '') +
+          (st.qualityPref ? '&quality=' + encodeURIComponent(st.qualityPref) : '')
+        try {
+          const r = await fetch('/api/sources?' + q)
+          if (!r.ok) return
+          const list = await r.json()
+          if (source.pageUrl) _triedUrls.add(source.pageUrl)
+          _alternatives = (list.sources || []).filter(a => a && a.url && !_triedUrls.has(a.url))
+        } catch (e) {}
+      }
       async function switchToAlternative(reason) {
         if (_switching) return true
-        if (!_alternatives.length) return false
+        if (source.pageUrl) _triedUrls.add(source.pageUrl)
+        if (!_alternatives.length && (_moreListed || !_playerData || !_playerData.tmdbId)) return false
         _switching = true
         const t = video.currentTime || _lastGoodTime || _pendingSeek || 0
         const wasPlaying = !video.paused || !!video.error
         try {
-          while (_alternatives.length) {
+          for (;;) {
+            if (!_alternatives.length && !_moreListed) {
+              toast(`${reason} — hledám další zdroje…`, 8000)
+              await _listMoreAlternatives()
+            }
+            if (!_alternatives.length) break
             const alt = _alternatives.shift()
+            if (_triedUrls.has(alt.url)) continue
+            _triedUrls.add(alt.url)
             const site = SITE_NAMES[alt.source] || 'jiný zdroj'
             toast(`${reason} — zkouším ${site}…`, 8000)
             try {
@@ -1637,7 +1746,7 @@
           tr.label = s.label || ('Titulky ' + (i + 1))
           // Online subtitles come from our own /subs/ route; the rest is proxied so
           // cross-origin .vtt/.srt loads (and SRT converts)
-          tr.src   = s.src.indexOf('/subs/') === 0 ? s.src : `/get_subtitle?url=${encodeURIComponent(s.src)}`
+          tr.src   = s.src.indexOf('/subs/') === 0 || s.src.indexOf('/downloads/') === 0 ? s.src : `/get_subtitle?url=${encodeURIComponent(s.src)}`
           if (s.online) tr.addEventListener('error', () => toast('Titulky se nepodařilo stáhnout (možná vyčerpán denní limit)', 5000))
           video.appendChild(tr)
           tr.track.mode = 'disabled'
@@ -1751,6 +1860,26 @@
         return b
       }
 
+      // ── Playback speed ── kept for this session (the next episode plays at the same speed)
+      const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
+      const speedLabel = x => x === 1 ? 'Normální' : String(x).replace('.', ',') + '×'
+      let _speed = 1
+      try { const v = parseFloat(sessionStorage.getItem('filmbox_speed')); if (SPEEDS.indexOf(v) >= 0) _speed = v } catch (e) {}
+      function setSpeed(x, announce) {
+        _speed = x
+        // defaultPlaybackRate survives video.load() (quality / source switches)
+        video.defaultPlaybackRate = x
+        video.playbackRate = x
+        try { sessionStorage.setItem('filmbox_speed', String(x)) } catch (e) {}
+        if (announce) toast('Rychlost: ' + speedLabel(x), 1500)
+      }
+      function stepSpeed(dir) {
+        const i = SPEEDS.indexOf(_speed)
+        const next = SPEEDS[Math.max(0, Math.min(SPEEDS.length - 1, (i < 0 ? 2 : i) + dir))]
+        if (next !== _speed) setSpeed(next, true)
+      }
+      if (_speed !== 1) setSpeed(_speed)
+
       function renderSettings() {
         if (!settingsPanel.classList.contains('open') || !source) return
         const focusedIdx = [...settingsPanel.querySelectorAll('.settings-item')].indexOf(document.activeElement)
@@ -1778,17 +1907,24 @@
             const cur = EXPOSURES.find(([x]) => x === hdrExposure)
             add(menuItem({ label: 'Jas HDR', sub: true, value: cur ? cur[1] : hdrExposure + '×', onClick: () => openSettingsPage('exposure') }))
           }
+          add(menuItem({ label: 'Rychlost', sub: true, value: speedLabel(_speed), onClick: () => openSettingsPage('speed') }))
+          add(menuItem({ label: 'Ambilight', hint: 'Barvy obrazu prosvítí do černých pruhů', value: _ambi ? 'Zapnuto' : 'Vypnuto', onClick: () => { setAmbilight(!_ambi); renderSettings() } }))
           add(menuItem({ label: 'Časovač vypnutí', sub: true, value: sleepLabel(), onClick: () => openSettingsPage('sleep') }))
-          if (!IS_TV) add(menuItem({ label: 'Sledovat společně', hint: 'Pozvat přátele odkazem', onClick: () => { closeSettings(); startTogether() } }))
+          if (_downloadKey() && !_isKidsProfile()) add(menuItem({
+            label: _download && _download.status === 'done' ? 'Kopie ve FilmBoxu' : 'Stáhnout do FilmBoxu',
+            hint: _download ? (_download.status === 'done' ? (currentQ && currentQ.local ? 'Hraje odsud — bez sekání' : 'Přehrát odsud') : 'Ukládá se na server') : 'Uloží se na server — pak hraje hned a bez sekání',
+            value: _downloadLabel(), onClick: _downloadClick
+          }))
+          if (!IS_TV && !_isKidsProfile()) add(menuItem({ label: 'Sledovat společně', hint: 'Pozvat přátele odkazem', onClick: () => { closeSettings(); startTogether() } }))
           if (_tvs.length && !IS_TV) add(menuItem({ label: 'Pustit na TV', sub: true, value: _tvs.length === 1 ? _tvs[0].name : _tvs.length + ' TV', onClick: () => openSettingsPage('handoff') }))
           if (_isEpisode()) {
             const intro = currentIntro()
             add(menuItem({ label: 'Úvod seriálu', sub: true, value: intro ? fmt(intro.start) + '–' + fmt(intro.end) : 'Neoznačen', onClick: () => openSettingsPage('intro') }))
           }
-          if (_alternatives.length) {
+          if (_alternatives.length || (!_moreListed && _playerData && _playerData.tmdbId)) {
             add(menuItem({
               label: 'Přepnout na jiný zdroj',
-              hint: `Teď ${SITE_NAMES[_sourceSite] || 'zdroj'} · záložních: ${_alternatives.length}`,
+              hint: `Teď ${SITE_NAMES[_sourceSite] || 'zdroj'}` + (_alternatives.length ? ` · záložních: ${_alternatives.length}` : ' · najdu další'),
               onClick: () => { closeSettings(); switchToAlternative('Ruční přepnutí') }
             }))
           }
@@ -1872,6 +2008,11 @@
         if (_settingsPage === 'handoff') {
           add(backItem('Pustit na TV'))
           _tvs.forEach(t => add(menuItem({ label: t.name, hint: 'Pokračovat tam od ' + fmt(video.currentTime), onClick: () => { closeSettings(); handOff(t) } })))
+        }
+
+        if (_settingsPage === 'speed') {
+          add(backItem('Rychlost'))
+          SPEEDS.forEach(x => add(menuItem({ label: speedLabel(x), active: _speed === x, onClick: () => { setSpeed(x); renderSettings() } })))
         }
 
         if (_settingsPage === 'sleep') {
@@ -2232,6 +2373,7 @@
         nextMini.classList.remove('show')
         if (_sleepAtEnd()) _fireSleep()
         else if (_playerData && _playerData.episode) _showNextEpisodePrompt()
+        else if (_playerData && _playerData.tmdbId) _showRatePrompt('Jak se vám film líbil?')
       })
 
       // ── Buffering spinner ──
@@ -2244,31 +2386,63 @@
       video.addEventListener('canplay',  _hideSpinner)
       video.addEventListener('seeked',   _hideSpinner)
 
+      // ── Which episode comes next (episodes.js) ──
+      // After a season's last episode: the next season's first one. After the last aired
+      // episode: nothing (and why). Looked up once, from the show's TMDB details.
+      let _nextEpPromise = null
+      let _nextEp = null          // the resolved answer, for the prompts that can't wait
+      function _nextEpisodeInfo() {
+        const d = _playerData
+        if (!_nextEpPromise) {
+          _nextEpPromise = fetch(`/tmdb/details?id=${d.tmdbId}&type=tv`)
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null)
+            .then(show => {
+              const info = FilmBoxEpisodes.nextEpisode(show, d.episode.season, d.episode.number)
+              if (!show) _nextEpPromise = null      // offline: ask again next time
+              _nextEp = info
+              return info
+            })
+        }
+        return _nextEpPromise
+      }
+      const _noNextEpisode = () => !!(_nextEp && !_nextEp.next)
+      // Remote / phone "next": no prompt on screen, so say what's happening in a toast.
+      function _nextEpisodeByKey() {
+        toast('Hledám další epizodu…')
+        _playNextEpisode(false).then(r => { if (r !== true) toast(r) })
+      }
+
       // ── Auto-play next episode (TV only) ──
       // `auto` = started by the end-of-episode countdown, not by a button. Counts how many
       // episodes have started on their own in a row, for "Sledujete ještě?".
+      // → true once the next episode is loading, else a message saying why not.
       async function _playNextEpisode(auto) {
         const d = _playerData
-        if (!d || !d.episode || !d.tmdbId) return false
-        const nextNum = d.episode.number + 1
-        const sNum = String(d.episode.season).padStart(2, '0')
+        if (!d || !d.episode || !d.tmdbId) return 'Další epizoda nenalezena'
+        const info = await _nextEpisodeInfo()
+        if (!info.next) return FilmBoxEpisodes.noNextMessage(info)
+        const nextSeason = info.next.season
+        const nextNum = info.next.number
+        const sNum = String(nextSeason).padStart(2, '0')
         const eNum = String(nextNum).padStart(2, '0')
         const base = (d.title || '').replace(/\s*S\d{2}E\d{2}.*$/i, '').trim()
         const query = `${base} S${sNum}E${eNum}`
+        const notFound = `Epizoda S${sNum}E${eNum} nenalezena`
         try {
           // Same sites the source picker is set to search.
           let sites = ''
           try { const l = JSON.parse(localStorage.getItem('filmbox_sources')); if (Array.isArray(l) && l.length) sites = '&sources=' + encodeURIComponent(l.join(',')) } catch (e) {}
           const r = await fetch(`/search?q=${encodeURIComponent(query)}${sites}`)
-          if (!r.ok) return false
+          if (!r.ok) return notFound
           const results = await r.json()
-          if (!results.length) return false
+          if (!results.length) return notFound
           // Uploads of exactly this episode, ranked by the profile's preferences
           // (CZ dub / original, resolution); anything at all if none carry the code.
-          const epCode = new RegExp('s0?' + d.episode.season + '\\s*e0?' + nextNum + '(?!\\d)|\\b0?' + d.episode.season + 'x0?' + nextNum + '(?!\\d)', 'i')
+          const epCode = new RegExp('s0?' + nextSeason + '\\s*e0?' + nextNum + '(?!\\d)|\\b0?' + nextSeason + 'x0?' + nextNum + '(?!\\d)', 'i')
           const exact = results.filter(r => r && r.url && epCode.test(r.title || ''))
           const pick = FilmBoxRelevance.rankSources(exact.length ? exact : results.filter(r => r && r.url), _profileSettings())[0]
-          if (!pick) return false
+          if (!pick) return notFound
           // Backups: other uploads of the same episode, same dubbing first.
           const alternatives = results
             .filter(r => r && r.url && r !== pick && epCode.test(r.title || ''))
@@ -2276,11 +2450,11 @@
             .slice(0, 6)
             .map(r => ({ url: r.url, title: r.title, source: r.source || 'prehrajto', dub: !!r.dub, res: r.res || null }))
           const href = pick && pick.url
-          if (!href) return false
+          if (!href) return notFound
           const vr = await fetch(`/get_video?url=${encodeURIComponent(href)}`)
-          if (!vr.ok) return false
+          if (!vr.ok) return notFound
           const next = await vr.json()
-          if (!next.qualities || !next.qualities.length) return false
+          if (!next.qualities || !next.qualities.length) return notFound
           sessionStorage.setItem('filmbox_player', JSON.stringify({
             title:       query,
             source:      next,
@@ -2289,14 +2463,14 @@
             tmdbId:      d.tmdbId,
             mediaType:   'tv',
             posterPath:  d.posterPath || null,
-            episode:     { season: d.episode.season, number: nextNum },
+            episode:     { season: nextSeason, number: nextNum },
             episodeLabel: `S${sNum}E${eNum}`,
             progressKey: `${d.tmdbId}:S${sNum}E${eNum}`,
             autoplayChain: auto ? (_userActive ? 1 : _autoplayChain + 1) : 0
           }))
           window.location.reload()
           return true
-        } catch (e) { return false }
+        } catch (e) { return notFound }
       }
 
       // Offer the next episode during the last 45 s (end credits).
@@ -2305,19 +2479,24 @@
       function updateNextEpisodeMini() {
         if (!_playerData || !_playerData.episode || !isFinite(video.duration) || video.duration < 300) return
         const left = video.duration - video.currentTime
-        const show = !_nextMiniDismissed && !_sleepAtEnd() && left <= 45 && left > 0.5
+        if (left <= 60 && !_nextEp) _nextEpisodeInfo()
+        // Where the credits start (found automatically, introdetect.js), else the last 45 s.
+        const intro = currentIntro()
+        const creditsAt = intro && intro.credits ? Math.max(20, Math.min(300, intro.credits)) : 45
+        const show = !_nextMiniDismissed && !_sleepAtEnd() && !_noNextEpisode() && left <= creditsAt && left > 0.5
         if (show !== nextMini.classList.contains('show')) {
           nextMini.classList.toggle('show', show)
           if (show && document.body.classList.contains('kbd')) document.getElementById('next-ep-mini-go').focus()
         }
-        if (show) document.getElementById('next-ep-mini-count').textContent = 'za ' + fmt(left)
+        if (show) document.getElementById('next-ep-mini-count').textContent = (_nextEp && _nextEp.next ? _nextEp.next.code + ' ' : '') + 'za ' + fmt(left)
       }
       document.getElementById('next-ep-mini-go').addEventListener('click', async () => {
         document.getElementById('next-ep-mini-count').textContent = 'hledám…'
         _nextMiniDismissed = true
-        if (!(await _playNextEpisode(false))) {
+        const r = await _playNextEpisode(false)
+        if (r !== true) {
           nextMini.classList.add('show')
-          document.getElementById('next-ep-mini-count').textContent = 'nenalezena'
+          document.getElementById('next-ep-mini-count').textContent = r
         }
       })
       document.getElementById('next-ep-mini-x').addEventListener('click', () => {
@@ -2325,9 +2504,55 @@
         nextMini.classList.remove('show')
       })
 
+      // ── 👎 / 👍 / 👍👍 at the end (films; series after their last episode) ──
+      function _showRatePrompt(question) {
+        const d = _playerData
+        const pid = _profileId()
+        if (!d || !d.tmdbId || pid === 'default') return
+        const type = d.mediaType === 'tv' ? 'tv' : 'movie'
+        const ov = _promptOverlay('rate-prompt', `
+          <div class="next-ep-card">
+            <p></p>
+            <div class="next-ep-actions">
+              <button class="next-ep-yes rate-choice" data-rate="-1" aria-label="Nelíbí se mi"><i class="bi bi-hand-thumbs-down"></i> Nic moc</button>
+              <button class="next-ep-yes rate-choice" data-rate="1" aria-label="Líbí se mi"><i class="bi bi-hand-thumbs-up"></i> Líbilo</button>
+              <button class="next-ep-yes rate-choice" data-rate="2" aria-label="Miluju to"><i class="bi bi-hand-thumbs-up-fill"></i><i class="bi bi-hand-thumbs-up-fill"></i> Miluju</button>
+              <button class="next-ep-no">Zavřít</button>
+            </div>
+          </div>`)
+        ov.querySelector('p').textContent = question
+        ov.querySelector('.next-ep-no').addEventListener('click', () => ov.remove())
+        ov.querySelectorAll('.rate-choice').forEach(b => b.addEventListener('click', () => {
+          const title = (d.title || '').replace(/\s*S\d{2}E\d{2}.*$/i, '').trim() || 'Bez názvu'
+          fetch(`/api/profiles/${encodeURIComponent(pid)}/ratings/${type}/${d.tmdbId}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rating: parseInt(b.dataset.rate, 10), title, posterPath: d.posterPath || null })
+          }).then(r => {
+            ov.querySelector('p').textContent = r.ok ? 'Díky! Podle toho vám budeme doporučovat.' : 'Hodnocení se nepodařilo uložit'
+            ov.querySelectorAll('.rate-choice').forEach(x => { x.disabled = true })
+            if (r.ok) setTimeout(() => ov.remove(), 1800)
+          }).catch(() => { ov.querySelector('p').textContent = 'Hodnocení se nepodařilo uložit' })
+        }))
+        ov.querySelector('.rate-choice[data-rate="1"]').focus()
+      }
+
       function _showNextEpisodePrompt() {
         const d = _playerData
         if (!d || !d.episode) return
+        if (!_nextEp) { _nextEpisodeInfo().then(_showNextEpisodePrompt); return }
+        if (!_nextEp.next) {
+          // Last episode (of the show, or aired so far): say so, don't count down.
+          const ov = _promptOverlay('', `
+            <div class="next-ep-card">
+              <p></p>
+              <div class="next-ep-actions"><button class="next-ep-no">Zavřít</button></div>
+            </div>`)
+          ov.querySelector('p').textContent = FilmBoxEpisodes.noNextMessage(_nextEp)
+          ov.querySelector('.next-ep-no').addEventListener('click', () => ov.remove())
+          ov.querySelector('.next-ep-no').focus()
+          if (_nextEp.ended) { ov.remove(); _showRatePrompt('To byl poslední díl. Jak se vám seriál líbil?') }
+          return
+        }
         if (_shouldAskStillWatching()) { _showStillWatchingPrompt(); return }
         const ov = document.createElement('div')
         ov.className = 'next-ep-prompt'
@@ -2335,13 +2560,13 @@
           <div class="next-ep-card">
             <p>Epizoda skončila</p>
             <div class="next-ep-actions">
-              <button class="next-ep-yes"><i class="bi bi-skip-end-fill"></i> Další epizoda <span class="next-ep-count">(10)</span></button>
+              <button class="next-ep-yes"><i class="bi bi-skip-end-fill"></i> ${_nextEp.next.number === 1 && _nextEp.next.season !== _playerData.episode.season ? 'Další řada' : 'Další epizoda'} ${_nextEp.next.code} <span class="next-ep-count">(10)</span></button>
               <button class="next-ep-no">Zavřít</button>
             </div>
           </div>`
         playerWrap.appendChild(ov)
         let n = 10, done = false
-        const go = async auto => { if (done) return; done = true; clearInterval(t); const ok = await _playNextEpisode(auto); if (!ok) ov.querySelector('p').textContent = 'Další epizoda nenalezena' }
+        const go = async auto => { if (done) return; done = true; clearInterval(t); const r = await _playNextEpisode(auto); if (r !== true) ov.querySelector('p').textContent = r }
         const t = setInterval(() => {
           n--
           const c = ov.querySelector('.next-ep-count'); if (c) c.textContent = `(${n})`
@@ -2370,8 +2595,44 @@
         if (!_isEpisode()) return
         fetch(`/api/intros/${_playerData.tmdbId}`)
           .then(r => (r.ok ? r.json() : []))
-          .then(list => { _intros = Array.isArray(list) ? list : []; renderSettings() })
+          .then(list => {
+            _intros = Array.isArray(list) ? list : []
+            renderSettings()
+            const mine = _intros.filter(i => i.season === _playerData.episode.season)[0]
+            if (!mine || !mine.credits) requestAutoIntro(!mine)
+          })
           .catch(() => {})
+      }
+
+      // No mark for this season yet: the server compares this episode with the next one
+      // (introdetect.js) and saves the intro + where the credits start; we check back.
+      let _autoIntroAsked = false
+      function requestAutoIntro(announce) {
+        if (_autoIntroAsked || !source || !source.qualities.length) return
+        _autoIntroAsked = true
+        const d = _playerData
+        const low = source.qualities.filter(q => !q.local).sort((a, b) => (a.res || 9999) - (b.res || 9999))[0]
+        if (!low) return
+        fetch(`/api/intros/${d.tmdbId}/${d.episode.season}/detect`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ episode: d.episode.number, src: low.src })
+        }).then(r => r.ok ? r.json() : null).then(job => {
+          if (!job || (job.status !== 'queued' && job.status !== 'running')) return
+          let tries = 0
+          const t = setInterval(() => {
+            if (++tries > 12) return clearInterval(t)
+            fetch(`/api/intros/${d.tmdbId}/${d.episode.season}/detect`).then(r => r.json()).then(st => {
+              if (st.status === 'queued' || st.status === 'running') return
+              clearInterval(t)
+              fetch(`/api/intros/${d.tmdbId}`).then(r => r.ok ? r.json() : []).then(list => {
+                _intros = Array.isArray(list) ? list : _intros
+                renderSettings()
+                const mine = _intros.filter(i => i.season === d.episode.season)[0]
+                if (announce && mine && mine.auto && video.currentTime < mine.end) toast('Úvod rozpoznán — Přeskočit úvod je připravené', 5000)
+              })
+            }).catch(() => {})
+          }, 40000)
+        }).catch(() => {})
       }
 
       function updateSkipIntro() {
@@ -2460,7 +2721,8 @@
           </div>`)
         ov.querySelector('.next-ep-yes').addEventListener('click', async () => {
           ov.querySelector('p').textContent = 'Hledám další epizodu…'
-          if (!(await _playNextEpisode(false))) ov.querySelector('p').textContent = 'Další epizoda nenalezena'
+          const r = await _playNextEpisode(false)
+          if (r !== true) ov.querySelector('p').textContent = r
         })
         ov.querySelector('.next-ep-no').addEventListener('click', () => leavePlayer())
         ov.querySelector('.next-ep-yes').focus()
@@ -2968,9 +3230,11 @@
           case 'ArrowDown':     e.preventDefault(); changeVolume(-0.1); break
           case 'f':             fullscreenBtn.click(); break
           case 'm':             muteBtn.click(); break
+          case '>':             stepSpeed(1); break
+          case '<':             stepSpeed(-1); break
           case 'c':             toggleSubtitles(); break
           case 's':             e.preventDefault(); openSettings(); break
-          case 'MediaTrackNext': if (_playerData && _playerData.episode) _playNextEpisode(false); break
+          case 'MediaTrackNext': if (_playerData && _playerData.episode) _nextEpisodeByKey(); break
         }
       })
 
@@ -3031,7 +3295,7 @@
           case 'resume': video.play().catch(() => {}); break
           case 'seek':   skip(cmd.by); break
           case 'seekTo': if (isFinite(video.duration)) video.currentTime = Math.max(0, Math.min(video.duration - 1, cmd.to)); break
-          case 'next':   if (_isEpisode()) _playNextEpisode(false); break
+          case 'next':   if (_isEpisode()) _nextEpisodeByKey(); break
           case 'subs':   toggleSubtitles(); break
           case 'stop':   leavePlayer(); break
         }
@@ -3131,14 +3395,234 @@
       }
 
       // ── Start ── (last, so every const above is initialised)
+      // ── Ambilight ── on by default except on TVs; Nastavení přehrávače → Ambilight
+      const ambiCanvas = document.getElementById('ambilight')
+      const ambiCtx = ambiCanvas.getContext('2d')
+      let _ambi = lsGet('filmbox_ambilight', IS_TV ? '0' : '1') === '1'
+      let _ambiTimer = null
+      function placeAmbilight() {
+        // The picture's real rectangle inside the (letterboxed) video element
+        const W = video.clientWidth, H = video.clientHeight, vw = video.videoWidth, vh = video.videoHeight
+        if (!W || !H || !vw || !vh) return
+        const scale = Math.min(W / vw, H / vh)
+        const w = vw * scale, h = vh * scale
+        ambiCanvas.style.width = w + 'px'
+        ambiCanvas.style.height = h + 'px'
+        ambiCanvas.style.left = (video.offsetLeft + (W - w) / 2) + 'px'
+        ambiCanvas.style.top = (video.offsetTop + (H - h) / 2) + 'px'
+      }
+      function drawAmbilight() {
+        // A cross-origin video still draws; the canvas is only shown, never read back.
+        try { if (video.readyState >= 2) ambiCtx.drawImage(video, 0, 0, ambiCanvas.width, ambiCanvas.height) } catch (e) {}
+      }
+      function runAmbilight() {
+        clearInterval(_ambiTimer)
+        _ambiTimer = null
+        playerWrap.classList.toggle('ambilight', _ambi)
+        if (!_ambi) return
+        placeAmbilight()
+        drawAmbilight()
+        if (!video.paused) _ambiTimer = setInterval(drawAmbilight, 150)
+      }
+      function setAmbilight(on) {
+        _ambi = on
+        lsSet('filmbox_ambilight', on ? '1' : '0')
+        runAmbilight()
+      }
+      ;['play', 'pause', 'loadeddata', 'seeked', 'loadedmetadata'].forEach(t => video.addEventListener(t, runAmbilight))
+      window.addEventListener('resize', () => { if (_ambi) placeAmbilight() })
+
+      // ── Timeline thumbnails ── a second, muted copy of the video (lowest quality)
+      // jumps to the time under the pointer / finger. Not on TVs (decoder + bandwidth).
+      const thumbBox = document.getElementById('seek-thumb')
+      const thumbVid = document.getElementById('seek-thumb-video')
+      const thumbTime = document.getElementById('seek-thumb-time')
+      const THUMBS = !IS_TV
+      let _thumbWant = null, _thumbBusy = false, _thumbSrc = null
+      function thumbSource() {
+        const qs = (source && source.qualities) || []
+        const low = qs.slice().sort((a, b) => (a.res || 9999) - (b.res || 9999))[0]
+        return low ? srcFor(low) : null
+      }
+      function seekThumb() {
+        if (_thumbWant == null || _thumbBusy || thumbVid.readyState < 1) return
+        _thumbBusy = true
+        thumbVid.currentTime = _thumbWant
+        _thumbWant = null
+      }
+      thumbVid.addEventListener('seeked', () => {
+        _thumbBusy = false
+        thumbBox.classList.add('has-frame')
+        if (_thumbWant != null) setTimeout(seekThumb, 40)
+      })
+      thumbVid.addEventListener('loadedmetadata', seekThumb)
+      thumbVid.addEventListener('error', () => { _thumbBusy = false; thumbBox.classList.remove('has-frame') })
+      function showThumb(clientX) {
+        if (!isFinite(video.duration) || !video.duration) return
+        const rect = seekBar.getBoundingClientRect()
+        if (!rect.width) return
+        const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+        const t = pct * video.duration
+        const half = (THUMBS ? 100 : 30)
+        thumbBox.style.left = Math.max(half, Math.min(rect.width - half, pct * rect.width)) + 'px'
+        thumbTime.textContent = fmt(t)
+        thumbBox.classList.add('show')
+        if (!THUMBS) return
+        const src = thumbSource()
+        if (src && src !== _thumbSrc) {
+          _thumbSrc = src
+          _thumbBusy = false
+          thumbBox.classList.remove('has-frame')
+          thumbVid.src = src
+          thumbVid.preload = 'auto'
+        }
+        _thumbWant = t
+        seekThumb()
+      }
+      function hideThumb() { thumbBox.classList.remove('show') }
+      seekBar.addEventListener('mousemove', e => showThumb(e.clientX))
+      seekBar.addEventListener('mouseleave', () => { if (!seeking) hideThumb() })
+      document.addEventListener('mousemove', e => { if (seeking) showThumb(e.clientX) })
+      document.addEventListener('mouseup', () => { if (!seekBar.matches(':hover')) hideThumb() })
+      seekBar.addEventListener('touchstart', e => showThumb(e.touches[0].clientX), { passive: true })
+      seekBar.addEventListener('touchmove', e => showThumb(e.touches[0].clientX), { passive: true })
+      seekBar.addEventListener('touchend', hideThumb)
+
+      // ── Pause screen ── paused for 8 s with nobody touching anything: title, episode,
+      // overview and cast over the dimmed picture (like Netflix). Any input hides it.
+      const pauseScreen = document.getElementById('pause-screen')
+      let _pauseTimer = null
+      let _pauseInfo = null
+      function pauseInfo() {
+        if (_pauseInfo) return _pauseInfo
+        const d = _playerData
+        if (!d || !d.tmdbId) return Promise.resolve(null)
+        const type = d.mediaType === 'tv' ? 'tv' : 'movie'
+        const ep = type === 'tv' && d.episode ? d.episode : null
+        _pauseInfo = Promise.all([
+          fetch(`/tmdb/details?id=${d.tmdbId}&type=${type}`).then(r => r.ok ? r.json() : null).catch(() => null),
+          ep ? fetch(`/tmdb/season?id=${d.tmdbId}&season=${ep.season}`).then(r => r.ok ? r.json() : null).catch(() => null) : null
+        ]).then(([show, season]) => {
+          if (!show) { _pauseInfo = null; return null }
+          const e = season && (season.episodes || []).filter(x => x.episode_number === ep.number)[0]
+          const year = (show.release_date || show.first_air_date || '').slice(0, 4)
+          const meta = [year, show.vote_average ? '★ ' + Number(show.vote_average).toFixed(1) : '',
+            show.runtime ? show.runtime + ' min' : (e && e.runtime ? e.runtime + ' min' : ''),
+            (show.genres || []).slice(0, 3).map(g => g.name).join(', ')].filter(Boolean).join('  ·  ')
+          return {
+            title: show.title || show.name || d.title,
+            sub: ep ? (d.episodeLabel || ('S' + String(ep.season).padStart(2, '0') + 'E' + String(ep.number).padStart(2, '0'))) + (e && e.name ? ' · ' + e.name : '') : '',
+            meta,
+            overview: (e && e.overview) || show.overview || '',
+            cast: (show.cast || []).slice(0, 5).map(c => c.name).join(', ')
+          }
+        })
+        return _pauseInfo
+      }
+      function hidePauseScreen() {
+        pauseScreen.classList.remove('show')
+        clearTimeout(_pauseTimer)
+        if (video.paused && !video.ended) _pauseTimer = setTimeout(showPauseScreen, 8000)
+      }
+      function showPauseScreen() {
+        if (!video.paused || video.ended || video.readyState < 1 || settingsOpen() || _scrubT != null ||
+            playerWrap.querySelector('.next-ep-prompt, .resume-prompt')) return
+        pauseInfo().then(info => {
+          if (!info || !video.paused || video.ended) return
+          document.getElementById('ps-title').textContent = info.title
+          document.getElementById('ps-sub').textContent = info.sub
+          document.getElementById('ps-meta').textContent = info.meta
+          document.getElementById('ps-overview').textContent = info.overview
+          document.getElementById('ps-cast').textContent = info.cast ? 'Hrají: ' + info.cast : ''
+          pauseScreen.classList.add('show')
+        })
+      }
+      video.addEventListener('pause', hidePauseScreen)
+      video.addEventListener('play', () => { clearTimeout(_pauseTimer); pauseScreen.classList.remove('show') })
+      ;['mousemove', 'keydown', 'touchstart', 'wheel'].forEach(t => document.addEventListener(t, () => {
+        if (pauseScreen.classList.contains('show') || _pauseTimer) hidePauseScreen()
+      }, { capture: true, passive: true }))
+
+      // ── Keep on the Pi (downloads.js on the server) ──
+      // A copy saved in FilmBox plays from there (instant, no buffering); the gear menu
+      // saves the one playing now.
+      let _download = null, _downloadTimer = null
+      function _downloadKey() {
+        const d = _playerData
+        if (!d || !d.tmdbId) return null
+        if (d.mediaType === 'tv') return d.episode ? `tv:${d.tmdbId}:S${String(d.episode.season).padStart(2, '0')}E${String(d.episode.number).padStart(2, '0')}` : null
+        return 'movie:' + d.tmdbId
+      }
+      function _localQuality(d) {
+        return { src: d.video, label: 'Z FilmBoxu' + (d.label ? ' · ' + d.label : ''), res: d.res || null, local: true }
+      }
+      function _useLocalCopy(d) {
+        if (!d || d.status !== 'done' || source.qualities.some(q => q.local)) return null
+        const q = _localQuality(d)
+        source.qualities.unshift(q)
+        if (!(source.subtitles || []).length && d.subtitles && d.subtitles.length) source.subtitles = d.subtitles.slice()
+        return q
+      }
+      function _findDownload() {
+        const key = _downloadKey()
+        if (!key) return Promise.resolve(null)
+        return fetch('/api/downloads/find?key=' + encodeURIComponent(key))
+          .then(r => r.ok ? r.json() : {}).then(d => { _download = d && d.id ? d : null; return _download })
+          .catch(() => null)
+      }
+      function _watchDownload() {
+        clearInterval(_downloadTimer)
+        if (!_download || (_download.status !== 'queued' && _download.status !== 'downloading')) return
+        _downloadTimer = setInterval(() => _findDownload().then(d => {
+          if (settingsOpen()) renderSettings()
+          if (!d || (d.status !== 'queued' && d.status !== 'downloading')) {
+            clearInterval(_downloadTimer)
+            if (d && d.status === 'done') { _useLocalCopy(d); toast('Uloženo ve FilmBoxu — příště to hraje odsud', 5000) }
+            if (d && d.status === 'failed') toast('Stahování se nepovedlo: ' + (d.error || ''), 6000)
+          }
+        }), 8000)
+      }
+      function _downloadLabel() {
+        const d = _download
+        if (!d) return null
+        if (d.status === 'done') return '✓ uloženo'
+        if (d.status === 'failed') return 'chyba — znovu'
+        if (d.status === 'queued') return 've frontě'
+        return d.size ? Math.floor(d.done / d.size * 100) + ' %' : 'začíná…'
+      }
+      function _downloadClick() {
+        const d = _download
+        if (d && d.status === 'done') {
+          const q = source.qualities.filter(x => x.local)[0] || _useLocalCopy(d)
+          if (q && currentQ !== q) { playQuality(q, video.currentTime, !video.paused); toast('Hraje kopie z FilmBoxu') }
+          return
+        }
+        if (d && d.status === 'failed') {
+          fetch(`/api/downloads/${d.id}/retry`, { method: 'POST' }).then(r => r.json()).then(x => { _download = x; _watchDownload(); renderSettings() })
+          return
+        }
+        if (d) return
+        const player = Object.assign({}, _playerData, { source: Object.assign({}, source, { qualities: source.qualities.filter(q => !q.local) }) })
+        delete player.alternatives
+        const q = currentQ && !currentQ.local ? currentQ : null
+        fetch('/api/downloads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player, src: q ? q.src : null }) })
+          .then(r => r.json().then(b => { if (!r.ok) throw new Error(b.error || 'Chyba'); return b }))
+          .then(x => { _download = x; _watchDownload(); renderSettings(); toast('Stahuji do FilmBoxu — klidně se dívejte dál', 5000) })
+          .catch(err => toast('Stáhnout nejde: ' + err.message, 5000))
+      }
+
       async function boot() {
         if (!source || !source.qualities.length) {
           showError('Pro toto video nejsou k dispozici žádné zdroje.')
           return
         }
-        if (linksExpired() && source.pageUrl) await refreshSource()
+        // Saved in FilmBox? Then from there.
+        const saved = source.qualities.some(q => q.local) ? null : await _findDownload()
+        const localQ = _useLocalCopy(saved) || source.qualities.filter(q => q.local)[0]
+        _watchDownload()
+        if (!localQ && linksExpired() && source.pageUrl) await refreshSource()
         buildSubtitleTracks()
-        playQuality(pickQuality(), 0, true)
+        playQuality(localQ || pickQuality(), 0, true)
         loadIntros()
       }
       if (_playerData) boot()

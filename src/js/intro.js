@@ -28,7 +28,7 @@
 
   const api = {
     list:   ()            => apiFetch('/api/profiles'),
-    create: (name, theme) => apiFetch('/api/profiles', jsonBody('POST', { name, theme })),
+    create: (name, theme, kids) => apiFetch('/api/profiles', jsonBody('POST', { name, theme, kids: !!kids })),
     delete: id            => apiFetch(`/api/profiles/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   }
 
@@ -52,6 +52,7 @@
     if (!profile) return
     applyTheme(profile.theme)
     document.body.classList.toggle('reduce-motion', !!(profile.settings && profile.settings.reduceMotion))
+    document.body.classList.toggle('kids', !!profile.kids)
   }
   window.applyProfileSettings = applyProfileSettings
 
@@ -94,6 +95,7 @@
         <div class="profile-avatar-wrap">
           <div class="profile-avatar" style="${p.picture ? '' : 'background:' + avatarColor(p.name)}">${avatarHTML(p)}</div>
           ${p.hasPin ? '<span class="profile-lock"><i class="bi bi-lock-fill"></i></span>' : ''}
+          ${p.kids ? '<span class="profile-kids">Děti</span>' : ''}
           <button class="profile-delete-btn" data-id="${escapeHtml(p.id)}" title="Smazat profil" aria-label="Smazat profil ${escapeHtml(p.name)}" tabindex="-1">
             <i class="bi bi-x-lg"></i>
           </button>
@@ -134,6 +136,12 @@
     const profile = profiles.find(p => p.id === id)
     if (!profile) return
 
+    // From a kids profile into a grown-up one: the parent PIN (when there is one).
+    const current = getActiveProfile()
+    if (current && current.kids && !profile.kids && window.askParentPin) {
+      if ((await window.askParentPin()) === false) return
+    }
+
     // Locked profile → require the correct PIN before entering.
     if (profile.hasPin && typeof window.openPinPrompt === 'function') {
       const ok = await window.openPinPrompt(profile)
@@ -162,6 +170,7 @@
     if (window.reloadWatched)   tasks.push(window.reloadWatched())
     if (window.reloadWatchlist) tasks.push(window.reloadWatchlist())
     tasks.push(loadProfileProgress())
+    if (window.reloadRatings)   tasks.push(window.reloadRatings())
     await Promise.all(tasks)
     if (window.reloadContinueWatching) window.reloadContinueWatching()
     if (window.reloadRecommendations) window.reloadRecommendations()
@@ -190,6 +199,7 @@
     nameInput.value = ''
     selectedTheme = 'dark'
     syncThemeOptions()
+    document.getElementById('new-profile-kids').checked = false
     openModal(addModal(), closeAddProfile)
     setTimeout(() => nameInput.focus(), 60)
   }
@@ -240,7 +250,7 @@
       const name = document.getElementById('new-profile-name').value.trim()
       if (!name) { document.getElementById('new-profile-name').focus(); return }
       try {
-        await api.create(name, selectedTheme)
+        await api.create(name, selectedTheme, document.getElementById('new-profile-kids').checked)
         closeAddProfile()
         await renderProfileGrid()
       } catch (err) {

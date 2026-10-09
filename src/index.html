@@ -64,6 +64,11 @@
         <button class="theme-option active" data-theme="dark"><i class="bi bi-moon-stars"></i> Tmavý</button>
         <button class="theme-option" data-theme="light"><i class="bi bi-sun"></i> Světlý</button>
       </div>
+      <label class="settings-toggle profile-kids-toggle">
+        <input type="checkbox" id="new-profile-kids" />
+        <span class="switch" aria-hidden="true"></span>
+        <span>Dětský profil — jen pohádky a rodinné filmy</span>
+      </label>
       <div class="overlay-actions">
         <button id="profile-add-cancel" class="btn btn-ghost">Zrušit</button>
         <button id="profile-add-confirm" class="btn btn-primary">Vytvořit</button>
@@ -137,6 +142,13 @@
 
   <main class="rows" id="rows">
 
+    <!-- December / January: "Váš rok ve FilmBoxu" (wrapped.js) -->
+    <button class="wrapped-banner" id="wrapped-banner" style="display:none">
+      <span class="wb-icon"><i class="bi bi-stars"></i></span>
+      <span class="wb-text"><b>Váš rok ve FilmBoxu</b><small>Kolik hodin, co nejvíc, největší maraton…</small></span>
+      <i class="bi bi-chevron-right"></i>
+    </button>
+
     <!-- Search results (shown after pressing Enter in search) -->
     <section class="row-section" id="search-movies-section" style="display:none">
       <div class="row-header">
@@ -150,6 +162,17 @@
         </div>
       </div>
       <div class="card-grid" id="search-movies"></div>
+    </section>
+
+    <!-- Saved on the server (saved.js / downloads.js): plays from there -->
+    <section class="row-section parent-only" id="saved-section" style="display:none">
+      <div class="row-header">
+        <div>
+          <h3>Uloženo ve FilmBoxu</h3>
+          <p id="saved-sub">Hraje rovnou ze serveru — hned a bez sekání</p>
+        </div>
+      </div>
+      <div class="row" data-row><div class="row-track" id="saved-movies"></div></div>
     </section>
 
     <section class="row-section" id="continue-watching-section" style="display:none">
@@ -183,6 +206,9 @@
       </div>
       <div class="row" data-row><div class="row-track" id="recommended-movies"></div></div>
     </section>
+
+    <!-- "Protože jste sledovali X" / "Protože se vám líbilo X" (recommend.js) -->
+    <div id="because-rows"></div>
 
     <!-- ── Coming soon: premieres + next episodes from the profile's lists (upcoming.js) ── -->
     <section class="row-section" id="upcoming-section" style="display:none" data-nav-controls>
@@ -382,10 +408,13 @@
               <button id="detail-wl-btn" class="btn btn-glass"><i class="bi bi-bookmark"></i> Přidat</button>
               <button id="detail-fav-btn" class="btn btn-glass btn-icon-only" aria-label="Oblíbit"><i class="bi bi-heart"></i></button>
               <button id="detail-watched-btn" class="btn btn-glass btn-icon-only" aria-label="Označit jako zhlédnuté"><i class="bi bi-check-circle"></i></button>
+              <div id="detail-rate" class="rate-group" role="group" aria-label="Hodnocení"></div>
             </div>
           </div>
         </div>
         <p id="detail-overview" class="detail-overview"></p>
+        <!-- Where else it streams in Czechia (TMDB / JustWatch) -->
+        <div id="detail-providers" class="detail-block detail-providers" style="display:none"></div>
         <div id="detail-cast-wrap" class="detail-block" style="display:none">
           <h4 class="block-title">Hrají</h4>
           <div id="detail-cast" class="detail-cast"></div>
@@ -540,6 +569,12 @@
         <h3 id="random-title"><i class="bi bi-shuffle"></i> Co pustit?</h3>
         <button class="sheet-close static" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
       </div>
+      <!-- Chytrý tip: describe it, AI picks (aipick.js; only when the server has a key) -->
+      <form class="ai-ask" id="ai-ask" hidden>
+        <i class="bi bi-stars"></i>
+        <input id="ai-query" class="field" maxlength="300" placeholder="Na co máte chuť? Např. něco vtipného na dva, do dvou hodin…" autocomplete="off" />
+        <button class="btn btn-accent btn-sm" type="submit">Poradit</button>
+      </form>
       <div class="random-filters">
         <div class="segmented" id="random-from" role="group" aria-label="Odkud vybírat">
           <button data-value="all" class="active">Odkudkoli</button>
@@ -582,6 +617,7 @@
       <div class="stats-head">
         <span class="eyebrow">Statistiky sledování</span>
         <h2 id="stats-title"></h2>
+        <button class="btn btn-accent btn-sm stats-wrapped" id="stats-wrapped"><i class="bi bi-stars"></i> Rok ve FilmBoxu</button>
         <div class="segmented" id="stats-period" role="group" aria-label="Období">
           <button data-period="month">Tento měsíc</button>
           <button data-period="year">Tento rok</button>
@@ -589,6 +625,23 @@
         </div>
       </div>
       <div id="stats-body" class="stats-body" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <!-- ── Server: version, updates, health (server-admin.js) ── -->
+  <div id="server-modal" class="sheet-modal hidden" role="dialog" aria-modal="true" aria-labelledby="server-title">
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet stats-sheet server-sheet">
+      <button class="sheet-close" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
+      <div class="stats-head">
+        <span class="eyebrow">FilmBox na serveru</span>
+        <h2 id="server-title">Server</h2>
+        <p class="detail-meta" id="server-version"></p>
+      </div>
+      <div class="server-update" id="server-update" aria-live="polite"></div>
+      <div class="stats-tiles" id="server-tiles"></div>
+      <div class="stats-block" id="server-downloads"></div>
+      <div class="stats-block" id="server-errors"></div>
     </div>
   </div>
 
@@ -647,6 +700,25 @@
         </section>
 
         <section class="settings-section">
+          <span class="settings-label">Dětský profil</span>
+          <label class="settings-toggle">
+            <input type="checkbox" id="settings-kids" />
+            <span class="switch" aria-hidden="true"></span>
+            <span>Jen pohádky, animované a rodinné filmy a seriály (bez hororů, thrillerů, krimi a válečných)</span>
+          </label>
+          <p class="settings-hint">Z dětského profilu do ostatních (i jeho vypnutí) pustí jen rodičovský PIN, pokud je nastavený.</p>
+        </section>
+
+        <section class="settings-section parent-only">
+          <span class="settings-label">Rodičovský PIN <span id="settings-parent-status" class="settings-hint"></span></span>
+          <div class="settings-inline settings-buttons">
+            <button id="settings-parent-set" class="btn btn-ghost btn-sm"><i class="bi bi-shield-lock"></i> Nastavit</button>
+            <button id="settings-parent-remove" class="btn btn-ghost btn-sm" hidden><i class="bi bi-x-lg"></i> Odebrat</button>
+          </div>
+          <p class="settings-hint">Jeden PIN pro celou domácnost: hlídá odchod z dětských profilů.</p>
+        </section>
+
+        <section class="settings-section">
           <label class="settings-label" for="settings-pin-input">PIN profilu <span id="settings-pin-status" class="settings-hint"></span></label>
           <div class="settings-inline">
             <input type="password" id="settings-pin-input" class="field" inputmode="numeric" maxlength="4" placeholder="4 číslice" pattern="\d{4}" />
@@ -666,6 +738,11 @@
             <input type="checkbox" id="settings-autoplay" />
             <span class="switch" aria-hidden="true"></span>
             <span>Automaticky přehrávat upoutávky</span>
+          </label>
+          <label class="settings-toggle">
+            <input type="checkbox" id="settings-previews" />
+            <span class="switch" aria-hidden="true"></span>
+            <span>Přehrávat ukázky při procházení (bez zvuku, ne na TV)</span>
           </label>
         </section>
 
@@ -699,6 +776,19 @@
         </section>
 
         <section class="settings-section">
+          <label class="settings-label" for="settings-ntfy">Upozornění na nové díly <span id="settings-ntfy-status" class="settings-hint"></span></label>
+          <div class="settings-inline">
+            <input id="settings-ntfy" class="field" maxlength="64" placeholder="téma, např. filmbox-vlada-7k2m9" autocomplete="off" spellcheck="false" />
+            <button id="settings-ntfy-save" class="btn btn-primary btn-sm">Uložit</button>
+          </div>
+          <div class="settings-inline settings-buttons">
+            <button id="settings-ntfy-new" class="btn btn-ghost btn-sm"><i class="bi bi-shuffle"></i> Vymyslet téma</button>
+            <button id="settings-ntfy-test" class="btn btn-ghost btn-sm"><i class="bi bi-bell"></i> Poslat zkoušku</button>
+          </div>
+          <p class="settings-hint">Do telefonu si nainstalujte aplikaci <b>ntfy</b> (Android i iPhone, zdarma, bez registrace), klepněte na <b>+</b> a přihlaste se k odběru stejného tématu. Když u seriálu, který sledujete, vyjde nový díl, přijde upozornění. Téma je jako heslo — ať je neuhodnutelné. Prázdné = vypnuto.</p>
+        </section>
+
+        <section class="settings-section">
           <span class="settings-label">Moje data</span>
           <div class="settings-inline settings-buttons">
             <button id="settings-stats" class="btn btn-ghost btn-sm"><i class="bi bi-bar-chart"></i> Statistiky</button>
@@ -706,6 +796,14 @@
             <button id="settings-wipe" class="btn btn-ghost btn-sm"><i class="bi bi-eraser"></i> Vymazat data</button>
           </div>
           <p class="settings-hint">Export stáhne vaše oblíbené, sledované, seznamy a průběh jako JSON. Vymazání ponechá profil, ale smaže jeho knihovnu.</p>
+        </section>
+
+        <section class="settings-section parent-only">
+          <span class="settings-label">Server</span>
+          <div class="settings-inline settings-buttons">
+            <button id="settings-server" class="btn btn-ghost btn-sm"><i class="bi bi-hdd-rack"></i> Server a aktualizace <span class="server-dot" id="server-dot" hidden></span></button>
+          </div>
+          <p class="settings-hint">Verze FilmBoxu, nové změny z GitHubu (aktualizace jedním klepnutím), místo na disku, teplota a chyby.</p>
         </section>
 
         <section class="settings-section settings-danger">
@@ -771,7 +869,11 @@
   <script src="js/player.js"></script>
   <script src="js/detail.js"></script>
   <script src="js/search.js"></script>
+  <script src="js/voice.js"></script>
+  <script src="js/previews.js"></script>
   <script src="js/hero.js"></script>
+  <script src="js/taste.js"></script>
+  <script src="js/ratings.js"></script>
   <script src="js/recommend.js"></script>
   <script src="js/upcoming.js"></script>
   <script src="js/random.js"></script>
@@ -782,6 +884,9 @@
   <script src="js/main.js"></script>
   <script src="js/settings.js"></script>
   <script src="js/profile-stats.js"></script>
+  <script src="js/server-admin.js"></script>
+  <script src="js/saved.js"></script>
+  <script src="js/wrapped.js"></script>
 </body>
 
 </html>

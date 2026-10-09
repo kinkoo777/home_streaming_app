@@ -12,6 +12,7 @@ let heroIdx    = 0
 let heroLayer  = 0
 let heroTimer  = null
 let heroPaused = false
+let heroTrailer = false      // a muted trailer is playing (previews.js) — the carousel waits
 
 heroEl.style.setProperty('--hero-interval', HERO_INTERVAL + 'ms')
 
@@ -95,7 +96,14 @@ function setHero(idx, first) {
   if (dot) { void dot.offsetWidth; dot.classList.add('active') }
 
   tintAmbient(movie)
+  if (window.heroPreviewSlide) window.heroPreviewSlide(movie)
   scheduleNext()
+}
+
+window.heroPreviewPlaying = function (on) {
+  heroTrailer = on
+  if (on) clearTimeout(heroTimer)
+  else scheduleNext()
 }
 
 function syncHeroListButton() {
@@ -121,7 +129,7 @@ function renderHeroDots() {
 
 function scheduleNext() {
   clearTimeout(heroTimer)
-  if (heroPaused || heroMovies.length < 2) return
+  if (heroPaused || heroTrailer || heroMovies.length < 2) return
   heroTimer = setTimeout(() => setHero((heroIdx + 1) % heroMovies.length), HERO_INTERVAL)
 }
 

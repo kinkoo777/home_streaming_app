@@ -63,6 +63,7 @@
     try { cmd = JSON.parse(e.data) } catch (err) { return }
     if (!cmd || !cmd.type) return
     if (cmd.type === 'play') startPlayback(cmd)
+    else if (cmd.type === 'room') location.href = 'watch.html?room=' + encodeURIComponent(cmd.room) + '&tv=1'
     else if (typeof window.castCommand === 'function') window.castCommand(cmd)
   }
 

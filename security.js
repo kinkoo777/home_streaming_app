@@ -77,6 +77,16 @@ function libraryEntry(b) {
     return { tmdbId, mediaType: mt, title: t, posterPath: posterPath(b.posterPath) };
 }
 
+// Rating body → { rating: -1 | 0 | 1 | 2, title, posterPath }, or null.
+function ratingEntry(b) {
+    if (!b || typeof b !== 'object') return null;
+    const rating = Number(b.rating);
+    if ([-1, 0, 1, 2].indexOf(rating) < 0) return null;
+    const t = title(b.title);
+    if (rating && !t) return null;
+    return { rating, title: t || '', posterPath: posterPath(b.posterPath) };
+}
+
 // Playback progress body → clean record, or null.
 function progress(key, b) {
     if (!PROGRESS_KEY.test(String(key)) || !b || typeof b !== 'object') return null;
@@ -120,7 +130,7 @@ function intro(b) {
 }
 
 // Profile create/update fields. Returns { changes } or { error }.
-const SETTINGS_KEYS = ['reduceMotion', 'autoplayTrailers', 'stillWatching'];
+const SETTINGS_KEYS = ['reduceMotion', 'autoplayTrailers', 'stillWatching', 'previews'];
 // Playback preferences with a fixed set of values (see DEFAULT_SETTINGS in db.js).
 const SETTINGS_CHOICES = {
     audioPref:   ['dub', 'original', 'any'],
@@ -140,6 +150,10 @@ function profileChanges(b, creating) {
         if (b.theme !== 'dark' && b.theme !== 'light') return { error: 'Neplatný motiv' };
         changes.theme = b.theme;
     }
+    if (b.kids !== undefined) {
+        if (typeof b.kids !== 'boolean') return { error: 'Neplatná hodnota kids' };
+        changes.kids = b.kids;
+    }
     if (b.picture !== undefined) {
         if (b.picture !== null && !(typeof b.picture === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(b.picture) && b.picture.length <= MAX_PICTURE)) {
             return { error: 'Neplatný obrázek' };
@@ -154,6 +168,13 @@ function profileChanges(b, creating) {
             if (b.settings[k] === undefined) continue;
             if (!SETTINGS_CHOICES[k].includes(b.settings[k])) return { error: 'Neplatné nastavení: ' + k };
             s[k] = b.settings[k];
+        }
+        // ntfy topic for new-episode notifications ('' = off)
+        const topic = b.settings.ntfyTopic;
+        if (topic !== undefined) {
+            if (topic === null || topic === '') s.ntfyTopic = '';
+            else if (typeof topic === 'string' && /^[A-Za-z0-9_-]{6,64}$/.test(topic)) s.ntfyTopic = topic;
+            else return { error: 'Téma ntfy: 6–64 znaků, jen písmena bez diakritiky, číslice, - a _' };
         }
         // Version of the "what's new" video this profile has already seen.
         const seen = b.settings.seenWhatsNew;
@@ -227,5 +248,4 @@ function clearFailures(req, profileId) { failures.delete(failKey(req, profileId)
 module.exports = {
     toId, mediaType, posterPath, title, watchlists, libraryEntry, progress, intro, watchTime, profileChanges,
     tmdbType, season,
-    issueToken, hasSession, revokeProfile, retryAfter, recordFailure, clearFailures
-};
+    issueToken, hasSession, revokeProfile, retryAfter, recordFailure, clearFailures, ratingEntry };
