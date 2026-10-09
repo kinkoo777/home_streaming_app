@@ -47,6 +47,11 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 - **Playback speed** — *Settings (gear) → Rychlost* in the player: 0,5× – 2×, or <kbd>&lt;</kbd> / <kbd>&gt;</kbd>; kept for the session, so the next episode plays at the same speed
 - **Server page** — *Nastavení → Server a aktualizace*: which version runs, the changes waiting on GitHub and **Aktualizovat a restartovat** (git pull → `npm ci` when the dependencies changed → restart; the page waits for the server and reloads), plus uptime, free disk space, memory, CPU temperature, open rooms, Funnel and the last errors. A red dot on the button means an update is waiting. See *Updating*
 - **Trailer previews** — like Netflix: 2.5 s after a hero slide appears its trailer fades in behind the text (muted; 🔇/🔊 button; the carousel waits until it ends; paused when you scroll away, open a window or hover a card). With a mouse, resting on a card for 0.7 s pops out a bigger preview with the trailer, rating, year, genres and *Přehrát* / *Můj seznam* / *Detail*. Czech trailers first, English when there's none (also in the trailer window). Off on TVs, with *Omezit animace*, with data saving, or per profile (*Nastavení → Přehrávat ukázky při procházení*)
+- **👎 / 👍 / 👍👍 ratings** — *Nelíbí se mi / Líbí se mi / Miluju to* in the detail, in the card pop-out (👍 opens the three choices) and at the end of a film (or after a series' last episode: *Jak se vám film líbil?*). Pressing the same one again takes it back. 👎 titles never appear in recommendations or *Co pustit?*; 👍 ones become seeds for them. Saved per profile (`data/ratings.json`, in the export, wiped with the data)
+- **% shoda** — "98 % shoda" in the detail and the card pop-out: how well a title's genres fit the profile's taste (built from ratings, favourites, watched and started titles — a dislike weighs most) plus its TMDB rating. Shown once the profile has rated / watched at least 3 titles; green from 80 %
+- **Protože se vám líbilo / Protože jste sledovali „X“** — up to two extra rows under *Doporučeno pro vás*, each built from one title: the latest 👍 and the latest finished one (only when they bring at least 6 titles not already on screen)
+- **ČSFD rating** — the detail shows the ČSFD score next to TMDB's (red / blue / grey like ČSFD, a link to the film there). Looked up by the Czech title (then the original one) and the year, cached for a week
+- **Kde jinde to běží** — in the detail: which streaming services have the title in Czechia, in the subscription, free, to rent or to buy (TMDB / JustWatch data, linked)
 - **Pause screen** — paused for 8 s with nobody touching anything, the player shows what you're watching over the dimmed picture: title, episode and its name, year, rating, length, genres, the episode's (or film's) overview and the cast. Any key, touch or mouse move hides it
 - **Timeline thumbnails** — hovering or dragging the timeline shows the picture at that moment with its time (a muted copy of the lowest quality jumps there; the film itself doesn't move). Not on TVs
 - **Ambilight** — the picture's colours glow into the black bars around it (wide films, other screen shapes); *Settings (gear) → Ambilight*, remembered per device, off by default on TVs
@@ -77,6 +82,7 @@ home_streaming_app/
 ├── cast.js             # "Pustit na TV": TV receivers (Server-Sent Events), commands, playback state
 ├── rooms.js            # "Sledovat společně": rooms, roles + permissions, sync, chat, reactions, source fallback (Server-Sent Events)
 ├── admin.js            # Server page: version, updates from GitHub (pull + restart), health, recent errors
+├── csfd.js             # ČSFD rating lookup (search page → film page, JSON-LD / rating box)
 ├── subtitles.js        # SRT→WebVTT + OpenSubtitles search/download
 ├── tools/
 │   ├── guides.spec.js  # Hand-written watch guides (film lists, chronological order) + TMDB collection ids
@@ -91,6 +97,7 @@ home_streaming_app/
 │   ├── watchlists.json   # Per-profile array of named lists { id, name, movies[] }
 │   ├── progress.json     # Per-profile playback position, keyed by tmdbId or "tmdbId:S01E05" → { seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }
 │   ├── history.json      # Seconds played per profile, day and title (stats)
+│   ├── ratings.json      # 👎 / 👍 / 👍👍 per profile and title
 │   └── intros.json       # Skip-intro marks per series + season, shared by all profiles
 └── src/
     ├── index.html
@@ -131,6 +138,8 @@ home_streaming_app/
         ├── profile-stats.js # Watching stats sheet
         ├── server-admin.js # Server page (version, updates, health)
         ├── previews.js   # Muted trailer previews: hero + card pop-out (YouTube iframe messages)
+        ├── ratings.js    # 👎 / 👍 / 👍👍, taste, "% shoda", dislike filter
+        ├── taste.js      # Taste profile + match percentage (shared with the server and unit tests)
         ├── episodes.js   # Which episode comes next (next season after a finale; shared with unit tests)
         ├── cast-receiver.js # TV side of "Pustit na TV" (home page + player)
         ├── cast-sender.js   # Phone side: choose a TV, send, remote
@@ -349,6 +358,16 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 | `GET` | `/api/profiles/:id/progress` | Get playback progress map, keyed by `tmdbId` (or `tmdbId:S01E05` per episode) |
 | `PUT`/`POST` | `/api/profiles/:id/progress/:key` | Save position + metadata `{ seconds, duration, title, posterPath, mediaType, tmdbId, episodeLabel }` (POST = page-close beacon) |
 | `DELETE` | `/api/profiles/:id/progress/:key` | Remove a single Continue Watching entry |
+
+### Ratings & taste
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/profiles/:id/ratings` | The profile's ratings, newest first: `[{ tmdbId, mediaType, rating: -1\|1\|2, title, posterPath, ratedAt }]` |
+| `PUT /api/profiles/:id/ratings/:mediaType/:tmdbId` | `{ rating: -1\|0\|1\|2, title, posterPath }` — 0 removes it |
+| `GET /api/profiles/:id/taste` | `{ genres: { [genreId]: -1…1 }, disliked, liked, n }` from ratings, favourites, watched, in progress (rebuilt at most every 10 min or after a rating) |
+| `GET /api/csfd?title=&original=&year=` | ČSFD rating `{ rating, votes, url }` or `{ rating: null }` |
+| `GET /tmdb/providers?id=&type=` | Streaming services in Czechia `{ link, flatrate, free, ads, rent, buy }` |
 
 ### Data export / wipe
 

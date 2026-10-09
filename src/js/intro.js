@@ -162,6 +162,7 @@
     if (window.reloadWatched)   tasks.push(window.reloadWatched())
     if (window.reloadWatchlist) tasks.push(window.reloadWatchlist())
     tasks.push(loadProfileProgress())
+    if (window.reloadRatings)   tasks.push(window.reloadRatings())
     await Promise.all(tasks)
     if (window.reloadContinueWatching) window.reloadContinueWatching()
     if (window.reloadRecommendations) window.reloadRecommendations()

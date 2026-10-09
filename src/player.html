@@ -2365,6 +2365,7 @@
         nextMini.classList.remove('show')
         if (_sleepAtEnd()) _fireSleep()
         else if (_playerData && _playerData.episode) _showNextEpisodePrompt()
+        else if (_playerData && _playerData.tmdbId) _showRatePrompt('Jak se vám film líbil?')
       })
 
       // ── Buffering spinner ──
@@ -2492,6 +2493,38 @@
         nextMini.classList.remove('show')
       })
 
+      // ── 👎 / 👍 / 👍👍 at the end (films; series after their last episode) ──
+      function _showRatePrompt(question) {
+        const d = _playerData
+        const pid = _profileId()
+        if (!d || !d.tmdbId || pid === 'default') return
+        const type = d.mediaType === 'tv' ? 'tv' : 'movie'
+        const ov = _promptOverlay('rate-prompt', `
+          <div class="next-ep-card">
+            <p></p>
+            <div class="next-ep-actions">
+              <button class="next-ep-yes rate-choice" data-rate="-1" aria-label="Nelíbí se mi"><i class="bi bi-hand-thumbs-down"></i> Nic moc</button>
+              <button class="next-ep-yes rate-choice" data-rate="1" aria-label="Líbí se mi"><i class="bi bi-hand-thumbs-up"></i> Líbilo</button>
+              <button class="next-ep-yes rate-choice" data-rate="2" aria-label="Miluju to"><i class="bi bi-hand-thumbs-up-fill"></i><i class="bi bi-hand-thumbs-up-fill"></i> Miluju</button>
+              <button class="next-ep-no">Zavřít</button>
+            </div>
+          </div>`)
+        ov.querySelector('p').textContent = question
+        ov.querySelector('.next-ep-no').addEventListener('click', () => ov.remove())
+        ov.querySelectorAll('.rate-choice').forEach(b => b.addEventListener('click', () => {
+          const title = (d.title || '').replace(/\s*S\d{2}E\d{2}.*$/i, '').trim() || 'Bez názvu'
+          fetch(`/api/profiles/${encodeURIComponent(pid)}/ratings/${type}/${d.tmdbId}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rating: parseInt(b.dataset.rate, 10), title, posterPath: d.posterPath || null })
+          }).then(r => {
+            ov.querySelector('p').textContent = r.ok ? 'Díky! Podle toho vám budeme doporučovat.' : 'Hodnocení se nepodařilo uložit'
+            ov.querySelectorAll('.rate-choice').forEach(x => { x.disabled = true })
+            if (r.ok) setTimeout(() => ov.remove(), 1800)
+          }).catch(() => { ov.querySelector('p').textContent = 'Hodnocení se nepodařilo uložit' })
+        }))
+        ov.querySelector('.rate-choice[data-rate="1"]').focus()
+      }
+
       function _showNextEpisodePrompt() {
         const d = _playerData
         if (!d || !d.episode) return
@@ -2506,6 +2539,7 @@
           ov.querySelector('p').textContent = FilmBoxEpisodes.noNextMessage(_nextEp)
           ov.querySelector('.next-ep-no').addEventListener('click', () => ov.remove())
           ov.querySelector('.next-ep-no').focus()
+          if (_nextEp.ended) { ov.remove(); _showRatePrompt('To byl poslední díl. Jak se vám seriál líbil?') }
           return
         }
         if (_shouldAskStillWatching()) { _showStillWatchingPrompt(); return }

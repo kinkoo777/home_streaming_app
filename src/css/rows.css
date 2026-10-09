@@ -485,3 +485,6 @@ body.kbd .movie-card:hover:not(:focus) .movie-poster > img { transform: none; }
 .pop-meta .rating-pill i { margin-right: 4px; }
 .pop-kind { border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; font-size: 11px; }
 body:not(.dark) .pop-meta .rating-pill { color: #b45309; }
+.pop-rate { display: -webkit-inline-flex; display: inline-flex; }
+.pop-rate .rate-btn { width: 34px; height: 34px; font-size: 15px; }
+.card-pop .match-badge { display: inline-block; margin-top: 8px; font-size: 14px; }

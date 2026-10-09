@@ -272,7 +272,7 @@
     try {
       await apiFetch(`/api/profiles/${active.id}/data`, { method: 'DELETE' })
       window._profileProgress = {}
-      await Promise.all([window.reloadWatched(), window.reloadWatchlist(), window.reloadFavorites()])
+      await Promise.all([window.reloadWatched(), window.reloadWatchlist(), window.reloadFavorites(), window.reloadRatings ? window.reloadRatings() : null])
       window.reloadContinueWatching()
       showToast('Data vymazána')
     } catch (err) { showToast('Chyba: ' + err.message) }

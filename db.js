@@ -28,6 +28,7 @@ const WATCHLISTS_FILE = path.join(DATA_DIR, 'watchlists.json');
 const PROGRESS_FILE   = path.join(DATA_DIR, 'progress.json');
 const INTROS_FILE     = path.join(DATA_DIR, 'intros.json');
 const HISTORY_FILE    = path.join(DATA_DIR, 'history.json');
+const RATINGS_FILE    = path.join(DATA_DIR, 'ratings.json');
 
 function ensure() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -334,4 +335,29 @@ const intros = {
   }
 };
 
-module.exports = { profiles, favorites, watched, watchlists, progress, intros, history, localDate, sanitizeProfile, DATA_DIR };
+// ── Ratings ── 👎 (-1) / 👍 (1) / 👍👍 (2) per profile and title:
+// [{ profileId, tmdbId, mediaType, rating, title, posterPath, ratedAt }]
+
+const ratings = {
+  list(profileId) {
+    return read(RATINGS_FILE)
+      .filter(r => r.profileId === profileId)
+      .sort((a, b) => b.ratedAt.localeCompare(a.ratedAt));
+  },
+
+  // rating 0 removes it. → the stored entry, or null when removed
+  set(profileId, { tmdbId, mediaType, rating, title, posterPath = null }) {
+    tmdbId = Number(tmdbId);
+    const all = read(RATINGS_FILE).filter(r => !(r.profileId === profileId && r.tmdbId === tmdbId && r.mediaType === mediaType));
+    if (!rating) { write(RATINGS_FILE, all); return null; }
+    const r = { profileId, tmdbId, mediaType, rating, title, posterPath, ratedAt: new Date().toISOString() };
+    write(RATINGS_FILE, [r, ...all]);
+    return r;
+  },
+
+  deleteByProfile(profileId) {
+    write(RATINGS_FILE, read(RATINGS_FILE).filter(r => r.profileId !== profileId));
+  }
+};
+
+module.exports = { profiles, favorites, watched, watchlists, progress, intros, history, ratings, localDate, sanitizeProfile, DATA_DIR };

@@ -33,6 +33,7 @@
       const type = typeOf(m)
       const item = Object.assign({}, m, { media_type: type })
       if (isWatched(m.id, type) || inProgress(m.id, type)) return
+      if (window.isDisliked && window.isDisliked(m.id, type)) return
       out[keyOf(item)] = item
     }
     if (filters.from !== 'recommended' && typeof getLists === 'function') getLists().forEach(l => l.movies.forEach(add))

@@ -77,6 +77,16 @@ function libraryEntry(b) {
     return { tmdbId, mediaType: mt, title: t, posterPath: posterPath(b.posterPath) };
 }
 
+// Rating body → { rating: -1 | 0 | 1 | 2, title, posterPath }, or null.
+function ratingEntry(b) {
+    if (!b || typeof b !== 'object') return null;
+    const rating = Number(b.rating);
+    if ([-1, 0, 1, 2].indexOf(rating) < 0) return null;
+    const t = title(b.title);
+    if (rating && !t) return null;
+    return { rating, title: t || '', posterPath: posterPath(b.posterPath) };
+}
+
 // Playback progress body → clean record, or null.
 function progress(key, b) {
     if (!PROGRESS_KEY.test(String(key)) || !b || typeof b !== 'object') return null;
@@ -227,5 +237,4 @@ function clearFailures(req, profileId) { failures.delete(failKey(req, profileId)
 module.exports = {
     toId, mediaType, posterPath, title, watchlists, libraryEntry, progress, intro, watchTime, profileChanges,
     tmdbType, season,
-    issueToken, hasSession, revokeProfile, retryAfter, recordFailure, clearFailures
-};
+    issueToken, hasSession, revokeProfile, retryAfter, recordFailure, clearFailures, ratingEntry };

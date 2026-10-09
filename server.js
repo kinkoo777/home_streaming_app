@@ -21,7 +21,9 @@ const { fetchVideoPage, fetchFastsharePage, fetchSledujtetoPage, getMp4Info, han
 const sec = require('./security');
 const subtitles = require('./subtitles');
 const { srtToVtt } = subtitles;
-const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB, intros: introsDB, history: historyDB, sanitizeProfile, DATA_DIR } = require('./db');
+const { profiles: profilesDB, favorites: favoritesDB, watched: watchedDB, watchlists: watchlistsDB, progress: progressDB, intros: introsDB, history: historyDB, ratings: ratingsDB, sanitizeProfile, DATA_DIR } = require('./db');
+const taste = require('./src/js/taste');
+const csfd = require('./csfd');
 const { computeStats, PERIODS } = require('./stats');
 const cast = require('./cast');
 const relevance = require('./src/js/relevance');
@@ -173,6 +175,34 @@ app.get('/tmdb/videos', async (req, res) => {
     // Czech videos first, English ones when there are none (most films have no Czech trailer).
     try { res.json(await tmdbFetch(`/${type}/${id}/videos?language=cs-CZ&include_video_language=cs,en,null`)); }
     catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Where else it streams in Czechia (TMDB's JustWatch data): { link, flatrate, free, ads, rent, buy }.
+app.get('/tmdb/providers', async (req, res) => {
+    const id = sec.toId(req.query.id);
+    const type = sec.tmdbType(req.query.type);
+    if (!id || !type) return res.status(400).json({ error: 'Neplatné id nebo type (movie|tv)' });
+    try {
+        const d = await tmdbFetch(`/${type}/${id}/watch/providers`);
+        res.json((d.results && d.results.CZ) || {});
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ČSFD rating ?title=&original=&year= → { rating, votes, url } | { rating: null }.
+// Cached a week (a day when ČSFD has nothing / can't be reached).
+app.get('/api/csfd', async (req, res) => {
+    const t = s => (typeof s === 'string' ? s.trim().slice(0, 200) : '');
+    const title = t(req.query.title), original = t(req.query.original);
+    const year = parseInt(req.query.year, 10) || null;
+    if (!title && !original) return res.status(400).json({ error: 'Chybí název' });
+    const key = 'csfd:' + [title, original, year].join('|').toLowerCase();
+    const cached = getCache(key);
+    if (cached) return res.json(cached);
+    let out = { rating: null };
+    try { out = (await csfd.lookup({ title, original, year })) || { rating: null }; }
+    catch (err) { console.error('ČSFD:', err.message); }
+    setCache(key, out, out.rating != null ? 7 * 24 * 3600 * 1000 : 24 * 3600 * 1000);
+    res.json(out);
 });
 
 app.get('/tmdb/similar', async (req, res) => {
@@ -1097,6 +1127,7 @@ app.delete('/api/profiles/:id', (req, res) => {
     watchlistsDB.deleteByProfile(id);
     progressDB.deleteByProfile(id);
     historyDB.deleteByProfile(id);
+    ratingsDB.deleteByProfile(id);
     sec.revokeProfile(id);
     res.json({ ok: true });
 });
@@ -1110,6 +1141,47 @@ app.delete('/api/profiles/:id/favorites/:tmdbId/:mediaType', libraryDelete(favor
 app.get('/api/profiles/:id/watched', (req, res) => res.json(watchedDB.list(req.params.id)));
 app.post('/api/profiles/:id/watched', libraryAdd(watchedDB));
 app.delete('/api/profiles/:id/watched/:tmdbId/:mediaType', libraryDelete(watchedDB));
+
+// ── Ratings 👎 / 👍 / 👍👍 ──
+app.get('/api/profiles/:id/ratings', (req, res) => res.json(ratingsDB.list(req.params.id)));
+app.put('/api/profiles/:id/ratings/:mediaType/:tmdbId', (req, res) => {
+    const tmdbId = sec.toId(req.params.tmdbId);
+    const type = sec.tmdbType(req.params.mediaType);
+    const entry = sec.ratingEntry(req.body);
+    if (!tmdbId || !type || !entry) return res.status(400).json({ error: 'Neplatné hodnocení' });
+    const saved = ratingsDB.set(req.params.id, Object.assign({ tmdbId, mediaType: type }, entry));
+    tasteCache.delete(req.params.id);
+    res.json(saved || { removed: true });
+});
+
+// ── Taste (genre weights from ratings, favourites, watched, in progress) → "% shoda" ──
+// Genres come from TMDB details (cached); rebuilt at most every 10 minutes or after a rating.
+const tasteCache = new Map();          // profileId → { at, data }
+async function profileTaste(id) {
+    const hit = tasteCache.get(id);
+    if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.data;
+    const signals = [];
+    const add = (tmdbId, mediaType, signal) => { if (tmdbId && (mediaType === 'movie' || mediaType === 'tv')) signals.push({ tmdbId: Number(tmdbId), mediaType, signal }); };
+    ratingsDB.list(id).slice(0, 80).forEach(r => add(r.tmdbId, r.mediaType, r.rating === 2 ? 'love' : r.rating === 1 ? 'like' : 'dislike'));
+    favoritesDB.list(id).slice(0, 40).forEach(f => add(f.tmdbId, f.mediaType, 'favorite'));
+    watchedDB.list(id).slice(0, 60).forEach(w => add(w.tmdbId, w.mediaType, 'watched'));
+    const prog = progressDB.getAll(id);
+    Object.keys(prog).slice(0, 40).forEach(k => { const p = prog[k]; if (p && p.tmdbId) add(p.tmdbId, p.mediaType || 'movie', p.finished ? 'watched' : 'progress'); });
+    const titles = [...new Map(signals.map(s => [s.mediaType + ':' + s.tmdbId, s])).values()].slice(0, 120);
+    const genres = {};
+    await Promise.race([
+        Promise.all(titles.map(t => tmdbFetch(`/${t.mediaType}/${t.tmdbId}?language=cs-CZ`)
+            .then(d => { genres[t.mediaType + ':' + t.tmdbId] = (d.genres || []).map(g => g.id); }, () => {}))),
+        new Promise(r => setTimeout(r, 6000))
+    ]);
+    const data = taste.buildTaste(signals.map(s => ({ key: s.mediaType + ':' + s.tmdbId, genres: genres[s.mediaType + ':' + s.tmdbId] || [], signal: s.signal })));
+    tasteCache.set(id, { at: Date.now(), data });
+    return data;
+}
+app.get('/api/profiles/:id/taste', async (req, res) => {
+    try { res.json(await profileTaste(req.params.id)); }
+    catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 // ── Watchlists ──
 app.get('/api/profiles/:id/watchlists', (req, res) => res.json(watchlistsDB.getByProfile(req.params.id)));
@@ -1185,6 +1257,7 @@ app.get('/api/profiles/:id/export', (req, res) => {
         watched:    watchedDB.list(id),
         watchlists: watchlistsDB.getByProfile(id),
         progress:   progressDB.getAll(id),
+        ratings:    ratingsDB.list(id),
         history:    historyDB.list(id).map(({ date, items }) => ({ date, items }))
     });
 });
@@ -1196,6 +1269,8 @@ app.delete('/api/profiles/:id/data', (req, res) => {
     watchlistsDB.deleteByProfile(id);
     progressDB.deleteByProfile(id);
     historyDB.deleteByProfile(id);
+    ratingsDB.deleteByProfile(id);
+    tasteCache.delete(id);
     res.json({ ok: true });
 });
 

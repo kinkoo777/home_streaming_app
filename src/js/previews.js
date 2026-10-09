@@ -203,6 +203,7 @@
     popCard = card
     const img = m && m.backdrop_path ? tmdbImg(m.backdrop_path, 'w780') : (m && m.poster_path ? tmdbImg(m.poster_path, 'w342') : '')
     const inList = typeof isInAnyList === 'function' && isInAnyList(id)
+    const rated = window.getRating ? window.getRating(id, type) : 0
     pop.dataset.id = id
     pop.dataset.type = type
     pop.dataset.title = title
@@ -217,6 +218,7 @@
         <div class="pop-buttons">
           <button class="pop-btn pop-play" data-pop="play" aria-label="Přehrát"><i class="bi bi-play-fill"></i></button>
           <button class="pop-btn" data-pop="list" aria-label="${inList ? 'V seznamu' : 'Přidat do seznamu'}" title="${inList ? 'V seznamu' : 'Přidat do seznamu'}"><i class="bi ${inList ? 'bi-check-lg' : 'bi-plus-lg'}"></i></button>
+          ${window.renderRateGroup ? '<span class="pop-rate"><button class="pop-btn" data-pop="rate" aria-label="Ohodnotit" title="Ohodnotit"><i class="bi ' + (rated > 0 ? 'bi-hand-thumbs-up-fill' : rated < 0 ? 'bi-hand-thumbs-down-fill' : 'bi-hand-thumbs-up') + '"></i></button></span>' : ''}
           <span class="pop-spacer"></span>
           <button class="pop-btn" data-pop="info" aria-label="Více informací" title="Více informací"><i class="bi bi-chevron-down"></i></button>
         </div>
@@ -253,7 +255,18 @@
   function onPopClick(e) {
     const btn = e.target.closest('[data-pop]')
     const id = parseInt(pop.dataset.id, 10), type = pop.dataset.type, title = pop.dataset.title
+    if (!btn && e.target.closest('.pop-rate')) return            // a click inside the three rating buttons
     const action = btn ? btn.dataset.pop : 'info'
+    if (action === 'rate') {
+      // The three choices open in place of the button (like Netflix).
+      const m = searchDataMap[id] || { id, title, poster_path: pop.dataset.poster || null }
+      const box = btn.parentNode
+      box.classList.add('open')
+      window.renderRateGroup(box, Object.assign({}, m, { id, media_type: type }), {
+        onRated: () => { setTimeout(() => { if (pop.contains(box)) box.classList.remove('open') }, 600) }
+      })
+      return
+    }
     if (action === 'list') {
       if (!hasActiveProfile()) { showToast('Nejprve vyberte profil'); return }
       const m = searchDataMap[id] || { id, title, poster_path: pop.dataset.poster || null }

@@ -127,6 +127,7 @@ function updateRowArrows(track) {
   row._right.classList.toggle('off', track.scrollLeft + track.clientWidth >= track.scrollWidth - 10)
 }
 window.updateRowArrows = updateRowArrows
+window.initRow = initRow
 
 document.querySelectorAll('[data-row]').forEach(initRow)
 window.addEventListener('resize', () => document.querySelectorAll('.row-track').forEach(updateRowArrows))

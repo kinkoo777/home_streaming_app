@@ -184,6 +184,9 @@
       <div class="row" data-row><div class="row-track" id="recommended-movies"></div></div>
     </section>
 
+    <!-- "Protože jste sledovali X" / "Protože se vám líbilo X" (recommend.js) -->
+    <div id="because-rows"></div>
+
     <!-- ── Coming soon: premieres + next episodes from the profile's lists (upcoming.js) ── -->
     <section class="row-section" id="upcoming-section" style="display:none" data-nav-controls>
       <div class="row-header">
@@ -382,10 +385,13 @@
               <button id="detail-wl-btn" class="btn btn-glass"><i class="bi bi-bookmark"></i> Přidat</button>
               <button id="detail-fav-btn" class="btn btn-glass btn-icon-only" aria-label="Oblíbit"><i class="bi bi-heart"></i></button>
               <button id="detail-watched-btn" class="btn btn-glass btn-icon-only" aria-label="Označit jako zhlédnuté"><i class="bi bi-check-circle"></i></button>
+              <div id="detail-rate" class="rate-group" role="group" aria-label="Hodnocení"></div>
             </div>
           </div>
         </div>
         <p id="detail-overview" class="detail-overview"></p>
+        <!-- Where else it streams in Czechia (TMDB / JustWatch) -->
+        <div id="detail-providers" class="detail-block detail-providers" style="display:none"></div>
         <div id="detail-cast-wrap" class="detail-block" style="display:none">
           <h4 class="block-title">Hrají</h4>
           <div id="detail-cast" class="detail-cast"></div>
@@ -802,6 +808,8 @@
   <script src="js/search.js"></script>
   <script src="js/previews.js"></script>
   <script src="js/hero.js"></script>
+  <script src="js/taste.js"></script>
+  <script src="js/ratings.js"></script>
   <script src="js/recommend.js"></script>
   <script src="js/upcoming.js"></script>
   <script src="js/random.js"></script>
