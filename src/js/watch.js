@@ -29,6 +29,7 @@
   let members = []
   let qualityIdx = 0
   let viaProxy = false
+  let refreshedVersion = -1        // the video version that came from a link refresh
   let subIdx = -1
   let blocked = false           // autoplay refused until the next tap
   let buffering = false
@@ -155,6 +156,7 @@
         if (msg.by && me && msg.by.id !== me.id) stageMsg(msg.by.name + ' ' + ({ play: 'spustil přehrávání', pause: 'pozastavil', seek: 'přetočil na ' + fmt(msg.state.position) })[msg.action])
         break
       case 'video':
+        refreshedVersion = msg.refreshed ? msg.videoVersion : -1
         loadVideo(msg.video, msg.videoVersion)
         applyState(msg.state)
         if (!msg.refreshed && msg.video) stageMsg('Hraje: ' + msg.video.title)
@@ -177,7 +179,7 @@
         break
       case 'switching':
         if (msg.error) toast(msg.error, 6000)
-        else stageMsg((msg.by || 'Někdo') + ' přepíná zdroj videa…')
+        else stageMsg(msg.auto ? 'Zdroj nefunguje — hledám jiný…' : (msg.by || 'Někdo') + ' přepíná zdroj videa…')
         break
       case 'chat': addChat(msg.message); break
       case 'reaction': floatReaction(msg.emoji, msg.from.name); break
@@ -274,8 +276,13 @@
     }
     if (refreshing) return
     refreshing = true
-    toast('Obnovuji odkaz na video…')
-    api('POST', '/refresh').catch(err => toast(err.message, 4000)).then(() => { refreshing = false })
+    // Fresh links that still don't play → tell the server; it moves the room to another upload.
+    const failed = refreshedVersion === videoVersion
+    if (!failed) toast('Obnovuji odkaz na video…')
+    api('POST', '/refresh', failed ? { failed: true, videoVersion: videoVersion } : undefined)
+      .then(r => { if (r && r.waiting) toast('Video se vám nedaří načíst — zkuste nižší kvalitu nebo počkejte, než se přidá ještě někdo', 7000) })
+      .catch(err => toast(err.message, 4000))
+      .then(() => { refreshing = false })
   })
   video.addEventListener('loadedmetadata', () => { sync(true); renderTime() })
 

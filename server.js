@@ -1,4 +1,5 @@
 require('dotenv').config();
+const admin = require('./admin');          // first: it collects console.error for the Server page
 const express = require('express');
 const { JSDOM } = require('jsdom');
 const puppeteer = require('puppeteer');
@@ -540,6 +541,21 @@ async function listRoomSources(what, prefs) {
         }))
     };
 }
+
+// The same list for the player: more backups when the ones it came with are used up.
+// ?id=603&type=movie | ?id=1399&type=tv&season=1&episode=2, &audio=&quality= (profile prefs)
+app.get('/api/sources', async (req, res) => {
+    const id = sec.toId(req.query.id);
+    const tv = req.query.type === 'tv';
+    const season = parseInt(req.query.season, 10), number = parseInt(req.query.episode, 10);
+    if (!id || (tv && !(season >= 0 && number > 0))) return res.status(400).json({ error: 'Neplatný titul' });
+    const prefs = {
+        audioPref: ['dub', 'original', 'any'].includes(req.query.audio) ? req.query.audio : undefined,
+        qualityPref: ['2160', '1080', '720'].includes(req.query.quality) ? req.query.quality : undefined
+    };
+    try { res.json(await listRoomSources({ tmdbId: id, mediaType: tv ? 'tv' : 'movie', episode: tv ? { season, number } : null }, prefs)); }
+    catch (err) { res.status(502).json({ error: 'Zdroje se nepodařilo načíst' }); }
+});
 
 // → a player payload for the room. With `url`: exactly that upload, which must be one
 // listRoomSources offers (search results are cached, so this is cheap); without:
@@ -1182,17 +1198,32 @@ app.delete('/api/profiles/:id/data', (req, res) => {
     res.json({ ok: true });
 });
 
+// ── Server page: version, updates, health (admin.js) ──
+app.use('/api/admin', admin.router({
+    dir: __dirname,
+    dataDir: DATA_DIR,
+    info: () => ({ rooms: rooms._rooms.size, funnel: PUBLIC_URL || funnelUrl || null, guestPort: GUEST_PORT || null })
+}));
+
 // ====================
 // START SERVER
 // ====================
+// Started by the update restart (admin.js): the old process may still hold the port
+// for a moment — retry for up to 20 s.
+function listenWhenFree(server, port, onReady, onFail, tries = 0) {
+    server.listen(port, '0.0.0.0', err => {
+        if (err && err.code === 'EADDRINUSE' && process.env.FILMBOX_WAIT_PORT && tries < 40) {
+            return setTimeout(() => listenWhenFree(server, port, onReady, onFail, tries + 1), 500);
+        }
+        if (err) return onFail(err);
+        onReady();
+    });
+}
 // Express 5 hands listen errors (e.g. port already in use) to this callback;
 // exit non-zero so systemd / the terminal shows the failure instead of a silent exit.
-app.listen(PORT, '0.0.0.0', err => {
-    if (err) {
-        console.error(`Server nelze spustit na portu ${PORT}: ${err.message}`);
-        process.exit(1);
-    }
-    console.log(`Server běží na portu ${PORT}`);
+listenWhenFree(app, PORT, () => console.log(`Server běží na portu ${PORT}`), err => {
+    console.error(`Server nelze spustit na portu ${PORT}: ${err.message}`);
+    process.exit(1);
 });
 
 // ── Guest server for watch-together links ──
@@ -1217,9 +1248,8 @@ if (GUEST_PORT) {
     }
     guest.use('/api/rooms', rooms.router(Object.assign({ canCreate: false }, roomOpts)));
     guest.use((req, res) => res.status(404).type('text').send('Nenalezeno'));
-    guest.listen(GUEST_PORT, '0.0.0.0', err => {
+    listenWhenFree(guest, GUEST_PORT,
+        () => console.log(`Server pro hosty (Sledovat společně) běží na portu ${GUEST_PORT}${PUBLIC_URL ? ' — veřejně ' + PUBLIC_URL : ''}`),
         // The main app keeps running without it.
-        if (err) return console.error(`Server pro hosty nelze spustit na portu ${GUEST_PORT}: ${err.message}`);
-        console.log(`Server pro hosty (Sledovat společně) běží na portu ${GUEST_PORT}${PUBLIC_URL ? ' — veřejně ' + PUBLIC_URL : ''}`);
-    });
+        err => console.error(`Server pro hosty nelze spustit na portu ${GUEST_PORT}: ${err.message}`));
 }

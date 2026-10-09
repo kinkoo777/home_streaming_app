@@ -969,6 +969,7 @@
             <dt><kbd>↑</kbd> / <kbd>↓</kbd></dt><dd>Hlasitost</dd>
             <dt><kbd>M</kbd></dt><dd>Ztlumit</dd>
             <dt><kbd>F</kbd></dt><dd>Celá obrazovka</dd>
+            <dt><kbd>&lt;</kbd> <kbd>&gt;</kbd></dt><dd>Pomaleji / rychleji</dd>
             <dt><kbd>Podržet</kbd></dt><dd>2× rychlost</dd>
             <dt><kbd>S</kbd></dt><dd>Nastavení (kvalita, titulky, barvy)</dd>
             <dt><kbd>C</kbd></dt><dd>Titulky zap / vyp</dd>
@@ -1331,16 +1332,47 @@
       }
 
       // ── Switch to a backup upload (another site / file) at the same position ──
+      // The backups the source picker passed along come first; once they're used up, the
+      // server lists the rest of this film's / episode's uploads (once per page).
       let _switching = false
+      let _moreListed = false
+      const _triedUrls = new Set()
+      async function _listMoreAlternatives() {
+        const d = _playerData
+        if (_moreListed || !d || !d.tmdbId) return
+        _moreListed = true
+        const tv = d.mediaType === 'tv'
+        if (tv && !d.episode) return
+        const st = _profileSettings()
+        const q = `id=${encodeURIComponent(d.tmdbId)}&type=${tv ? 'tv' : 'movie'}` +
+          (tv ? `&season=${d.episode.season}&episode=${d.episode.number}` : '') +
+          (st.audioPref ? '&audio=' + encodeURIComponent(st.audioPref) : '') +
+          (st.qualityPref ? '&quality=' + encodeURIComponent(st.qualityPref) : '')
+        try {
+          const r = await fetch('/api/sources?' + q)
+          if (!r.ok) return
+          const list = await r.json()
+          if (source.pageUrl) _triedUrls.add(source.pageUrl)
+          _alternatives = (list.sources || []).filter(a => a && a.url && !_triedUrls.has(a.url))
+        } catch (e) {}
+      }
       async function switchToAlternative(reason) {
         if (_switching) return true
-        if (!_alternatives.length) return false
+        if (source.pageUrl) _triedUrls.add(source.pageUrl)
+        if (!_alternatives.length && (_moreListed || !_playerData || !_playerData.tmdbId)) return false
         _switching = true
         const t = video.currentTime || _lastGoodTime || _pendingSeek || 0
         const wasPlaying = !video.paused || !!video.error
         try {
-          while (_alternatives.length) {
+          for (;;) {
+            if (!_alternatives.length && !_moreListed) {
+              toast(`${reason} — hledám další zdroje…`, 8000)
+              await _listMoreAlternatives()
+            }
+            if (!_alternatives.length) break
             const alt = _alternatives.shift()
+            if (_triedUrls.has(alt.url)) continue
+            _triedUrls.add(alt.url)
             const site = SITE_NAMES[alt.source] || 'jiný zdroj'
             toast(`${reason} — zkouším ${site}…`, 8000)
             try {
@@ -1752,6 +1784,26 @@
         return b
       }
 
+      // ── Playback speed ── kept for this session (the next episode plays at the same speed)
+      const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
+      const speedLabel = x => x === 1 ? 'Normální' : String(x).replace('.', ',') + '×'
+      let _speed = 1
+      try { const v = parseFloat(sessionStorage.getItem('filmbox_speed')); if (SPEEDS.indexOf(v) >= 0) _speed = v } catch (e) {}
+      function setSpeed(x, announce) {
+        _speed = x
+        // defaultPlaybackRate survives video.load() (quality / source switches)
+        video.defaultPlaybackRate = x
+        video.playbackRate = x
+        try { sessionStorage.setItem('filmbox_speed', String(x)) } catch (e) {}
+        if (announce) toast('Rychlost: ' + speedLabel(x), 1500)
+      }
+      function stepSpeed(dir) {
+        const i = SPEEDS.indexOf(_speed)
+        const next = SPEEDS[Math.max(0, Math.min(SPEEDS.length - 1, (i < 0 ? 2 : i) + dir))]
+        if (next !== _speed) setSpeed(next, true)
+      }
+      if (_speed !== 1) setSpeed(_speed)
+
       function renderSettings() {
         if (!settingsPanel.classList.contains('open') || !source) return
         const focusedIdx = [...settingsPanel.querySelectorAll('.settings-item')].indexOf(document.activeElement)
@@ -1779,6 +1831,7 @@
             const cur = EXPOSURES.find(([x]) => x === hdrExposure)
             add(menuItem({ label: 'Jas HDR', sub: true, value: cur ? cur[1] : hdrExposure + '×', onClick: () => openSettingsPage('exposure') }))
           }
+          add(menuItem({ label: 'Rychlost', sub: true, value: speedLabel(_speed), onClick: () => openSettingsPage('speed') }))
           add(menuItem({ label: 'Časovač vypnutí', sub: true, value: sleepLabel(), onClick: () => openSettingsPage('sleep') }))
           if (!IS_TV) add(menuItem({ label: 'Sledovat společně', hint: 'Pozvat přátele odkazem', onClick: () => { closeSettings(); startTogether() } }))
           if (_tvs.length && !IS_TV) add(menuItem({ label: 'Pustit na TV', sub: true, value: _tvs.length === 1 ? _tvs[0].name : _tvs.length + ' TV', onClick: () => openSettingsPage('handoff') }))
@@ -1786,10 +1839,10 @@
             const intro = currentIntro()
             add(menuItem({ label: 'Úvod seriálu', sub: true, value: intro ? fmt(intro.start) + '–' + fmt(intro.end) : 'Neoznačen', onClick: () => openSettingsPage('intro') }))
           }
-          if (_alternatives.length) {
+          if (_alternatives.length || (!_moreListed && _playerData && _playerData.tmdbId)) {
             add(menuItem({
               label: 'Přepnout na jiný zdroj',
-              hint: `Teď ${SITE_NAMES[_sourceSite] || 'zdroj'} · záložních: ${_alternatives.length}`,
+              hint: `Teď ${SITE_NAMES[_sourceSite] || 'zdroj'}` + (_alternatives.length ? ` · záložních: ${_alternatives.length}` : ' · najdu další'),
               onClick: () => { closeSettings(); switchToAlternative('Ruční přepnutí') }
             }))
           }
@@ -1873,6 +1926,11 @@
         if (_settingsPage === 'handoff') {
           add(backItem('Pustit na TV'))
           _tvs.forEach(t => add(menuItem({ label: t.name, hint: 'Pokračovat tam od ' + fmt(video.currentTime), onClick: () => { closeSettings(); handOff(t) } })))
+        }
+
+        if (_settingsPage === 'speed') {
+          add(backItem('Rychlost'))
+          SPEEDS.forEach(x => add(menuItem({ label: speedLabel(x), active: _speed === x, onClick: () => { setSpeed(x); renderSettings() } })))
         }
 
         if (_settingsPage === 'sleep') {
@@ -3017,6 +3075,8 @@
           case 'ArrowDown':     e.preventDefault(); changeVolume(-0.1); break
           case 'f':             fullscreenBtn.click(); break
           case 'm':             muteBtn.click(); break
+          case '>':             stepSpeed(1); break
+          case '<':             stepSpeed(-1); break
           case 'c':             toggleSubtitles(); break
           case 's':             e.preventDefault(); openSettings(); break
           case 'MediaTrackNext': if (_playerData && _playerData.episode) _nextEpisodeByKey(); break

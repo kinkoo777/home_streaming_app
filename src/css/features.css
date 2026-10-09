@@ -220,3 +220,25 @@ body.kbd .remote-main button:focus { outline: none; box-shadow: 0 0 0 3px var(--
 .remote-extra .btn.is-on { background: var(--text); color: var(--bg); }
 .remote-hint { color: var(--warn); font-size: 13px; text-align: center; margin-top: 10px; }
 .remote-hint:empty { display: none; }
+
+/* ═════════════ Server page (server-admin.js) ═════════════ */
+.server-sheet .detail-meta { margin-top: -6px; }
+.server-update { margin: 18px 0 14px; padding: 18px 20px; border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--line); }
+.server-update .btn { margin-top: 14px; }
+.server-line { font-size: 16px; font-weight: 600; margin: 0; }
+.server-line i { margin-right: 8px; }
+.server-line .spin, .server-sheet .spin { display: inline-block; -webkit-animation: fb-spin 0.9s linear infinite; animation: fb-spin 0.9s linear infinite; }
+.server-ok i { color: #22c55e; }
+.server-new i { color: var(--accent); }
+.server-changes { list-style: none; margin: 12px 0 0; padding: 0; max-height: 260px; overflow-y: auto; }
+.server-changes li { display: -webkit-flex; display: flex; -webkit-justify-content: space-between; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.server-changes li b { font-weight: 500; margin-right: 12px; }
+.server-changes li span { color: var(--muted); white-space: nowrap; font-size: 13px; }
+.server-warn { border-color: rgba(244,63,94,0.6); }
+.server-warn .stats-tile-value { color: var(--accent); }
+.server-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-left: 6px; vertical-align: middle; }
+.server-dot[hidden] { display: none; }
+.server-errlist summary { cursor: pointer; }
+.server-errlist ul { list-style: none; margin: 10px 0 0; padding: 0; font-size: 13px; }
+.server-errlist li { padding: 8px 0; border-top: 1px solid var(--line); word-break: break-word; }
+.server-errlist time { color: var(--muted); margin-right: 8px; }

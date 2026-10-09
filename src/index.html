@@ -592,6 +592,22 @@
     </div>
   </div>
 
+  <!-- ── Server: version, updates, health (server-admin.js) ── -->
+  <div id="server-modal" class="sheet-modal hidden" role="dialog" aria-modal="true" aria-labelledby="server-title">
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet stats-sheet server-sheet">
+      <button class="sheet-close" data-close aria-label="Zavřít"><i class="bi bi-x-lg"></i></button>
+      <div class="stats-head">
+        <span class="eyebrow">FilmBox na serveru</span>
+        <h2 id="server-title">Server</h2>
+        <p class="detail-meta" id="server-version"></p>
+      </div>
+      <div class="server-update" id="server-update" aria-live="polite"></div>
+      <div class="stats-tiles" id="server-tiles"></div>
+      <div class="stats-block" id="server-errors"></div>
+    </div>
+  </div>
+
   <!-- ── Watchlist modal ── -->
   <div id="wl-modal" class="overlay-modal hidden" role="dialog" aria-modal="true" aria-labelledby="wl-modal-title">
     <div class="overlay-backdrop" data-close></div>
@@ -708,6 +724,14 @@
           <p class="settings-hint">Export stáhne vaše oblíbené, sledované, seznamy a průběh jako JSON. Vymazání ponechá profil, ale smaže jeho knihovnu.</p>
         </section>
 
+        <section class="settings-section">
+          <span class="settings-label">Server</span>
+          <div class="settings-inline settings-buttons">
+            <button id="settings-server" class="btn btn-ghost btn-sm"><i class="bi bi-hdd-rack"></i> Server a aktualizace <span class="server-dot" id="server-dot" hidden></span></button>
+          </div>
+          <p class="settings-hint">Verze FilmBoxu, nové změny z GitHubu (aktualizace jedním klepnutím), místo na disku, teplota a chyby.</p>
+        </section>
+
         <section class="settings-section settings-danger">
           <button id="settings-delete" class="btn btn-danger"><i class="bi bi-trash"></i> Smazat tento profil</button>
         </section>
@@ -782,6 +806,7 @@
   <script src="js/main.js"></script>
   <script src="js/settings.js"></script>
   <script src="js/profile-stats.js"></script>
+  <script src="js/server-admin.js"></script>
 </body>
 
 </html>

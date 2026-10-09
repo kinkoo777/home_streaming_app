@@ -43,6 +43,10 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 - **Sleep timer** — *Settings (gear) → Časovač vypnutí* in the player: at the end of this episode / film or after 15–90 minutes the video pauses (position saved) behind a black "Dobrou noc" screen; survives the jump to the next episode
 - **Skip intro** — mark a series' opening once in the player (*Settings → Úvod seriálu*: "Začátek úvodu je teď", "Konec úvodu je teď"); every episode of that season — and of seasons nobody has marked yet — then shows *Přeskočit úvod*. Marks are shared by all profiles
 - **Watching stats** — *Nastavení → Statistiky*: hours watched this month / year / in total (films vs. series), finished films and episodes, days with watching and the longest run of days, the last 12 months as columns, top genres and the most watched titles. Time is counted from playback the player reports (only real playing, never seeking); finished titles include older history
+- **Automatic source fallback** — when an upload stops working (deleted, blocked, keeps failing even with fresh links) the player moves on to the next one at the same second; once the backups that came from the source picker are used up it asks the server for the rest of that film's / episode's uploads (best first by the profile's playback preferences). Rooms do the same for everyone: the server switches the room when the upload's page is gone, or when fresh links still don't play for someone allowed to control playback or for two people (one guest's bad connection alone doesn't switch the film); the chat says *Zdroj přestal fungovat — přepnuto na jiný*
+- **Playback speed** — *Settings (gear) → Rychlost* in the player: 0,5× – 2×, or <kbd>&lt;</kbd> / <kbd>&gt;</kbd>; kept for the session, so the next episode plays at the same speed
+- **Server page** — *Nastavení → Server a aktualizace*: which version runs, the changes waiting on GitHub and **Aktualizovat a restartovat** (git pull → `npm ci` when the dependencies changed → restart; the page waits for the server and reloads), plus uptime, free disk space, memory, CPU temperature, open rooms, Funnel and the last errors. A red dot on the button means an update is waiting. See *Updating*
+- **Install as an app** — on https (or localhost) FilmBox installs to the phone home screen / desktop like an app, opens faster and keeps posters cached; see *Install as an app*
 - **Fully responsive** — 360 px phone → tablet → laptop → large TV
 
 ## Tech Stack
@@ -67,7 +71,8 @@ home_streaming_app/
 ├── cache.js            # Response cache (TMDB 30 min for lists, 6 h for details), kept on disk
 ├── stats.js            # Watching stats from the watch history (hours, finished titles, months, streaks)
 ├── cast.js             # "Pustit na TV": TV receivers (Server-Sent Events), commands, playback state
-├── rooms.js            # "Sledovat společně": rooms, roles + permissions, sync, chat, reactions (Server-Sent Events)
+├── rooms.js            # "Sledovat společně": rooms, roles + permissions, sync, chat, reactions, source fallback (Server-Sent Events)
+├── admin.js            # Server page: version, updates from GitHub (pull + restart), health, recent errors
 ├── subtitles.js        # SRT→WebVTT + OpenSubtitles search/download
 ├── tools/
 │   ├── guides.spec.js  # Hand-written watch guides (film lists, chronological order) + TMDB collection ids
@@ -85,6 +90,7 @@ home_streaming_app/
 │   └── intros.json       # Skip-intro marks per series + season, shared by all profiles
 └── src/
     ├── index.html
+    ├── sw.js             # Service worker: installable app, app shell + TMDB images cache
     ├── media/whats-new.mp4 # "What's new" video (not in git — copy it in manually)
     ├── guides/guides.json # Generated watch guides + collections (node tools/build-guides.js)
     ├── player.html       # Video player (quality, subtitles, HDR fix, remote controls)
@@ -119,6 +125,8 @@ home_streaming_app/
         ├── upcoming.js   # "Nové díly" + "Brzy vyjde" rows and the release calendar
         ├── random.js     # "Co pustit?" random pick
         ├── profile-stats.js # Watching stats sheet
+        ├── server-admin.js # Server page (version, updates, health)
+        ├── episodes.js   # Which episode comes next (next season after a finale; shared with unit tests)
         ├── cast-receiver.js # TV side of "Pustit na TV" (home page + player)
         ├── cast-sender.js   # Phone side: choose a TV, send, remote
         ├── browse.js     # "Procházet" genre / decade browser
@@ -196,6 +204,29 @@ On an LG TV, open the same address in the webOS browser.
 | 🟢 Green | My list | Settings (quality, subtitles, colours) |
 | 🟡 Yellow | Profile settings | — |
 | 🔵 Blue | Switch profile | — |
+
+### Updating
+
+*Nastavení → Server a aktualizace* shows the changes waiting on GitHub; **Aktualizovat a restartovat** pulls them (`git pull --ff-only` on the branch the server runs from), runs `npm ci --omit=dev` only when `package.json` / `package-lock.json` changed, and restarts FilmBox. How it comes back depends on how it was started:
+
+| Started with | After the update |
+|---|---|
+| systemd service | exits with code 75 — the service needs `Restart=on-failure` (or `always`) |
+| pm2 | exits, pm2 starts it again |
+| Docker | exits with code 75 — needs a restart policy |
+| a terminal / `nohup node server.js` | starts its own replacement (output in `filmbox.log`), which waits until the port is free |
+
+If the server has hand-edited files, `git pull` refuses and the page shows the error — sort it out in a terminal (`git status`). Set `FILMBOX_ALLOW_UPDATE=0` to hide the button (the page still shows the version and health). By hand it's still `git pull && npm ci --omit=dev` (when dependencies changed) and a restart.
+
+### Install as an app
+
+Browsers only allow installing (and the offline cache) on `https://` or `localhost`. At home over plain `http://192.168…:3000` FilmBox works as before, just without the install option. To get https inside your tailnet only (not public), let Tailscale serve the main port on another https port — the Funnel for rooms keeps 443:
+
+```bash
+sudo tailscale serve --bg --https=8443 3000
+```
+
+Then open `https://<your-pi>.<tailnet>.ts.net:8443` on the phone and choose *Add to Home screen* / *Install app*.
 
 ### What's new video
 
@@ -354,6 +385,15 @@ sudo apt-get install -y libgbm1 libasound2 libatk1.0-0 libatk-bridge2.0-0 \
 | `GET /get_video?url=<url>` | Read the video page → `{ name, duration, pageUrl, qualities: [{ src, label, res, hdr, transfer }], subtitles: [{ src, label, lang, default }] }` (Puppeteer fallback) |
 | `GET /stream?url=<cdn url>` | Range-aware video proxy that rewrites HDR colour tags to BT.709 (used for HDR-tagged files) |
 | `GET /get_subtitle?url=<url>` | Proxy + normalize a subtitle file to WebVTT (SRT auto-converted) |
+| `GET /api/sources?id=&type=movie\|tv[&season=&episode=][&audio=&quality=]` | This film's / episode's uploads, best first (the player's extra backups) |
+
+### Server page
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/admin/status` | Version (commit, date, subject, branch), uptime, memory, disk, CPU temperature, rooms, Funnel, last 30 errors |
+| `GET /api/admin/updates` | Changes on GitHub not yet on the server (`git fetch`, at most once a minute) |
+| `POST /api/admin/update` | Pull, install if needed, restart (202; `GET /api/admin/update` shows the step) — off with `FILMBOX_ALLOW_UPDATE=0` |
 
 TMDB and search responses are cached for 5 minutes (in memory and in `data/tmdb-cache.json`, so they survive restarts). The headless browser used as a fallback for `/get_video` starts on first use, restarts if it crashes, runs at most 2 tabs and closes after 10 minutes idle.
 

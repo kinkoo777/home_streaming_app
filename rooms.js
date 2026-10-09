@@ -458,8 +458,56 @@ function router(opts) {
         rm.player = player;
         rm.videoVersion++;
         rm.state = { playing: !!player && playing !== false, position: player && Number.isFinite(position) && position > 0 ? position : 0, updatedAt: t };
+        if (note !== 'switch' && note !== 'fallback') rm.triedUrls = null;   // a new film: every upload counts again
         broadcast(rm, { type: 'video', video: publicVideo(rm), videoVersion: rm.videoVersion, state: rm.state, serverTime: t });
-        systemMessage(rm, player ? (note === 'switch' ? 'Jiný zdroj: ' + publicVideo(rm).title : 'Hraje: ' + publicVideo(rm).title + (note || '')) : 'Vybíráme další film');
+        systemMessage(rm, !player ? 'Vybíráme další film'
+            : note === 'switch' ? 'Jiný zdroj: ' + publicVideo(rm).title
+            : note === 'fallback' ? 'Zdroj přestal fungovat — přepnuto na jiný' + (player.sourceSite ? ' (' + player.sourceSite + ')' : '')
+            : 'Hraje: ' + publicVideo(rm).title + (note || ''));
+    }
+
+    // ── Automatic fallback: the upload stopped working → the next one, same second ──
+    // Tries the backup uploads found with the film first, then (TMDB titles) the rest of
+    // the list. Uploads already tried for this film are skipped; at most 8 attempts.
+    function fallback(rm) {
+        if (rm.switching || !rm.player) return;
+        rm.switching = true;
+        const version = rm.videoVersion;
+        const tried = rm.triedUrls || (rm.triedUrls = new Set());
+        if (rm.player.source.pageUrl) tried.add(rm.player.source.pageUrl);
+        broadcast(rm, { type: 'switching', auto: true });
+        const what = currentWhat(rm);
+        const stale = () => !rooms.has(rm.id) || rm.videoVersion !== version;
+        (async () => {
+            let candidates = (rm.player.alternatives || []).filter(a => a && !tried.has(a.url));
+            let listed = !what || !opts.listSources;
+            for (let attempts = 0; attempts < 8;) {
+                if (!candidates.length) {
+                    if (listed) break;
+                    listed = true;
+                    try { candidates = (await opts.listSources(what, rm.prefs)).sources.filter(c => !tried.has(c.url)); } catch (e) { break; }
+                    if (stale()) return;
+                    continue;
+                }
+                const alt = candidates.shift();
+                tried.add(alt.url);
+                attempts++;
+                try {
+                    const source = await opts.resolveVideo(alt.url);
+                    if (stale()) return;
+                    const player = Object.assign({}, rm.player, {
+                        source, sourceSite: alt.source || null,
+                        alternatives: candidates.slice(0, 6).map(c => ({ url: c.url, title: c.title, source: c.source, dub: c.dub, res: c.res }))
+                    });
+                    if (opts.checkPlayer(player)) continue;
+                    setVideo(rm, player, positionAt(rm.state, now()), 'fallback', rm.state.playing);
+                    return;
+                } catch (err) {
+                    console.error('Záložní zdroj nefunguje:', alt.url, err.message);
+                }
+            }
+            if (!stale()) broadcast(rm, { type: 'switching', error: 'Video nejde přehrát a žádný další zdroj nefunguje — zkuste vybrat jiný' });
+        })().finally(() => { rm.switching = false; });
     }
 
     // The upload someone picked in the source chooser (or none = recommended).
@@ -661,29 +709,47 @@ function router(opts) {
     });
 
     // The video links expired / stopped working → fetch fresh ones (at most every 30 s).
+    // { failed: true, videoVersion } = even the fresh links don't play here. Reported by
+    // someone allowed to control playback, or by two people, that switches the room to
+    // another upload (one guest's bad connection alone doesn't).
     r.post('/:id/refresh', async (req, res) => {
         const rm = room(req, res);
         if (!rm) return;
         const m = member(req, res, rm);
         if (!m) return;
-        const pageUrl = rm.player && rm.player.source.pageUrl;
-        if (!pageUrl) return res.status(400).json({ error: 'Video nejde obnovit' });
-        try {
-            if (!rm.refreshing && now() - rm.refreshedAt > 30000) {
-                const version = rm.videoVersion;
-                rm.refreshing = opts.resolveVideo(pageUrl).then(fresh => {
-                    if (rm.videoVersion !== version) return;          // the host changed the video meanwhile
-                    rm.player = Object.assign({}, rm.player, { source: fresh });
-                    rm.videoVersion++;
-                    const t = now();
-                    broadcast(rm, { type: 'video', video: publicVideo(rm), videoVersion: rm.videoVersion, state: Object.assign({}, rm.state, { position: positionAt(rm.state, t), updatedAt: t }), serverTime: t, refreshed: true });
-                }).finally(() => { rm.refreshedAt = now(); rm.refreshing = null; });
+        if (!rm.player) return res.status(400).json({ error: 'Video nejde obnovit' });
+        const b = req.body || {};
+        if (b.failed === true && Number(b.videoVersion) === rm.videoVersion && rm.refreshedVersion === rm.videoVersion) {
+            if (!rm.failReports || rm.failReports.version !== rm.videoVersion) rm.failReports = { version: rm.videoVersion, ids: new Set() };
+            rm.failReports.ids.add(m.id);
+            const online = [...rm.members.values()].filter(x => x.conns.size).length;
+            if (permsOf(rm, m).control || rm.failReports.ids.size >= Math.min(2, online)) {
+                fallback(rm);
+                return res.status(202).json({ ok: true, switching: true });
             }
-            if (rm.refreshing) await rm.refreshing;
-            res.json({ ok: true, videoVersion: rm.videoVersion });
-        } catch (err) {
-            res.status(502).json({ error: 'Nepodařilo se obnovit odkaz na video' });
+            return res.json({ ok: true, waiting: true });
         }
+        const pageUrl = rm.player.source.pageUrl;
+        if (!pageUrl) return res.status(400).json({ error: 'Video nejde obnovit' });
+        if (!rm.refreshing && now() - rm.refreshedAt > 30000) {
+            const version = rm.videoVersion;
+            rm.refreshing = opts.resolveVideo(pageUrl).then(fresh => {
+                if (rm.videoVersion !== version) return true;      // the host changed the video meanwhile
+                rm.player = Object.assign({}, rm.player, { source: fresh });
+                rm.videoVersion++;
+                rm.refreshedVersion = rm.videoVersion;
+                const t = now();
+                broadcast(rm, { type: 'video', video: publicVideo(rm), videoVersion: rm.videoVersion, state: Object.assign({}, rm.state, { position: positionAt(rm.state, t), updatedAt: t }), serverTime: t, refreshed: true });
+                return true;
+            }, err => {
+                // The upload itself is gone (deleted, blocked) → another one.
+                console.error('Zdroj místnosti nejde obnovit:', pageUrl, err.message);
+                if (rooms.has(rm.id) && rm.videoVersion === version) fallback(rm);
+                return false;
+            }).finally(() => { rm.refreshedAt = now(); rm.refreshing = null; });
+        }
+        const ok = rm.refreshing ? await rm.refreshing : true;
+        res.json({ ok: true, videoVersion: rm.videoVersion, switching: !ok || !!rm.switching });
     });
 
     // Host: end the room for everyone.
