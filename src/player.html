@@ -85,6 +85,65 @@
       }
 
       #player-wrap.controls-visible { cursor: default; }
+      /* own stacking context, so the Ambilight canvas can sit under the video */
+      #player-wrap { isolation: isolate; }
+
+      /* ── Ambilight ── a 48×27 copy of the picture, blurred into the bars */
+      #ambilight {
+        position: absolute; z-index: -1; display: none;
+        -webkit-filter: blur(60px) saturate(1.5); filter: blur(60px) saturate(1.5);
+        opacity: 0.55; pointer-events: none;
+        -webkit-transform: scale(1.12); transform: scale(1.12);
+        transition: opacity 1s ease;
+      }
+      #player-wrap.ambilight #ambilight { display: block; }
+      #player-wrap.ambilight.is-paused #ambilight { opacity: 0.3; }
+
+      /* ── Pause screen ── */
+      #pause-screen {
+        position: absolute; inset: 0; top: 0; right: 0; bottom: 0; left: 0; z-index: 4;
+        display: flex; align-items: center;
+        padding: 0 6vw;
+        background: linear-gradient(90deg, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.6) 45%, rgba(0,0,0,0.15) 100%);
+        opacity: 0; visibility: hidden; pointer-events: none;
+        transition: opacity 0.8s ease, visibility 0s linear 0.8s;
+      }
+      #pause-screen.show { opacity: 1; visibility: visible; transition: opacity 0.8s ease; }
+      .ps-inner { max-width: 640px; }
+      .ps-eyebrow { color: #a1a1aa; font-size: 15px; letter-spacing: 0.04em; }
+      #ps-title { font-size: 44px; font-weight: 800; line-height: 1.1; margin: 8px 0 10px; color: #fff; }
+      #ps-sub { font-size: 20px; font-weight: 600; color: #fff; margin: 0 0 10px; }
+      #ps-sub:empty, #ps-cast:empty, #ps-meta:empty { display: none; }
+      #ps-meta { color: #d4d4d8; font-size: 15px; margin: 0 0 14px; }
+      #ps-overview { color: #e4e4e7; font-size: 17px; line-height: 1.5; margin: 0 0 14px;
+        display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+      #ps-cast { color: #a1a1aa; font-size: 14px; margin: 0; }
+      body.tv #ps-title { font-size: 56px; }
+      body.tv #ps-overview { font-size: 22px; }
+      body.tv #ps-sub { font-size: 26px; }
+      @media (max-width: 640px) {
+        #ps-title { font-size: 28px; }
+        #ps-overview { font-size: 15px; -webkit-line-clamp: 3; }
+      }
+
+      /* ── Timeline thumbnail (hover / drag) ── */
+      #seek-thumb {
+        display: none; position: absolute; bottom: 18px; left: 0;
+        -webkit-transform: translateX(-50%); transform: translateX(-50%);
+        flex-direction: column; align-items: center; pointer-events: none; z-index: 3;
+      }
+      #seek-thumb.show { display: flex; }
+      #seek-thumb-video {
+        display: none; width: 192px; height: 108px; object-fit: cover;
+        border-radius: 8px; background: #111; border: 2px solid rgba(255,255,255,0.85);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.6); margin-bottom: 6px;
+      }
+      #seek-thumb.has-frame #seek-thumb-video { display: block; }
+      #seek-thumb-time {
+        padding: 3px 8px; border-radius: 6px; background: rgba(0,0,0,0.75); color: #fff;
+        font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+      }
+      @media (max-width: 640px) { #seek-thumb-video { width: 144px; height: 81px; } }
 
       video {
         width: 100%;
@@ -908,7 +967,20 @@
 
     <div id="player-wrap" style="display:none">
 
+      <!-- Ambilight: the picture's colours glowing into the black bars around it -->
+      <canvas id="ambilight" width="48" height="27" aria-hidden="true"></canvas>
       <video id="video" preload="auto" playsinline></video>
+      <!-- Paused for a while: what you're watching (title, episode, overview, cast) -->
+      <div id="pause-screen" aria-hidden="true">
+        <div class="ps-inner">
+          <span class="ps-eyebrow">Sledujete</span>
+          <h2 id="ps-title"></h2>
+          <p id="ps-sub"></p>
+          <p id="ps-meta"></p>
+          <p id="ps-overview"></p>
+          <p id="ps-cast"></p>
+        </div>
+      </div>
       <!-- HDR → SDR tone-mapped picture (see js/hdr-renderer.js) -->
       <canvas id="hdr-canvas"></canvas>
       <!-- subtitles are drawn here (not natively) so they also show over the canvas -->
@@ -987,6 +1059,7 @@
             <div id="seek-buffered" style="width:0%"></div>
             <div id="seek-filled" style="width:0%"></div>
             <div id="seek-scrub"><span id="seek-scrub-time">0:00</span></div>
+            <div id="seek-thumb" aria-hidden="true"><video id="seek-thumb-video" muted playsinline preload="none"></video><span id="seek-thumb-time"></span></div>
           </div>
           <span class="time-label" id="time-total" style="cursor:pointer" title="Přepnout na zbývající čas">0:00</span>
         </div>
@@ -1832,6 +1905,7 @@
             add(menuItem({ label: 'Jas HDR', sub: true, value: cur ? cur[1] : hdrExposure + '×', onClick: () => openSettingsPage('exposure') }))
           }
           add(menuItem({ label: 'Rychlost', sub: true, value: speedLabel(_speed), onClick: () => openSettingsPage('speed') }))
+          add(menuItem({ label: 'Ambilight', hint: 'Barvy obrazu prosvítí do černých pruhů', value: _ambi ? 'Zapnuto' : 'Vypnuto', onClick: () => { setAmbilight(!_ambi); renderSettings() } }))
           add(menuItem({ label: 'Časovač vypnutí', sub: true, value: sleepLabel(), onClick: () => openSettingsPage('sleep') }))
           if (!IS_TV) add(menuItem({ label: 'Sledovat společně', hint: 'Pozvat přátele odkazem', onClick: () => { closeSettings(); startTogether() } }))
           if (_tvs.length && !IS_TV) add(menuItem({ label: 'Pustit na TV', sub: true, value: _tvs.length === 1 ? _tvs[0].name : _tvs.length + ' TV', onClick: () => openSettingsPage('handoff') }))
@@ -3240,6 +3314,154 @@
       }
 
       // ── Start ── (last, so every const above is initialised)
+      // ── Ambilight ── on by default except on TVs; Nastavení přehrávače → Ambilight
+      const ambiCanvas = document.getElementById('ambilight')
+      const ambiCtx = ambiCanvas.getContext('2d')
+      let _ambi = lsGet('filmbox_ambilight', IS_TV ? '0' : '1') === '1'
+      let _ambiTimer = null
+      function placeAmbilight() {
+        // The picture's real rectangle inside the (letterboxed) video element
+        const W = video.clientWidth, H = video.clientHeight, vw = video.videoWidth, vh = video.videoHeight
+        if (!W || !H || !vw || !vh) return
+        const scale = Math.min(W / vw, H / vh)
+        const w = vw * scale, h = vh * scale
+        ambiCanvas.style.width = w + 'px'
+        ambiCanvas.style.height = h + 'px'
+        ambiCanvas.style.left = (video.offsetLeft + (W - w) / 2) + 'px'
+        ambiCanvas.style.top = (video.offsetTop + (H - h) / 2) + 'px'
+      }
+      function drawAmbilight() {
+        // A cross-origin video still draws; the canvas is only shown, never read back.
+        try { if (video.readyState >= 2) ambiCtx.drawImage(video, 0, 0, ambiCanvas.width, ambiCanvas.height) } catch (e) {}
+      }
+      function runAmbilight() {
+        clearInterval(_ambiTimer)
+        _ambiTimer = null
+        playerWrap.classList.toggle('ambilight', _ambi)
+        if (!_ambi) return
+        placeAmbilight()
+        drawAmbilight()
+        if (!video.paused) _ambiTimer = setInterval(drawAmbilight, 150)
+      }
+      function setAmbilight(on) {
+        _ambi = on
+        lsSet('filmbox_ambilight', on ? '1' : '0')
+        runAmbilight()
+      }
+      ;['play', 'pause', 'loadeddata', 'seeked', 'loadedmetadata'].forEach(t => video.addEventListener(t, runAmbilight))
+      window.addEventListener('resize', () => { if (_ambi) placeAmbilight() })
+
+      // ── Timeline thumbnails ── a second, muted copy of the video (lowest quality)
+      // jumps to the time under the pointer / finger. Not on TVs (decoder + bandwidth).
+      const thumbBox = document.getElementById('seek-thumb')
+      const thumbVid = document.getElementById('seek-thumb-video')
+      const thumbTime = document.getElementById('seek-thumb-time')
+      const THUMBS = !IS_TV
+      let _thumbWant = null, _thumbBusy = false, _thumbSrc = null
+      function thumbSource() {
+        const qs = (source && source.qualities) || []
+        const low = qs.slice().sort((a, b) => (a.res || 9999) - (b.res || 9999))[0]
+        return low ? srcFor(low) : null
+      }
+      function seekThumb() {
+        if (_thumbWant == null || _thumbBusy || thumbVid.readyState < 1) return
+        _thumbBusy = true
+        thumbVid.currentTime = _thumbWant
+        _thumbWant = null
+      }
+      thumbVid.addEventListener('seeked', () => {
+        _thumbBusy = false
+        thumbBox.classList.add('has-frame')
+        if (_thumbWant != null) setTimeout(seekThumb, 40)
+      })
+      thumbVid.addEventListener('loadedmetadata', seekThumb)
+      thumbVid.addEventListener('error', () => { _thumbBusy = false; thumbBox.classList.remove('has-frame') })
+      function showThumb(clientX) {
+        if (!isFinite(video.duration) || !video.duration) return
+        const rect = seekBar.getBoundingClientRect()
+        if (!rect.width) return
+        const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+        const t = pct * video.duration
+        const half = (THUMBS ? 100 : 30)
+        thumbBox.style.left = Math.max(half, Math.min(rect.width - half, pct * rect.width)) + 'px'
+        thumbTime.textContent = fmt(t)
+        thumbBox.classList.add('show')
+        if (!THUMBS) return
+        const src = thumbSource()
+        if (src && src !== _thumbSrc) {
+          _thumbSrc = src
+          _thumbBusy = false
+          thumbBox.classList.remove('has-frame')
+          thumbVid.src = src
+          thumbVid.preload = 'auto'
+        }
+        _thumbWant = t
+        seekThumb()
+      }
+      function hideThumb() { thumbBox.classList.remove('show') }
+      seekBar.addEventListener('mousemove', e => showThumb(e.clientX))
+      seekBar.addEventListener('mouseleave', () => { if (!seeking) hideThumb() })
+      document.addEventListener('mousemove', e => { if (seeking) showThumb(e.clientX) })
+      document.addEventListener('mouseup', () => { if (!seekBar.matches(':hover')) hideThumb() })
+      seekBar.addEventListener('touchstart', e => showThumb(e.touches[0].clientX), { passive: true })
+      seekBar.addEventListener('touchmove', e => showThumb(e.touches[0].clientX), { passive: true })
+      seekBar.addEventListener('touchend', hideThumb)
+
+      // ── Pause screen ── paused for 8 s with nobody touching anything: title, episode,
+      // overview and cast over the dimmed picture (like Netflix). Any input hides it.
+      const pauseScreen = document.getElementById('pause-screen')
+      let _pauseTimer = null
+      let _pauseInfo = null
+      function pauseInfo() {
+        if (_pauseInfo) return _pauseInfo
+        const d = _playerData
+        if (!d || !d.tmdbId) return Promise.resolve(null)
+        const type = d.mediaType === 'tv' ? 'tv' : 'movie'
+        const ep = type === 'tv' && d.episode ? d.episode : null
+        _pauseInfo = Promise.all([
+          fetch(`/tmdb/details?id=${d.tmdbId}&type=${type}`).then(r => r.ok ? r.json() : null).catch(() => null),
+          ep ? fetch(`/tmdb/season?id=${d.tmdbId}&season=${ep.season}`).then(r => r.ok ? r.json() : null).catch(() => null) : null
+        ]).then(([show, season]) => {
+          if (!show) { _pauseInfo = null; return null }
+          const e = season && (season.episodes || []).filter(x => x.episode_number === ep.number)[0]
+          const year = (show.release_date || show.first_air_date || '').slice(0, 4)
+          const meta = [year, show.vote_average ? '★ ' + Number(show.vote_average).toFixed(1) : '',
+            show.runtime ? show.runtime + ' min' : (e && e.runtime ? e.runtime + ' min' : ''),
+            (show.genres || []).slice(0, 3).map(g => g.name).join(', ')].filter(Boolean).join('  ·  ')
+          return {
+            title: show.title || show.name || d.title,
+            sub: ep ? (d.episodeLabel || ('S' + String(ep.season).padStart(2, '0') + 'E' + String(ep.number).padStart(2, '0'))) + (e && e.name ? ' · ' + e.name : '') : '',
+            meta,
+            overview: (e && e.overview) || show.overview || '',
+            cast: (show.cast || []).slice(0, 5).map(c => c.name).join(', ')
+          }
+        })
+        return _pauseInfo
+      }
+      function hidePauseScreen() {
+        pauseScreen.classList.remove('show')
+        clearTimeout(_pauseTimer)
+        if (video.paused && !video.ended) _pauseTimer = setTimeout(showPauseScreen, 8000)
+      }
+      function showPauseScreen() {
+        if (!video.paused || video.ended || video.readyState < 1 || settingsOpen() || _scrubT != null ||
+            playerWrap.querySelector('.next-ep-prompt, .resume-prompt')) return
+        pauseInfo().then(info => {
+          if (!info || !video.paused || video.ended) return
+          document.getElementById('ps-title').textContent = info.title
+          document.getElementById('ps-sub').textContent = info.sub
+          document.getElementById('ps-meta').textContent = info.meta
+          document.getElementById('ps-overview').textContent = info.overview
+          document.getElementById('ps-cast').textContent = info.cast ? 'Hrají: ' + info.cast : ''
+          pauseScreen.classList.add('show')
+        })
+      }
+      video.addEventListener('pause', hidePauseScreen)
+      video.addEventListener('play', () => { clearTimeout(_pauseTimer); pauseScreen.classList.remove('show') })
+      ;['mousemove', 'keydown', 'touchstart', 'wheel'].forEach(t => document.addEventListener(t, () => {
+        if (pauseScreen.classList.contains('show') || _pauseTimer) hidePauseScreen()
+      }, { capture: true, passive: true }))
+
       async function boot() {
         if (!source || !source.qualities.length) {
           showError('Pro toto video nejsou k dispozici žádné zdroje.')

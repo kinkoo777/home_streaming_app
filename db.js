@@ -6,9 +6,10 @@ const bcrypt = require('bcryptjs');
 // qualityPref: '2160' | '1080' | '720'  — preferred upload resolution
 // subLang: 'device' (last choice on that device) | 'off' | 'cze' | 'slo' | 'eng'
 // stillWatching: ask "Sledujete ještě?" after 3 episodes played in a row
+// previews: muted trailers in the hero and when hovering a card (never on TVs)
 const DEFAULT_SETTINGS = {
   reduceMotion: false, autoplayTrailers: true,
-  audioPref: 'dub', qualityPref: '1080', subLang: 'device', stillWatching: true
+  audioPref: 'dub', qualityPref: '1080', subLang: 'device', stillWatching: true, previews: true
 };
 
 // Strip pinHash before sending a profile to the client; expose only a boolean.

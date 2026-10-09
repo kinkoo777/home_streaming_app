@@ -170,7 +170,8 @@ app.get('/tmdb/videos', async (req, res) => {
     const id = sec.toId(req.query.id);
     const type = sec.tmdbType(req.query.type);
     if (!id || !type) return res.status(400).json({ error: 'Neplatné id nebo type (movie|tv)' });
-    try { res.json(await tmdbFetch(`/${type}/${id}/videos?language=cs-CZ`)); }
+    // Czech videos first, English ones when there are none (most films have no Czech trailer).
+    try { res.json(await tmdbFetch(`/${type}/${id}/videos?language=cs-CZ&include_video_language=cs,en,null`)); }
     catch (err) { res.status(500).json({ error: err.message }); }
 });
 

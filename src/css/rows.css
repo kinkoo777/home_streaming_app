@@ -445,3 +445,43 @@ body.kbd .movie-card:hover:not(:focus) .movie-poster > img { transform: none; }
 }
 .movie-card.current .movie-poster { box-shadow: 0 0 0 3px var(--accent), 0 10px 30px rgba(244,63,94,0.35); }
 .movie-card.current .order-badge { background: var(--accent-grad); border-color: transparent; }
+
+/* ═════════════ Card pop-out with a muted trailer (previews.js) ═════════════ */
+.card-pop {
+  position: absolute; z-index: 3000;
+  border-radius: 14px; overflow: hidden;
+  background: var(--surface, #18181b); color: var(--text, #fff);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.06);
+  opacity: 0; visibility: hidden;
+  -webkit-transform: scale(0.6); transform: scale(0.6);
+  transition: opacity 0.22s ease, transform 0.28s cubic-bezier(.2,.8,.2,1), visibility 0s linear 0.28s;
+}
+.card-pop.show { opacity: 1; visibility: visible; -webkit-transform: none; transform: none; transition: opacity 0.22s ease, transform 0.28s cubic-bezier(.2,.8,.2,1); }
+.pop-media { position: relative; width: 100%; padding-top: 56.25%; background: #000; overflow: hidden; }
+.pop-media img, .pop-noimg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+.pop-video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 0.8s ease; }
+.pop-video.show { opacity: 1; }
+.pop-video iframe { position: absolute; top: -12%; left: -12%; width: 124%; height: 124%; border: 0; pointer-events: none; }
+.pop-title {
+  position: absolute; left: 14px; right: 14px; bottom: 10px; margin: 0;
+  font-size: 18px; font-weight: 800; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.85);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.pop-body { padding: 12px 14px 14px; }
+.pop-buttons { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; }
+.pop-buttons > * + * { margin-left: 8px; }
+.pop-spacer { -webkit-flex: 1; flex: 1; }
+.pop-btn {
+  width: 38px; height: 38px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.45);
+  background: rgba(255,255,255,0.06); color: inherit; font-size: 17px; cursor: pointer;
+  display: -webkit-inline-flex; display: inline-flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center;
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+}
+.pop-btn:hover { border-color: currentColor; transform: scale(1.06); }
+.pop-play { background: #fff; color: #000; border-color: #fff; font-size: 20px; }
+.pop-meta { display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap; -webkit-align-items: center; align-items: center; margin-top: 10px; font-size: 13px; color: var(--muted, #a1a1aa); }
+.pop-meta > * { margin-right: 10px; margin-top: 2px; }
+.pop-meta .rating-pill { padding: 2px 7px; border-radius: 6px; background: rgba(251,191,36,0.16); color: #fcd34d; font-weight: 700; }
+.pop-meta .rating-pill i { margin-right: 4px; }
+.pop-kind { border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; font-size: 11px; }
+body:not(.dark) .pop-meta .rating-pill { color: #b45309; }

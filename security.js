@@ -120,7 +120,7 @@ function intro(b) {
 }
 
 // Profile create/update fields. Returns { changes } or { error }.
-const SETTINGS_KEYS = ['reduceMotion', 'autoplayTrailers', 'stillWatching'];
+const SETTINGS_KEYS = ['reduceMotion', 'autoplayTrailers', 'stillWatching', 'previews'];
 // Playback preferences with a fixed set of values (see DEFAULT_SETTINGS in db.js).
 const SETTINGS_CHOICES = {
     audioPref:   ['dub', 'original', 'any'],

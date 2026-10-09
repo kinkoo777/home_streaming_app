@@ -9,6 +9,13 @@ function trailerAutoplayEnabled() {
   return !p || !p.settings || p.settings.autoplayTrailers !== false
 }
 
+// The best YouTube video of a title: a Czech trailer, then an English one, then a teaser.
+function pickTrailer(results) {
+  const vids = (results || []).filter(v => v && v.site === 'YouTube' && v.key)
+  const rank = v => (v.type === 'Trailer' ? 0 : v.type === 'Teaser' ? 2 : 4) + (v.iso_639_1 === 'cs' ? 0 : 1) - (v.official ? 0.5 : 0)
+  return vids.sort((a, b) => rank(a) - rank(b))[0] || null
+}
+
 function openTrailerModal(id, type) {
   trailerEmbed.innerHTML = '<div class="trailer-msg">Načítání…</div>'
   openModal(trailerModal, closeTrailerModal)
@@ -16,8 +23,7 @@ function openTrailerModal(id, type) {
   fetch(`/tmdb/videos?id=${id}&type=${type}`)
     .then(r => r.json())
     .then(data => {
-      const vids = (data.results || []).filter(v => v.site === 'YouTube')
-      const trailer = vids.find(v => v.type === 'Trailer') || vids.find(v => v.type === 'Teaser') || vids[0]
+      const trailer = pickTrailer(data.results)
       if (!trailer) {
         trailerEmbed.innerHTML = '<div class="trailer-msg">Trailer není dostupný.</div>'
         return

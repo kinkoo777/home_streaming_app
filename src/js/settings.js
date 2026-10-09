@@ -86,6 +86,7 @@
     $('settings-reduce-motion').checked = !!s.reduceMotion
     $('settings-autoplay').checked = s.autoplayTrailers !== false
     $('settings-still-watching').checked = s.stillWatching !== false
+    $('settings-previews').checked = s.previews !== false
     syncChoices(s)
     modal.querySelector('.overlay-card').scrollTop = 0
     openModal(modal, closeSettings)
@@ -219,6 +220,12 @@
   })
   $('settings-autoplay').addEventListener('change', async e => {
     try { await saveProfile({ settings: { autoplayTrailers: e.target.checked } }) }
+    catch (err) { showToast('Chyba: ' + err.message) }
+  })
+
+  $('settings-previews').addEventListener('change', async e => {
+    if (!e.target.checked && window.stopPreviews) window.stopPreviews()
+    try { await saveProfile({ settings: { previews: e.target.checked } }) }
     catch (err) { showToast('Chyba: ' + err.message) }
   })
 

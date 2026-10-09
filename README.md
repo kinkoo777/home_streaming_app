@@ -46,6 +46,10 @@ A Netflix-style home streaming platform built with vanilla HTML/CSS/JS. Pulls mo
 - **Automatic source fallback** — when an upload stops working (deleted, blocked, keeps failing even with fresh links) the player moves on to the next one at the same second; once the backups that came from the source picker are used up it asks the server for the rest of that film's / episode's uploads (best first by the profile's playback preferences). Rooms do the same for everyone: the server switches the room when the upload's page is gone, or when fresh links still don't play for someone allowed to control playback or for two people (one guest's bad connection alone doesn't switch the film); the chat says *Zdroj přestal fungovat — přepnuto na jiný*
 - **Playback speed** — *Settings (gear) → Rychlost* in the player: 0,5× – 2×, or <kbd>&lt;</kbd> / <kbd>&gt;</kbd>; kept for the session, so the next episode plays at the same speed
 - **Server page** — *Nastavení → Server a aktualizace*: which version runs, the changes waiting on GitHub and **Aktualizovat a restartovat** (git pull → `npm ci` when the dependencies changed → restart; the page waits for the server and reloads), plus uptime, free disk space, memory, CPU temperature, open rooms, Funnel and the last errors. A red dot on the button means an update is waiting. See *Updating*
+- **Trailer previews** — like Netflix: 2.5 s after a hero slide appears its trailer fades in behind the text (muted; 🔇/🔊 button; the carousel waits until it ends; paused when you scroll away, open a window or hover a card). With a mouse, resting on a card for 0.7 s pops out a bigger preview with the trailer, rating, year, genres and *Přehrát* / *Můj seznam* / *Detail*. Czech trailers first, English when there's none (also in the trailer window). Off on TVs, with *Omezit animace*, with data saving, or per profile (*Nastavení → Přehrávat ukázky při procházení*)
+- **Pause screen** — paused for 8 s with nobody touching anything, the player shows what you're watching over the dimmed picture: title, episode and its name, year, rating, length, genres, the episode's (or film's) overview and the cast. Any key, touch or mouse move hides it
+- **Timeline thumbnails** — hovering or dragging the timeline shows the picture at that moment with its time (a muted copy of the lowest quality jumps there; the film itself doesn't move). Not on TVs
+- **Ambilight** — the picture's colours glow into the black bars around it (wide films, other screen shapes); *Settings (gear) → Ambilight*, remembered per device, off by default on TVs
 - **Install as an app** — on https (or localhost) FilmBox installs to the phone home screen / desktop like an app, opens faster and keeps posters cached; see *Install as an app*
 - **Fully responsive** — 360 px phone → tablet → laptop → large TV
 
@@ -126,6 +130,7 @@ home_streaming_app/
         ├── random.js     # "Co pustit?" random pick
         ├── profile-stats.js # Watching stats sheet
         ├── server-admin.js # Server page (version, updates, health)
+        ├── previews.js   # Muted trailer previews: hero + card pop-out (YouTube iframe messages)
         ├── episodes.js   # Which episode comes next (next season after a finale; shared with unit tests)
         ├── cast-receiver.js # TV side of "Pustit na TV" (home page + player)
         ├── cast-sender.js   # Phone side: choose a TV, send, remote
